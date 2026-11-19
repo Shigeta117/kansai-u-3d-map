@@ -43,6 +43,17 @@ const WALKABLE_HIGHWAYS = new Set([
   'secondary',
 ]);
 
+// 短い橋でも地面に沿った帯で描く車道（歩道の橋は BridgeBuilder などが描くので含めない）
+const SHORT_BRIDGE_ROAD_HIGHWAYS = new Set([
+  'primary',
+  'secondary',
+  'tertiary',
+  'unclassified',
+  'residential',
+  'living_street',
+  'service',
+]);
+
 // Ordered OSM ways along the New Access Road (West Gate -> Area 3)
 const NEW_ACCESS_WAY_IDS = [
   1259556101,
@@ -639,6 +650,15 @@ function buildWalkGraphAndPaths(
       }
     }
 
+    // 車道の短い橋（bridge=yes で長さ 15m 未満。水路などをまたぐ暗渠の上）は地面に沿った帯で描く。
+    // 描かないと道の帯が数 m 途切れる（関大前駅の西の吹田箕面線など）
+    let wayLength = 0;
+    for (let i = 1; i < ptsLocal.length; i++) {
+      wayLength += Math.hypot(ptsLocal[i][0] - ptsLocal[i - 1][0], ptsLocal[i][1] - ptsLocal[i - 1][1]);
+    }
+    const isShortRoadBridge =
+      el.tags.bridge === 'yes' && SHORT_BRIDGE_ROAD_HIGHWAYS.has(hw) && wayLength < 15;
+
     // Do not draw surface road ribbons for tunnels or elevated bridges (drawn by BridgeBuilder).
     // 名神高速（motorway）は高架・地上・坑口を ExpresswayBuilder が structures.expressways から描く
     if (
@@ -646,7 +666,7 @@ function buildWalkGraphAndPaths(
       hw !== 'motorway' &&
       hw !== 'motorway_link' &&
       !isTunnel &&
-      !isBridge
+      (!isBridge || isShortRoadBridge)
     ) {
       let kind = 'road-minor';
       let width = 4.2;
