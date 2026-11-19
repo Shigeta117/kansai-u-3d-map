@@ -27,16 +27,18 @@ import { SENRIYAMA_FLOOR_PLANS } from './data/indoor/senriyama-indoor';
 interface GuideUrlParams {
   initialCamera?: CameraPose;
   hideUi: boolean;
+  freeCamera: boolean;
 }
 
 function parseGuideUrlParams(): GuideUrlParams {
   if (typeof window === 'undefined') {
-    return { hideUi: false };
+    return { hideUi: false, freeCamera: false };
   }
   const params = new URLSearchParams(window.location.search);
   return {
     initialCamera: parseCameraParam(params.get('cam')),
     hideUi: params.get('ui') === '0',
+    freeCamera: params.get('free') === '1',
   };
 }
 
@@ -249,6 +251,7 @@ export function App() {
           activeRoute={activeRoute}
           lighting={lighting}
           initialCamera={urlParams.initialCamera}
+          freeCamera={urlParams.freeCamera}
           onSelectBuilding={handleSelectBuilding}
           onSceneChange={setScene}
           sceneRef={sceneRef}

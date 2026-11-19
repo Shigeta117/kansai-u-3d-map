@@ -23,6 +23,7 @@ interface CampusViewportProps {
   activeRoute: RouteResult | null;
   lighting: LightingTheme;
   initialCamera?: CameraPose;
+  freeCamera?: boolean;
   onSelectBuilding: (buildingId: string | null) => void;
   onSceneChange: (scene: CampusScene | null) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
@@ -48,6 +49,7 @@ export function CampusViewport({
   activeRoute,
   lighting,
   initialCamera,
+  freeCamera,
   onSelectBuilding,
   onSceneChange,
   sceneRef,
@@ -77,6 +79,7 @@ export function CampusViewport({
       },
       {
         initialCamera,
+        freeCamera,
       },
     );
     sceneRef.current = scene;
@@ -96,7 +99,7 @@ export function CampusViewport({
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [dataset, config, sceneRef, initialCamera]);
+  }, [dataset, config, sceneRef, initialCamera, freeCamera]);
 
   useEffect(() => {
     sceneRef.current?.setHighlightState(selectedId, activeCategory);
