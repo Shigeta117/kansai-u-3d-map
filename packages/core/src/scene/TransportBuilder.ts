@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { computeVisualY, sampleElevation } from '../domain/projection';
 import type { CampusConfig, TerrainGrid, TransportData } from '../domain/types';
 import { SCENE_PALETTE } from './palette';
+import { buildStationGroup, TRACK_BED_LIFT } from './StationBuilder';
 import { mergeSimpleGeometries } from './TerrainBuilder';
 
 export interface TransportBuildResult {
   group: THREE.Group;
   cars: THREE.Object3D[];
   update: (elapsedSec: number) => boolean;
+  /** 駅のホーム・駅舎など、選択の当たり判定に使うメッシュ（userData.buildingId に駅の id） */
+  interactive: THREE.Object3D[];
 }
 
 function buildRailStrip(
@@ -91,7 +94,7 @@ export function buildTransportGroup(
     }
 
     if (sampled.length >= 2) {
-      ballastGeos.push(buildRailStrip(sampled, 4.4, 0.25));
+      ballastGeos.push(buildRailStrip(sampled, 4.4, TRACK_BED_LIFT));
       trackCurves.push(new THREE.CatmullRomCurve3(sampled));
     }
   }
@@ -112,6 +115,10 @@ export function buildTransportGroup(
     ballastMesh.receiveShadow = true;
     group.add(ballastMesh);
   }
+
+  // 駅のホーム・駅舎・上屋（OSM の輪郭から）
+  const stationBuild = buildStationGroup(transport.stationFacilities ?? [], terrain, config);
+  group.add(stationBuild.group);
 
   let primaryCurve: THREE.CatmullRomCurve3 | null = null;
   let maxLen = 0;
@@ -220,6 +227,6 @@ export function buildTransportGroup(
     return true;
   };
 
-  return { group, cars, update };
+  return { group, cars, update, interactive: stationBuild.interactive };
 }
 
