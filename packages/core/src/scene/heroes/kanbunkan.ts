@@ -12,11 +12,12 @@ type Pt = [number, number];
  *   赤褐色のタイルに青や緑のモザイク、円形の天窓
  * - Commons の Kansai_University_Museum.jpg（CC0、2011-04-25）: 円形部分の外周。
  *   1 階は白い角柱のピロティ、2 階は青いタイルに緑の区画と黄色の縁取りが入る手すり壁と青い枠の横長窓、
- *   3 階は茶褐色のレンガ壁で、窓は区画おき。白い打放しの縦の柱と横の帯が格子をつくる
+ *   3 階は茶褐色のレンガ壁（細かいレンガと明るい目地）で、窓は区画おき。窓は白い枠で、下の方に黒い鉄の手すり。
+ *   白い打放しの縦の柱と横の帯が格子をつくる
  * - 航空写真（refs/aerial のタイル、ズーム 18）: 円形部分の屋根は緑青色で、中心から放射状の継ぎ目と中央の白い円（天窓）。
- *   東の翼は白っぽい平屋根、北の翼は暗い灰色の平屋根
+ *   東の翼は白い平屋根で、西の端は段のついた直線（円形部分との隅は緑青色）。北の翼は灰茶色の平屋根
  *
- * 1928 年の旧館（東と北の翼）は外観の写真が無いので、輪郭どおりの無地の箱にする（窓・軒は描かない）。
+ * 1928 年の旧館（東と北の翼）は外観の写真が無いので、輪郭どおりの無地の箱にする（窓・軒は描かない。壁は明るい無彩に近い色）。
  * 屋根の膨らみの高さは航空写真では分からないので、低い円錐に近いドームにとどめる
  */
 
@@ -60,7 +61,11 @@ const BAY_TARGET_M = 4.35;
 
 const COLORS = {
   brick: '#84635A',
+  /** レンガ壁の material.color（テクスチャのレンガの面 #D0 を掛けて brick の色になる値。白い目地はこの色で出る） */
+  brickLit: '#A37B70',
   frame: '#E6E3DC',
+  upperGlass: '#56657A',
+  railing: '#24272C',
   tileBlue: '#4F6BAA',
   tileBlueJoint: '#3F578D',
   tileGreen: '#4C7D5C',
@@ -70,10 +75,14 @@ const COLORS = {
   sash: '#3E5E98',
   core: '#5A4F4C',
   copper: '#7A9F7F',
+  /** 東の翼の屋根の、円形部分に接する隅の緑青（航空写真で円の外の北東の隅を平均した値） */
+  copperFlat: '#7D937B',
   skylight: '#D6E2E3',
-  wingWall: '#B8A692',
-  eastRoof: '#E2DFD2',
-  northRoof: '#7A766D',
+  /** 旧館の壁は写真が無い。東の翼は航空写真で白い屋根なので、壁も明るい無彩に近い色にとどめる（薄茶にしない） */
+  wingWall: '#D8D3C8',
+  /** 航空写真の屋根の色（東の翼の白 #E6E4D4・北の翼の灰茶 #7B756B を輪郭の内側で平均した値） */
+  eastRoof: '#E6E4D4',
+  northRoof: '#7B756B',
 } as const;
 
 const TAU = Math.PI * 2;
@@ -186,23 +195,79 @@ function createWindowTexture(bays: number): THREE.CanvasTexture | null {
   });
 }
 
+/** 3 階のレンガ壁と窓のテクスチャの 1 区画の大きさ（px）。1 区画 ≒ 4.35m × 4.3m なので約 44px/m */
+const BRICK_BAY_PX = 192;
+const BRICK_H_PX = 192;
+
 /**
- * 3 階のレンガ壁（material.color に掛け合わせる明暗）。目地を少し暗く、区画おきに縦長の窓を暗く入れる。
- * 写真では窓のある区画と「館」の板だけの区画が交互に並ぶ（板は描かない）
+ * 3 階のレンガ壁（material.color に掛け合わせる明暗）。写真のレンガは 1 区画の幅に 12〜13 個、段の高さは長さの約 1/3
+ * （1 個 約 0.35m × 0.11m）。目地は明るい灰色なので、レンガの面を #D0 にして目地を白く（material.color は明るめに取る）。
+ * 窓はこのテクスチャに描かず、白い枠の窓を別の面（createUpperWindowTexture）で重ねる
  */
 function createBrickTexture(bays: number): THREE.CanvasTexture | null {
-  const bw = 64;
-  const h = 64;
+  const w = bays * BRICK_BAY_PX;
+  const h = BRICK_H_PX;
+  const rowPx = 5;
+  const brickPx = 16;
+  return makeCanvasTexture(w, h, (g) => {
+    g.fillStyle = '#D0D0D0';
+    g.fillRect(0, 0, w, h);
+    // 写真のレンガは 1 個ずつ濃淡がばらつく。決まった並びの擬似乱数で 3 段階の濃淡を散らす
+    let seed = 7;
+    const rand = (): number => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+    let row = 0;
+    for (let y = 0; y < h; y += rowPx, row++) {
+      const off = row % 2 === 0 ? 0 : brickPx / 2;
+      for (let x = -off; x < w; x += brickPx) {
+        const r = rand();
+        if (r < 0.3) g.fillStyle = '#BDBDBD';
+        else if (r > 0.8) g.fillStyle = '#DEDEDE';
+        else continue;
+        g.fillRect(Math.max(0, x), y, brickPx, rowPx);
+      }
+    }
+    drawBrickJoints(g, 0, 0, w, h, rowPx, brickPx, '#FFFFFF');
+  });
+}
+
+/**
+ * 3 階の窓（レンガ壁の少し外に重ねる面。窓の外は透明で、alphaTest で抜く）。写真（Kansai_University_Museum.jpg）の 3 階:
+ * 窓のある区画と「館」の板だけの区画が交互（板は描かない）。窓は白い枠（中央に縦の桟）で、下の 3 分の 1 ほどに
+ * 黒い鉄の手すり、その足元に青いタイルの細い台。窓の幅は区画の約半分（写真の右の窓は区画 330px に対して 175px）。窓の上端は写真の外なので、レンガ壁の上から 1 割ほど下で止める。
+ * 公式資料の「アーモンド型の高窓」は写真の範囲に写っていないので描かない
+ */
+function createUpperWindowTexture(bays: number): THREE.CanvasTexture | null {
+  const bw = BRICK_BAY_PX;
+  const h = BRICK_H_PX;
   return makeCanvasTexture(bays * bw, h, (g) => {
-    g.fillStyle = '#FFFFFF';
-    g.fillRect(0, 0, bays * bw, h);
-    drawBrickJoints(g, 0, 0, bays * bw, h, 4, 10, '#D2CCCC');
+    g.clearRect(0, 0, bays * bw, h);
+    const winW = Math.round(bw * 0.48);
+    const winTop = Math.round(h * 0.11);
+    const winBottom = Math.round(h * 0.92);
+    const winH = winBottom - winTop;
+    const frame = 5;
+    const railTop = winBottom - Math.round(winH * 0.34);
     for (let i = 0; i < bays; i += 2) {
-      const x0 = i * bw;
-      g.fillStyle = '#353B46';
-      g.fillRect(x0 + bw * 0.3, h * 0.12, bw * 0.4, h * 0.74);
-      g.fillStyle = '#6F7580';
-      g.fillRect(x0 + bw * 0.3, h * 0.55, bw * 0.4, 2);
+      const x0 = i * bw + Math.round((bw - winW) / 2);
+      // 白い枠とガラス（空を映す灰青）、中央の縦の桟と上の横の桟
+      g.fillStyle = COLORS.frame;
+      g.fillRect(x0, winTop, winW, winH);
+      g.fillStyle = COLORS.upperGlass;
+      g.fillRect(x0 + frame, winTop + frame, winW - frame * 2, winH - frame * 2);
+      g.fillStyle = COLORS.frame;
+      g.fillRect(x0 + Math.round(winW / 2) - 2, winTop, 4, winH);
+      g.fillRect(x0, winTop + Math.round(winH * 0.24), winW, 3);
+      // 黒い鉄の手すり（上下の横棒と細い縦棒）
+      g.fillStyle = COLORS.railing;
+      g.fillRect(x0 - 2, railTop, winW + 4, 3);
+      g.fillRect(x0 - 2, winBottom - 4, winW + 4, 3);
+      for (let x = x0 + 3; x < x0 + winW - 1; x += 7) g.fillRect(x, railTop, 2, winBottom - railTop);
+      // 手すりの足元の青いタイルの台
+      g.fillStyle = COLORS.tileBlue;
+      g.fillRect(x0 - 4, winBottom - 1, winW + 8, Math.round(h * 0.05));
     }
   });
 }
@@ -228,6 +293,11 @@ interface OutlineSplit {
   /** 円形部分が外に出ている円弧（角度は atan2(z - cz, x - cx)。start から増える向きに span） */
   freeStart: number;
   freeSpan: number;
+  /**
+   * 東の翼が円に接する所: 南の辺の円の上の点（start）とその次の点（next）、北の辺の円の上の点（end）と
+   * 北の翼との入隅（corner）。東と北に分けられなかったときは null
+   */
+  attach: { start: Pt; next: Pt; end: Pt; corner: Pt } | null;
 }
 
 /**
@@ -248,7 +318,7 @@ function splitOutline(polygon: readonly Pt[]): OutlineSplit {
     }
   }
   if (j0 < 0) {
-    return { wings: [polygon.map(([x, z]) => [x, z] as Pt)], freeStart: 0, freeSpan: TAU };
+    return { wings: [polygon.map(([x, z]) => [x, z] as Pt)], freeStart: 0, freeSpan: TAU, attach: null };
   }
   const run: Pt[] = [];
   let j1 = -1;
@@ -265,7 +335,7 @@ function splitOutline(polygon: readonly Pt[]): OutlineSplit {
   const p0 = polygon[j0];
   const p1 = j1 >= 0 ? polygon[j1] : undefined;
   if (!p0 || !p1 || run.length < 2) {
-    return { wings: [polygon.map(([x, z]) => [x, z] as Pt)], freeStart: 0, freeSpan: TAU };
+    return { wings: [polygon.map(([x, z]) => [x, z] as Pt)], freeStart: 0, freeSpan: TAU, attach: null };
   }
   const a0 = angleOf(p0);
   const a1 = angleOf(p1);
@@ -307,11 +377,13 @@ function splitOutline(polygon: readonly Pt[]): OutlineSplit {
   });
   const corner = cornerIdx >= 0 ? run[cornerIdx] : undefined;
   if (!corner || cornerIdx === 0 || cornerIdx === run.length - 1) {
-    return { wings: [[start, ...run, end, ...arc]], freeStart, freeSpan };
+    return { wings: [[start, ...run, end, ...arc]], freeStart, freeSpan, attach: null };
   }
   const east: Pt[] = [start, ...run.slice(0, cornerIdx + 1), end, ...arc];
   const north: Pt[] = [corner, ...run.slice(cornerIdx + 1), end];
-  return { wings: [east, north], freeStart, freeSpan };
+  const next = run[0];
+  const attach = next ? { start, next: [next[0], next[1]] as Pt, end, corner: [corner[0], corner[1]] as Pt } : null;
+  return { wings: [east, north], freeStart, freeSpan, attach };
 }
 
 /** 角度 φ（atan2(z, x)）を CylinderGeometry / LatheGeometry の θ（x = sinθ, z = cosθ）に直す */
@@ -319,11 +391,66 @@ function phiToTheta(phi: number): number {
   return Math.PI / 2 - phi;
 }
 
+/**
+ * 航空写真で東の翼の白い屋根の西の端: 北半分は x≈17.4、南半分は x≈19.7（境は z≈−96 の東西の影の線）。
+ * その西（円形部分との隅と、南半分の円との間の帯）は円形部分と同じ緑青色。輪郭は航空写真の西へ約 2.9m のずれを補って測った
+ */
+const WHITE_ROOF_WEST_X_NORTH = 17.4;
+const WHITE_ROOF_WEST_X_SOUTH = 19.7;
+const WHITE_ROOF_STEP_Z = -96;
+
+/** 直線 a→b の上で x になる点の z */
+function zOnLineAtX(a: Pt, b: Pt, x: number): number {
+  const t = (x - a[0]) / (b[0] - a[0]);
+  return a[1] + (b[1] - a[1]) * t;
+}
+
+/** 円の上の角度 a0 から a1 まで（増える向き）を 6° おきに取る（両端を除く） */
+function arcBetween(a0: number, a1: number): Pt[] {
+  const span = mod(a1 - a0, TAU);
+  const steps = Math.max(2, Math.ceil(span / ((6 * Math.PI) / 180)));
+  const out: Pt[] = [];
+  for (let k = 1; k < steps; k++) {
+    const a = a0 + (span * k) / steps;
+    out.push([ROTUNDA_CX + Math.cos(a) * ROTUNDA_R, ROTUNDA_CZ + Math.sin(a) * ROTUNDA_R]);
+  }
+  return out;
+}
+
+/**
+ * 東の翼の屋根の上に重ねる緑青色の隅（北の隅と南の帯の 2 つ）。円の東側の弧（end → start、角度が増える向き）と、
+ * 白い屋根の西の端の段つきの直線で囲む
+ */
+function eastRoofCornerCaps(attach: { start: Pt; next: Pt; end: Pt; corner: Pt }): Pt[][] {
+  const { start, next, end, corner } = attach;
+  const angleOf = (p: Pt): number => Math.atan2(p[1] - ROTUNDA_CZ, p[0] - ROTUNDA_CX);
+  const dz = WHITE_ROOF_STEP_Z - ROTUNDA_CZ;
+  if (Math.abs(dz) >= ROTUNDA_R) return [];
+  // 段の線（z = WHITE_ROOF_STEP_Z）が円の東側と交わる点
+  const step: Pt = [ROTUNDA_CX + Math.sqrt(ROTUNDA_R * ROTUNDA_R - dz * dz), WHITE_ROOF_STEP_Z];
+  const north: Pt[] = [
+    [WHITE_ROOF_WEST_X_NORTH, zOnLineAtX(corner, end, WHITE_ROOF_WEST_X_NORTH)],
+    end,
+    ...arcBetween(angleOf(end), angleOf(step)),
+    step,
+  ];
+  // 段の線が円と交わる点は x≈17.39 で、北半分の西の端（17.4）とほぼ重なる。離れているときだけ角を足す
+  if (Math.abs(step[0] - WHITE_ROOF_WEST_X_NORTH) > 0.05) north.push([WHITE_ROOF_WEST_X_NORTH, WHITE_ROOF_STEP_Z]);
+  const south: Pt[] = [
+    step,
+    ...arcBetween(angleOf(step), angleOf(start)),
+    start,
+    [WHITE_ROOF_WEST_X_SOUTH, zOnLineAtX(start, next, WHITE_ROOF_WEST_X_SOUTH)],
+    [WHITE_ROOF_WEST_X_SOUTH, WHITE_ROOF_STEP_Z],
+  ];
+  return [north, south];
+}
+
 export const buildKanbunkan: HeroBuilder = (ctx) => {
   const group = new THREE.Group();
   group.name = 'kanbunkan';
   const polygon = ctx.building.polygon;
-  const { wings, freeStart, freeSpan } = splitOutline(polygon);
+  const { wings, freeStart, freeSpan, attach } = splitOutline(polygon);
 
   const cx = ROTUNDA_CX;
   const cz = ROTUNDA_CZ;
@@ -344,12 +471,23 @@ export const buildKanbunkan: HeroBuilder = (ctx) => {
 
   // 材質
   const brickTex = createBrickTexture(bays);
+  const brickHex = brickTex ? COLORS.brickLit : COLORS.brick;
   const brickMat = new THREE.MeshStandardMaterial({
-    color: COLORS.brick,
+    color: brickHex,
     map: brickTex,
     roughness: 0.86,
     metalness: 0.02,
   });
+  const upperWindowTex = createUpperWindowTexture(bays);
+  const upperWindowMat = upperWindowTex
+    ? new THREE.MeshStandardMaterial({
+        color: '#FFFFFF',
+        map: upperWindowTex,
+        alphaTest: 0.5,
+        roughness: 0.45,
+        metalness: 0.04,
+      })
+    : null;
   const frameMat = new THREE.MeshStandardMaterial({ color: COLORS.frame, roughness: 0.8, metalness: 0.02 });
   const parapetTex = createParapetTexture(bays);
   const parapetMat = new THREE.MeshStandardMaterial({
@@ -377,6 +515,7 @@ export const buildKanbunkan: HeroBuilder = (ctx) => {
   const wingWallMat = new THREE.MeshStandardMaterial({ color: COLORS.wingWall, roughness: 0.85, metalness: 0.02 });
   const eastRoofMat = new THREE.MeshStandardMaterial({ color: COLORS.eastRoof, roughness: 0.9, metalness: 0.02 });
   const northRoofMat = new THREE.MeshStandardMaterial({ color: COLORS.northRoof, roughness: 0.9, metalness: 0.02 });
+  const copperFlatMat = new THREE.MeshStandardMaterial({ color: COLORS.copperFlat, roughness: 0.7, metalness: 0.06 });
 
   const addCylinder = (
     name: string,
@@ -429,6 +568,13 @@ export const buildKanbunkan: HeroBuilder = (ctx) => {
   addCylinder('kanbunkan-top-band', R + POST_OUTER, brick3Top, topBandTop, frameMat, {
     shadow: true,
   });
+  // 3 階の白い枠の窓（レンガ壁の 4cm 外に重ねる。テクスチャが作れない環境では省く）
+  if (upperWindowMat) {
+    addCylinder('kanbunkan-windows3', R - 0.01, baseY + SLAB3_TOP, brick3Top, upperWindowMat, {
+      open: true,
+      partial: true,
+    });
+  }
 
   // 白い縦の柱（2 階の床から最上部の帯まで）と、その下の 1 階の角柱。区画の境目ごと（円弧の両端を含む）
   const postAngles: number[] = [];
@@ -501,10 +647,20 @@ export const buildKanbunkan: HeroBuilder = (ctx) => {
     group.add(mesh);
   });
 
+  // 東の翼の屋根のうち、円形部分の東の隅（航空写真で白い屋根の西の端より西）は緑青色。白い屋根の西の端は直線になる
+  if (attach) {
+    eastRoofCornerCaps(attach).forEach((cap, i) => {
+      const mesh = new THREE.Mesh(extrudePolygonXZ(cap, wingTop - 0.02, 0.06), copperFlatMat);
+      mesh.name = `kanbunkan-roof-corner-${i}`;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    });
+  }
+
   return {
     group,
     primaryMaterials: [
-      { mat: brickMat, baseHex: COLORS.brick },
+      { mat: brickMat, baseHex: brickHex },
       { mat: wingWallMat, baseHex: COLORS.wingWall },
       { mat: copperMat, baseHex: COLORS.copper },
     ],

@@ -142,15 +142,23 @@ describe('buildEnshinkan', () => {
     });
   });
 
-  it('stands 16 evenly spaced columns on one ring inside the drum', () => {
+  it('stands 16 evenly spaced thick columns just inside the edge of the drum (small overhang, like the photo)', () => {
     const cols = result.group.getObjectByName('enshinkan-columns');
     if (!(cols instanceof THREE.InstancedMesh)) throw new Error('columns missing');
     expect(cols.count).toBe(16);
+    cols.geometry.computeBoundingBox();
+    const colBox = cols.geometry.boundingBox;
+    if (!colBox) throw new Error('column bounds missing');
+    // 太さ 1.1m 以上（写真の太さは隣の柱との間隔の 0.16 倍・上の階の高さの 0.18 倍 ≒ 1.05〜1.1m）
+    const colRadius = (colBox.max.x - colBox.min.x) / 2;
+    expect(colRadius * 2).toBeGreaterThanOrEqual(1.1);
     const angles = instanceCenters(cols)
       .map((c) => {
         const r = Math.hypot(c.x - CX, c.z - CZ);
-        expect(r).toBeGreaterThan(14);
-        expect(r).toBeLessThan(18.43 - 1);
+        // 上の階の縁（半径 18.43m）から柱の外の面までの出は 0.2〜0.6m
+        const overhang = 18.43 - (r + colRadius);
+        expect(overhang).toBeGreaterThanOrEqual(0.2);
+        expect(overhang).toBeLessThanOrEqual(0.6);
         return Math.atan2(c.z - CZ, c.x - CX);
       })
       .sort((a, b) => a - b);
@@ -172,6 +180,46 @@ describe('buildEnshinkan', () => {
     expect((Math.atan2(east.z, east.x) * 180) / Math.PI).toBeCloseTo(9, 0);
   });
 
+  it('sizes the roof block like the aerial photo and keeps it low enough to hide behind the edge from the ground', () => {
+    const block = result.group.getObjectByName('enshinkan-roof-block');
+    if (!(block instanceof THREE.Mesh)) throw new Error('roof block missing');
+    block.geometry.computeBoundingBox();
+    const size = block.geometry.boundingBox?.getSize(new THREE.Vector3());
+    if (!size) throw new Error('roof block bounds missing');
+    // 航空写真の明るい平らな面: 東西 約 17.5m・南北 約 18.8m
+    expect(size.x).toBeCloseTo(17.5, 0);
+    expect(size.z).toBeCloseTo(18.8, 0);
+    // 北西の道からの写真では上の階の縁の上に何も見えない（1.7m を超えると角がのぞく）
+    expect(size.y).toBeLessThanOrEqual(1.5);
+  });
+
+  it('does not draw a green rim on the roof edge (not in the photo nor the aerial photo)', () => {
+    const greenish: string[] = [];
+    result.group.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
+        const hsl = { h: 0, s: 0, l: 0 };
+        mat.color.getHSL(hsl, THREE.SRGBColorSpace);
+        // 緑〜青緑（80°〜170°）で色みのあるもの
+        if (hsl.s > 0.08 && hsl.h * 360 >= 80 && hsl.h * 360 <= 170) greenish.push(obj.name);
+      }
+    });
+    expect(greenish).toEqual([]);
+  });
+
+  it('raises the north annex above the piloti ceiling but below the drum top, with white floor bands', () => {
+    const annex = result.group.getObjectByName('enshinkan-annex');
+    if (!annex) throw new Error('annex missing');
+    const top = new THREE.Box3().setFromObject(annex).max.y;
+    expect(top).toBeGreaterThan(groundVisualY + 7.0);
+    expect(top).toBeLessThan(groundVisualY + 12.8);
+    for (const name of ['enshinkan-annex-slab-0', 'enshinkan-annex-slab-1', 'enshinkan-annex-slab-2']) {
+      expect(result.group.getObjectByName(name)).toBeDefined();
+    }
+  });
+
   it('does not add the unsourced blue/green/yellow mosaic band (no strongly saturated material)', () => {
     const saturated: string[] = [];
     result.group.traverse((obj) => {
@@ -181,7 +229,7 @@ describe('buildEnshinkan', () => {
         if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
         const hsl = { h: 0, s: 0, l: 0 };
         mat.color.getHSL(hsl, THREE.SRGBColorSpace);
-        // 緑青の縁（#7FA595）の彩度は約 0.17。モザイクの青・緑・黄なら 0.4 を超える
+        // 灰色・灰青のガラスの彩度は 0.2 未満。モザイクの青・緑・黄なら 0.4 を超える
         if (hsl.s > 0.3) saturated.push(obj.name);
       }
     });

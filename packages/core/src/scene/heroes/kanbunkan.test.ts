@@ -118,7 +118,7 @@ describe('buildKanbunkan', () => {
   });
 
   it('exposes the rotunda brick, the old wings and the copper roof as primaryMaterials', () => {
-    expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#84635A', '#B8A692', '#7A9F7F']);
+    expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#84635A', '#D8D3C8', '#7A9F7F']);
     for (const entry of result.primaryMaterials) {
       expect(entry.mat).toBeInstanceOf(THREE.MeshStandardMaterial);
     }
@@ -149,6 +149,45 @@ describe('buildKanbunkan', () => {
     expect(center.x).toBeCloseTo(ROTUNDA_CX, 1);
     expect(center.z).toBeCloseTo(ROTUNDA_CZ, 1);
     expect(domeBox.max.x - domeBox.min.x).toBeLessThan(2 * 10.77 + 1);
+  });
+
+  it('colors the east wing like the aerial photo: a white roof, and light walls instead of light brown', () => {
+    const east = result.group.getObjectByName('kanbunkan-wing-east');
+    if (!(east instanceof THREE.Mesh) || !Array.isArray(east.material)) throw new Error('east wing missing');
+    const [roof, wall] = east.material;
+    if (!(roof instanceof THREE.MeshStandardMaterial) || !(wall instanceof THREE.MeshStandardMaterial)) {
+      throw new Error('east wing materials missing');
+    }
+    const roofHsl = { h: 0, s: 0, l: 0 };
+    roof.color.getHSL(roofHsl, THREE.SRGBColorSpace);
+    expect(roofHsl.l).toBeGreaterThan(0.85);
+    const wallHsl = { h: 0, s: 0, l: 0 };
+    wall.color.getHSL(wallHsl, THREE.SRGBColorSpace);
+    expect(wallHsl.l).toBeGreaterThan(0.75);
+    expect(wallHsl.s).toBeLessThan(0.2);
+  });
+
+  it('caps the corners between the dome and the white roof with copper, so the white roof ends in a straight edge', () => {
+    const east = result.group.getObjectByName('kanbunkan-wing-east');
+    if (!east) throw new Error('east wing missing');
+    const wingTop = new THREE.Box3().setFromObject(east).max.y;
+    for (const name of ['kanbunkan-roof-corner-0', 'kanbunkan-roof-corner-1']) {
+      const cap = result.group.getObjectByName(name);
+      if (!(cap instanceof THREE.Mesh)) throw new Error(`${name} missing`);
+      const box = new THREE.Box3().setFromObject(cap);
+      // 東の翼の屋根の上に薄く載る
+      expect(box.max.y).toBeGreaterThan(wingTop);
+      expect(box.max.y).toBeLessThan(wingTop + 0.1);
+      // 白い屋根の西の端（北 17.4m・南 19.7m）より西で、円形部分の東側
+      expect(box.max.x).toBeLessThanOrEqual(19.7 + 1e-6);
+      expect(box.min.x).toBeGreaterThan(ROTUNDA_CX);
+      const mat = cap.material;
+      if (!(mat instanceof THREE.MeshStandardMaterial)) throw new Error('cap material missing');
+      const hsl = { h: 0, s: 0, l: 0 };
+      mat.color.getHSL(hsl, THREE.SRGBColorSpace);
+      expect(hsl.h * 360).toBeGreaterThan(90);
+      expect(hsl.h * 360).toBeLessThan(150);
+    }
   });
 
   it('stands the piloti columns only on the free arc of the rotunda, not inside the old wings', () => {

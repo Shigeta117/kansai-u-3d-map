@@ -10,13 +10,17 @@ type Pt = [number, number];
  * 根拠にしたもの:
  * - 公式の記事: 村野藤吾の設計。16 本の円柱に支えられた円形の建物。もとは専門図書館で、いまは ITセンター。
  *   年史の村野建築のコース: 円柱はエンタシスつきで掻き落とし仕上げ、1 階はピロティ、円形部分から吊り下げたガラスの箱の事務室
- * - Commons の Kansai_University_IT_Center.jpg（CC0、2010-04-13）: 正面。太い丸柱が 2 層分の高さで円の上の階を支え、
- *   柱の間にガラスの箱（多角形に折れる 2 段）、上は灰色の曲面の壁（柱の上に縦の付け柱、その両脇に縦長窓、上端に小窓の列）、
- *   屋根の縁は緑青色の細い線。柱（地面〜上の階の下面）：上の階 ≒ 315px：240px
+ * - Commons の Kansai_University_IT_Center.jpg（CC0、2010-04-13。北西の道から入口の面を撮ったもの）:
+ *   太い丸柱が 2 層分の高さで円の上の階を支え、柱の間にガラスの箱（多角形に折れる 2 段）。
+ *   柱は上の階の縁のすぐ内側に立つ（隣り合う 2 本の間隔 264px に対して太さ 40〜44px、上の階の高さ 233px）。
+ *   上の階は灰色の曲面の壁: 上端に厚い軒の帯（約 1.25m）、その下に区画をまたいで続く横長の窓の帯（高さ 約 0.4m、白い枠）、
+ *   柱の真上に付け柱（幅 約 0.45m）と、その両脇に白い枠の縦長窓（幅 約 0.85m）。下端は丸い帯（約 0.8m）
+ *   左端に写るガラスの塔（白い床の帯で区切られる）は、位置（入口の面から見て左＝北）から北の張り出し（エレベーターの棟）と判断した
  * - Kansai_University_6.JPG（CC BY 3.0）: 1 階の入口。ガラス戸の上に白い帯、その上がガラスの箱（すりガラスと暗い腰板）
- * - 第2学舎4号館の写真の右端: 上の階の下端は丸く張り出す厚い帯で、柱はその縁より内側に立つ
- * - 航空写真（refs/aerial のタイル、ズーム 18）: 円の屋根は灰色で、中央に明るい四角（約 17×19m、北と西に影 → 低く盛り上がる）。
- *   北の張り出し（輪郭の四角）は暗い灰色の屋根
+ * - 第2学舎4号館の写真の右端: 上の階の下端は丸く張り出す厚い帯で、柱はその縁のすぐ内側に立つ
+ * - 航空写真（refs/aerial のタイル、ズーム 18）: 円の屋根は灰色で縁が明るい（緑の縁は写っていない）。
+ *   中央に明るい四角（約 17.5×18.8m）。北の張り出しは明るい灰色の屋根
+ * - 学生相談・支援センターのバリアフリーマップ: エレベーターは円から突き出た部分。多機能トイレは 1 階と 4 階
  *
  * 公式資料にも写真にも無い「青・緑・黄のモザイクの帯」は作らない。看板の文字・校章も描かない
  */
@@ -33,51 +37,77 @@ const PILOTI_TOP = 7.0;
 /** 1 階のロビー（奥まった暗いガラス）と、吊られたガラスの箱の 2 段の境目 */
 const LOBBY_TOP = 2.8;
 const BOX_MID = 4.9;
-/** 上の階: 下端の丸い帯（張り出し）・灰色の壁・緑青の縁 */
-const LIP_TOP = 8.4;
-const CORNICE_BOTTOM = 12.45;
+/**
+ * 上の階の縦の割り付け（写真の上の階 233px のうち、軒の帯 51px・壁 146px・下端の丸い帯 32px）:
+ * 下端の丸い帯 0.8m・壁 3.75m・軒の帯 1.25m（軒は 0.85m の帯と、その上に少し出る 0.4m の笠木）
+ */
+const LIP_TOP = 7.8;
+const FASCIA_BOTTOM = 11.55;
+const COPING_BOTTOM = 12.4;
 const DRUM_TOP = 12.8;
 
 const COLUMN_COUNT = 16;
-/** 柱の中心の半径。写真では上の階の縁より 2m ほど内側。柱の間隔は約 6.4m */
-const COLUMN_RING_R = 16.2;
-/** エンタシス: 根元 0.55、下から 1/3 で 0.6、頂部 0.48（半径 m）。写真の太さ：高さ ≒ 1：6.5 */
+/**
+ * 柱の中心の半径。写真では柱は上の階の縁のすぐ内側に立ち、下の丸い帯の出は柱の太さの半分ほど。
+ * 柱の外の面（17.35 + 0.6 = 17.95m）から縁（18.43m）までの出は約 0.5m。柱の間隔は約 6.8m
+ */
+const COLUMN_RING_R = 17.35;
+/**
+ * エンタシス（半径 m）: 根元 0.56、下から 1/3 で 0.6、頂部 0.55。写真の太さは 隣の柱との間隔の 0.16 倍・
+ * 上の階の高さの 0.18 倍（どちらも約 1.05〜1.1m）。それより細くならないよう、頂部も細めない
+ */
 const COLUMN_PROFILE: readonly Pt[] = [
-  [0.55, 0],
+  [0.56, 0],
   [0.6, 0.33],
-  [0.57, 0.66],
-  [0.48, 1],
+  [0.59, 0.66],
+  [0.55, 1],
 ];
-const LOBBY_R = 13.0;
-const BOX_LOWER_R = 15.2;
-const BOX_UPPER_R = 14.6;
-const DRUM_WALL_R = R - 0.48;
-const CORNICE_R = R - 0.25;
+/** ガラスの箱の角（柱の角度）は柱の内側の面のすぐ内側。1 階のロビーは奥まる */
+const LOBBY_R = 14.0;
+const BOX_LOWER_R = 16.7;
+const BOX_UPPER_R = 16.4;
+const DRUM_WALL_R = R - 0.35;
+const FASCIA_R = R - 0.15;
+const COPING_R = R - 0.02;
 
 /**
  * 屋上中央の四角い盛り上がり（航空写真の明るさの断面で測った値）。
- * - 大きさ: 東西 約 17.2m・南北 約 18.7m。中心は航空写真の屋根の円の中心とほぼ一致（ずれ 0.6m 以内）するので、円の中心に置く
- * - 向き: 東西の辺は南へ 12m で西へ約 2m、南北の辺は東へ 10m で南へ 1〜2m ずれる → 時計回りに約 9°（北の張り出しの向き 5〜8° に近い）
- * - 高さ: 北側に幅 約 4m・西側に幅 約 3m の暗い帯（影とみると、日の高さ 30°で 2m 強）。
- *   地上の写真では上の階の縁に隠れて見えない（4m 未満なら隠れる）ので矛盾しない。影でなく屋根の汚れの可能性もあり、高さは目安
+ * - 大きさ: 明るい平らな面が 東西 約 17.5m（z=124〜132 の 4 本の断面）・南北 約 18.8m（x=31〜41 の 3 本）。
+ *   中心は航空写真の屋根の円の中心とほぼ一致（ずれ 0.5m 以内）するので、円の中心に置く
+ * - 向き: 北の辺は東へ 10m で南へ約 1.7m、西の辺は南へ 12m で西へ約 1.5m ずれる → 時計回りに約 9°
+ * - 高さ: 地上の写真（北西の道から）では上の階の縁の上に何も見えない。四角の北西の角は縁から約 6m 奥にあり、
+ *   目の高さからの見通しでは 1.7m を超えると角がのぞくので、1.2m にとどめる（航空写真の北と西の暗い帯は高さの根拠にしない）
  */
-const ROOF_BLOCK_W = 17.2;
-const ROOF_BLOCK_D = 18.7;
-const ROOF_BLOCK_H = 2.0;
+const ROOF_BLOCK_W = 17.5;
+const ROOF_BLOCK_D = 18.8;
+const ROOF_BLOCK_H = 1.2;
 const ROOF_BLOCK_ROT = (9 * Math.PI) / 180;
+
+/**
+ * 北の張り出し（エレベーターの棟）。写真の左端のガラスの塔は、上端が上の階の下から 3 割ほどの高さ
+ * （上の階の正面の縮尺 40px/m と、張り出しの手前の角が正面より約 5% 遠いことから 地面から約 9.1m）で、
+ * 白い床の帯が 2 本（約 3.5m・6.2m）。上の階の下面（7.0m）より高く、エレベーターが上の階まで行くことと合う
+ */
+const ANNEX_TOP = 9.1;
+const ANNEX_SLAB_TOPS = [3.5, 6.2] as const;
+const ANNEX_SLAB_H = 0.35;
+/** 床の帯をガラスの面から外へ出す倍率（輪郭の重心から。張り出しは 9m 角なので約 0.1m） */
+const ANNEX_SLAB_SCALE = 1.025;
 
 const COLORS = {
   drum: '#ADA9A6',
+  /** 上の階の壁（テクスチャの壁の明るさ #D0 を掛けて drum の色になる値。白い窓枠と付け柱はこの色で出る） */
+  drumWall: '#D5D0CC',
   column: '#C3BEB6',
   roof: '#9C9B95',
   roofBlock: '#BDB5AC',
-  verdigris: '#7FA595',
   lobbyGlass: '#2F3843',
   boxGlass: '#6F7E8A',
   boxUpperGlass: '#46525E',
   spandrel: '#36404B',
   frame: '#E8E7E2',
-  annexRoof: '#737B7A',
+  annexGlass: '#A3B0BA',
+  annexRoof: '#8A9396',
 } as const;
 
 const TAU = Math.PI * 2;
@@ -106,24 +136,48 @@ function makeCanvasTexture(
 }
 
 /**
- * 上の階の灰色の壁（material.color に掛け合わせる明暗）。1 区画 = 柱 1 本分。
- * 区画の両端（柱の真上）に明るい付け柱、その両脇に縦長窓、上端に小窓の列
+ * 上の階の灰色の壁（material.color に掛け合わせる明暗）。1 区画 = 柱 1 本分（約 7.1m × 3.75m、27px/m）。
+ * IT_Center.jpg の正面の区画: 両端（柱の真上）に付け柱、壁の上端に区画をまたいで続く横長の窓の帯（白い枠と方立て）、
+ * 付け柱の両脇に、帯の高さから下へ伸びる白い枠の縦長窓。ガラスは空を映して壁より少し暗い灰青（黒くはない）
  */
 function createDrumTexture(): THREE.CanvasTexture | null {
-  const w = 128;
-  const h = 72;
+  const w = 192;
+  const h = 100;
+  const glass = '#A0ADBA';
+  const frame = '#FFFFFF';
+  /** 横長の窓の帯（上端から 2px 下、高さ 12px ≒ 0.45m）と縦長窓（幅 23px ≒ 0.85m、高さ 70px ≒ 2.6m） */
+  const bandTop = 2;
+  const bandH = 12;
+  const tallW = 23;
+  const tallH = 70;
+  const tallInset = 9;
   return makeCanvasTexture(w, h, COLUMN_COUNT, (g) => {
-    g.fillStyle = '#EEEEEE';
+    g.fillStyle = '#D0D0D0';
     g.fillRect(0, 0, w, h);
-    g.fillStyle = '#FFFFFF';
-    g.fillRect(0, 0, 4, h);
-    g.fillRect(w - 4, 0, 4, h);
-    g.fillRect(0, h - 4, w, 3);
-    g.fillStyle = '#5A646F';
-    g.fillRect(8, 20, 13, 40);
-    g.fillRect(w - 21, 20, 13, 40);
-    for (let x = 30; x + 6 <= w - 30; x += 9) {
-      g.fillRect(x, 8, 6, 6);
+    // 付け柱（幅 12px ≒ 0.45m を区画の両端に半分ずつ）と、その脇の陰の線
+    g.fillStyle = frame;
+    g.fillRect(0, 0, 6, h);
+    g.fillRect(w - 6, 0, 6, h);
+    g.fillStyle = '#B4B4B4';
+    g.fillRect(6, 0, 1, h);
+    g.fillRect(w - 7, 0, 1, h);
+    // 横長の窓の帯（縦長窓の間をつなぐ）
+    const bandX0 = tallInset + tallW;
+    const bandX1 = w - tallInset - tallW;
+    g.fillStyle = frame;
+    g.fillRect(bandX0, bandTop, bandX1 - bandX0, bandH);
+    g.fillStyle = glass;
+    g.fillRect(bandX0, bandTop + 2, bandX1 - bandX0, bandH - 4);
+    g.fillStyle = frame;
+    for (let x = bandX0 + 30; x < bandX1 - 8; x += 32) g.fillRect(x, bandTop + 2, 2, bandH - 4);
+    // 付け柱の両脇の縦長窓（上の段は帯と同じ高さ。帯の下端の高さに横の桟）
+    for (const x0 of [tallInset, w - tallInset - tallW]) {
+      g.fillStyle = frame;
+      g.fillRect(x0, bandTop, tallW, tallH);
+      g.fillStyle = glass;
+      g.fillRect(x0 + 2, bandTop + 2, tallW - 4, tallH - 4);
+      g.fillStyle = frame;
+      g.fillRect(x0 + 2, bandTop + bandH - 2, tallW - 4, 2);
     }
   });
 }
@@ -208,8 +262,9 @@ export const buildEnshinkan: HeroBuilder = (ctx) => {
   const theta0 = phiToTheta(phi0);
 
   const drumTex = createDrumTexture();
+  const drumWallHex = drumTex ? COLORS.drumWall : COLORS.drum;
   const drumWallMat = new THREE.MeshStandardMaterial({
-    color: COLORS.drum,
+    color: drumWallHex,
     map: drumTex,
     roughness: 0.86,
     metalness: 0.02,
@@ -218,7 +273,8 @@ export const buildEnshinkan: HeroBuilder = (ctx) => {
   const columnMat = new THREE.MeshStandardMaterial({ color: COLORS.column, roughness: 0.9, metalness: 0.02 });
   const roofMat = new THREE.MeshStandardMaterial({ color: COLORS.roof, roughness: 0.92, metalness: 0.02 });
   const roofBlockMat = new THREE.MeshStandardMaterial({ color: COLORS.roofBlock, roughness: 0.9, metalness: 0.02 });
-  const verdigrisMat = new THREE.MeshStandardMaterial({ color: COLORS.verdigris, roughness: 0.7, metalness: 0.08 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: COLORS.frame, roughness: 0.8, metalness: 0.02 });
+  const annexGlassMat = new THREE.MeshStandardMaterial({ color: COLORS.annexGlass, roughness: 0.4, metalness: 0.05 });
   const lobbyMat = new THREE.MeshStandardMaterial({ color: COLORS.lobbyGlass, roughness: 0.35, metalness: 0.05 });
   const boxLowerTex = createBoxLowerTexture();
   const boxLowerMat = new THREE.MeshStandardMaterial({
@@ -290,14 +346,14 @@ export const buildEnshinkan: HeroBuilder = (ctx) => {
   columns.receiveShadow = true;
   group.add(columns);
 
-  // ── 上の階: 下面（ピロティの天井）と下端の丸く張り出す帯 ──
+  // ── 上の階: 下面（ピロティの天井）と下端の丸い帯（壁から 0.35m、柱の外の面から 0.5m 出る） ──
   const lipProfile = [
     new THREE.Vector2(0.01, PILOTI_TOP),
-    new THREE.Vector2(R - 0.6, PILOTI_TOP),
-    new THREE.Vector2(R - 0.15, PILOTI_TOP + 0.15),
-    new THREE.Vector2(R, PILOTI_TOP + 0.55),
-    new THREE.Vector2(R, LIP_TOP - 0.1),
-    new THREE.Vector2(R - 0.1, LIP_TOP),
+    new THREE.Vector2(R - 0.45, PILOTI_TOP),
+    new THREE.Vector2(R - 0.12, PILOTI_TOP + 0.1),
+    new THREE.Vector2(R, PILOTI_TOP + 0.38),
+    new THREE.Vector2(R - 0.04, LIP_TOP - 0.1),
+    new THREE.Vector2(R - 0.15, LIP_TOP),
     new THREE.Vector2(DRUM_WALL_R, LIP_TOP),
   ];
   const lip = new THREE.Mesh(new THREE.LatheGeometry(lipProfile, 96), drumMat);
@@ -308,20 +364,25 @@ export const buildEnshinkan: HeroBuilder = (ctx) => {
   group.add(lip);
 
   // 灰色の曲面の壁（付け柱が柱の真上に来るよう、テクスチャの区画の端を柱の角度にそろえる）
-  addCylinder('enshinkan-drum-wall', DRUM_WALL_R, baseY + LIP_TOP, baseY + CORNICE_BOTTOM, drumWallMat, {
+  addCylinder('enshinkan-drum-wall', DRUM_WALL_R, baseY + LIP_TOP, baseY + FASCIA_BOTTOM, drumWallMat, {
     segments: 96,
     open: true,
     thetaStart: theta0,
     shadow: true,
   });
-  // 緑青色の細い縁と屋根（灰色。縁の上面が 0.25m ほど見える）
-  addCylinder('enshinkan-cornice', CORNICE_R, baseY + CORNICE_BOTTOM, baseY + DRUM_TOP, verdigrisMat, {
+  // 上端の厚い軒の帯と、その上に少し出る笠木（どちらも壁と同じ灰色。写真・航空写真に緑の縁は無い）
+  addCylinder('enshinkan-fascia', FASCIA_R, baseY + FASCIA_BOTTOM, baseY + COPING_BOTTOM, drumMat, {
     segments: 96,
     shadow: true,
   });
+  addCylinder('enshinkan-coping', COPING_R, baseY + COPING_BOTTOM, baseY + DRUM_TOP, drumMat, {
+    segments: 96,
+    shadow: true,
+  });
+  // 屋根（航空写真では縁が明るく、内側が灰色。笠木の上面が縁の明るい輪になる）
   addCylinder('enshinkan-roof', R - 0.5, baseY + DRUM_TOP, baseY + DRUM_TOP + 0.06, roofMat, { segments: 96 });
 
-  // 屋上中央の四角い盛り上がり（航空写真）
+  // 屋上中央の四角い低い盛り上がり（航空写真）
   const block = new THREE.Mesh(new THREE.BoxGeometry(ROOF_BLOCK_W, ROOF_BLOCK_H, ROOF_BLOCK_D), roofBlockMat);
   block.name = 'enshinkan-roof-block';
   block.position.set(CX, baseY + DRUM_TOP + ROOF_BLOCK_H / 2, CZ);
@@ -331,23 +392,41 @@ export const buildEnshinkan: HeroBuilder = (ctx) => {
   block.receiveShadow = true;
   group.add(block);
 
-  // ── 北の張り出し（輪郭の四角）。写真が無いので無地の箱。航空写真で円の屋根の縁が切れずに続くので、上の階の下面までの高さにする ──
+  // ── 北の張り出し（輪郭の四角、エレベーターの棟）。写真の左端のガラスの塔: 上端は上の階の下面より高く、白い床の帯が 2 本 ──
   if (annex) {
     const annexBottom = minGroundUnder(ctx, annex) - 0.5;
     const annexMesh = new THREE.Mesh(
-      extrudePolygonXZ(annex, annexBottom, baseY + PILOTI_TOP - annexBottom),
-      [annexRoofMat, drumMat],
+      extrudePolygonXZ(annex, annexBottom, baseY + ANNEX_TOP - annexBottom),
+      [annexRoofMat, annexGlassMat],
     );
     annexMesh.name = 'enshinkan-annex';
     annexMesh.castShadow = true;
     annexMesh.receiveShadow = true;
     group.add(annexMesh);
+
+    const acx = annex.reduce((s, p) => s + p[0], 0) / annex.length;
+    const acz = annex.reduce((s, p) => s + p[1], 0) / annex.length;
+    const slabOutline: Pt[] = annex.map(([x, z]) => [
+      acx + (x - acx) * ANNEX_SLAB_SCALE,
+      acz + (z - acz) * ANNEX_SLAB_SCALE,
+    ]);
+    // 最上部の帯は屋根の面より少し下で止める（帯の上面が屋根を覆わず、屋根のまわりの白い縁になる）
+    const slabTops = [...ANNEX_SLAB_TOPS, ANNEX_TOP - 0.05];
+    slabTops.forEach((top, i) => {
+      const slab = new THREE.Mesh(
+        extrudePolygonXZ(slabOutline, baseY + top - ANNEX_SLAB_H, ANNEX_SLAB_H),
+        frameMat,
+      );
+      slab.name = `enshinkan-annex-slab-${i}`;
+      slab.receiveShadow = true;
+      group.add(slab);
+    });
   }
 
   return {
     group,
     primaryMaterials: [
-      { mat: drumWallMat, baseHex: COLORS.drum },
+      { mat: drumWallMat, baseHex: drumWallHex },
       { mat: drumMat, baseHex: COLORS.drum },
       { mat: columnMat, baseHex: COLORS.column },
     ],
