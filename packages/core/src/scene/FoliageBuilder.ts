@@ -113,10 +113,10 @@ export function buildFoliageGroup(
 
   const isClear = (x: number, z: number): boolean => {
     if (
-      x < config.bounds.minX + 12 ||
-      x > config.bounds.maxX - 12 ||
-      z < config.bounds.minZ + 12 ||
-      z > config.bounds.maxZ - 12
+      x < config.diorama.minX + 6 ||
+      x > config.diorama.maxX - 6 ||
+      z < config.diorama.minZ + 6 ||
+      z > config.diorama.maxZ - 6
     ) {
       return false;
     }

@@ -14,6 +14,13 @@ export const SENRIYAMA_CONFIG: CampusConfig = {
     minZ: -480,
     maxZ: 580,
   },
+  diorama: {
+    minX: -480,
+    maxX: 530,
+    minZ: -350,
+    maxZ: 565,
+    baseDepth: 22,
+  },
   verticalExaggeration: 1.35,
   cameraPresets: [
     {

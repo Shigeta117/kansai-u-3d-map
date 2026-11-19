@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { computeVisualY } from '../domain/projection';
-import type { BuildingCategory, BuildingFeature, CampusConfig } from '../domain/types';
+import type {
+  BuildingCategory,
+  BuildingFeature,
+  CampusConfig,
+  DioramaConfig,
+} from '../domain/types';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { SCENE_PALETTE } from './palette';
 import { mergeSimpleGeometries } from './TerrainBuilder';
@@ -126,6 +131,31 @@ function getShadeVariant(baseHex: string, id: string): string {
   return `#${c.getHexString()}`;
 }
 
+export function isBuildingWithinDiorama(
+  building: Pick<BuildingFeature, 'polygon' | 'centroid'>,
+  diorama: DioramaConfig,
+): boolean {
+  if (building.polygon.length === 0) {
+    return (
+      building.centroid.x >= diorama.minX &&
+      building.centroid.x <= diorama.maxX &&
+      building.centroid.z >= diorama.minZ &&
+      building.centroid.z <= diorama.maxZ
+    );
+  }
+  for (const [x, z] of building.polygon) {
+    if (
+      x < diorama.minX ||
+      x > diorama.maxX ||
+      z < diorama.minZ ||
+      z > diorama.maxZ
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function buildBuildingsGroup(
   buildings: BuildingFeature[],
   minElevation: number,
@@ -145,6 +175,10 @@ export function buildBuildingsGroup(
   const baseSurroundingColor = new THREE.Color(SCENE_PALETTE.buildings.surrounding);
 
   for (const b of buildings) {
+    if (!options.forExport && !isBuildingWithinDiorama(b, config.diorama)) {
+      continue;
+    }
+
     if (!b.inCampus && b.category === 'surrounding') {
       if (options.campusOnly) continue;
 

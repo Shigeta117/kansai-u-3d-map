@@ -18,6 +18,10 @@ import {
   type BuildingMeshRecord,
 } from './BuildingBuilder';
 import { CameraRig, type CameraPose } from './CameraRig';
+import {
+  buildDioramaBaseGroup,
+  createDioramaClippingPlanes,
+} from './DioramaBaseBuilder';
 import { buildFoliageGroup } from './FoliageBuilder';
 import { LightingRig } from './LightingRig';
 import { RouteOverlay } from './RouteOverlay';
@@ -44,6 +48,7 @@ export class CampusScene {
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
+  private readonly clippingPlanes: THREE.Plane[];
   private readonly cameraRig: CameraRig;
   private readonly lightingRig: LightingRig;
   private readonly routeOverlay: RouteOverlay;
@@ -109,6 +114,7 @@ export class CampusScene {
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.04;
+    this.renderer.localClippingEnabled = true;
     this.renderer.domElement.style.display = 'block';
     this.renderer.domElement.style.width = '100%';
     this.renderer.domElement.style.height = '100%';
@@ -116,6 +122,7 @@ export class CampusScene {
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
+    this.clippingPlanes = createDioramaClippingPlanes(config.diorama);
     this.lightingRig = new LightingRig(isMobile);
     this.scene.add(this.lightingRig.group);
     this.lightingRig.applyTheme(options.initialTheme ?? 'day', this.scene);
@@ -190,6 +197,11 @@ export class CampusScene {
     this.routeOverlay = new RouteOverlay();
     this.scene.add(this.routeOverlay.group);
 
+    this.applyClippingPlanes(this.scene);
+
+    const dioramaBaseGroup = buildDioramaBaseGroup(dataset.terrain, config);
+    this.scene.add(dioramaBaseGroup);
+
     this.scene.updateMatrixWorld(true);
     this.renderer.shadowMap.needsUpdate = true;
 
@@ -202,6 +214,31 @@ export class CampusScene {
 
     this.bindEvents();
     this.startLoop();
+  }
+
+  private applyClippingPlanes(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        if (cur.userData?.excludeFromClipping === true) {
+          return;
+        }
+        cur = cur.parent;
+      }
+      if (
+        obj instanceof THREE.Mesh ||
+        obj instanceof THREE.Line ||
+        obj instanceof THREE.Points
+      ) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          if (m instanceof THREE.Material) {
+            m.clippingPlanes = this.clippingPlanes;
+            m.clipShadows = true;
+          }
+        }
+      }
+    });
   }
 
   private bindEvents(): void {
@@ -492,6 +529,7 @@ export class CampusScene {
       this.dataset.terrain.minElevation,
       this.config,
     );
+    this.applyClippingPlanes(this.routeOverlay.group);
     this.needsRender = true;
     if (route) {
       this.cameraRig.frameRoute(
