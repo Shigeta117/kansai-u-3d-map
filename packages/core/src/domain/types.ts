@@ -258,6 +258,7 @@ export interface WalkEdge {
   slope: number;
   isSteps: boolean;
   isBridge: boolean;
+  isShureiBridge?: boolean;
   isEscalator: boolean;
 }
 
@@ -317,9 +318,11 @@ export interface RouteResult {
   elevationLossM: number;
   stepsCount: number;
   usesBridge: boolean;
+  usesShureiBridge: boolean;
   usesEscalator: boolean;
   isStepFree: boolean;
   maxSlopeRatio: number;
+  steepSegmentsM: number;
   profile: ElevationSample[];
 }
 

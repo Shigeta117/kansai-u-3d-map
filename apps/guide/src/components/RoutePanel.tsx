@@ -10,11 +10,12 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react';
-import type {
-  BuildingFeature,
-  BuildingFloorPlan,
-  RouteMode,
-  RouteResult,
+import {
+  STEEP_SLOPE_RATIO,
+  type BuildingFeature,
+  type BuildingFloorPlan,
+  type RouteMode,
+  type RouteResult,
 } from '@kansai-u-3d/core';
 import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 import { ElevationSparkline } from './ElevationSparkline';
@@ -86,6 +87,11 @@ export function RoutePanel({
   if (!mounted) return null;
 
   const state = visible ? 'open' : 'closed';
+  const isSameBuilding =
+    originSelection.buildingId !== '' &&
+    originSelection.buildingId === destSelection.buildingId;
+  const isSameWalkNode =
+    !isSameBuilding && route !== null && route.totalDistanceM === 0;
   const routePopKey = route
     ? `${route.mode}:${route.fromId}:${route.toId}:${route.totalDistanceM.toFixed(1)}`
     : 'none';
@@ -266,28 +272,61 @@ export function RoutePanel({
           </p>
         )}
 
-        {/* Route Result Card or Unreachable Banner */}
-        {route ? (
+        {/* Route Result Card or Status Banner */}
+        {isSameBuilding ? (
+          <div className="rounded-xl border border-[#DDD6C8] bg-[#F5F1E8] px-3 py-2.5 text-[11.5px] leading-relaxed text-[#3E4652]">
+            <p className="font-semibold text-[#1D2430]">
+              出発地と到着地が同じです
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#5F6875]">
+              別の出発地または到着地を選んでください。
+            </p>
+          </div>
+        ) : isSameWalkNode ? (
+          <div className="rounded-xl border border-[#D4E2DC] bg-[#F1F7F4] px-3 py-2.5 text-[11.5px] leading-relaxed text-[#264D40]">
+            <p className="text-[13px] font-bold text-[#1D2430]">
+              すぐ近く（同じ入口付近）
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#4C645B]">
+              最寄りの歩道地点が同じため、地図上で位置を確認してください。
+            </p>
+          </div>
+        ) : route ? (
           <div className="space-y-2.5">
             <div className="flex flex-wrap gap-1.5">
-              {route.isStepFree && (
+              {route.mode === 'step-free' && route.isStepFree && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#E2F4F7] px-2.5 py-0.5 text-[10.5px] font-bold text-[#1F7A8C]">
                   <ShieldCheck className="h-3 w-3" />
-                  段差なし候補（参考）
+                  階段・エスカレーターなし（OSM）
                 </span>
               )}
-              {route.usesBridge && (
+              {route.usesShureiBridge ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#E9EEF8] px-2.5 py-0.5 text-[10.5px] font-bold text-[#1B365D]">
                   <Sparkles className="h-3 w-3" />
-                  秀麗橋（高架デッキ）経由
+                  秀麗橋経由
                 </span>
-              )}
+              ) : route.usesBridge ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#E9EEF8] px-2.5 py-0.5 text-[10.5px] font-bold text-[#1B365D]">
+                  <Sparkles className="h-3 w-3" />
+                  高架デッキ経由
+                </span>
+              ) : null}
               {route.usesEscalator && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F6EE] px-2.5 py-0.5 text-[10.5px] font-bold text-[#217058]">
                   <TrendingUp className="h-3 w-3" />
                   屋外エスカレーター利用
                 </span>
               )}
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold tabular-nums ${
+                  route.maxSlopeRatio > STEEP_SLOPE_RATIO
+                    ? 'bg-[#FEF3DF] text-[#9A4E10]'
+                    : 'bg-[#EFECE4] text-[#4B5360]'
+                }`}
+              >
+                <Mountain className="h-3 w-3" />
+                最大勾配 {Math.round(route.maxSlopeRatio * 100)}%
+              </span>
             </div>
 
             <div
@@ -322,10 +361,20 @@ export function RoutePanel({
               </div>
             </div>
 
+            {route.steepSegmentsM > 0 && (
+              <div className="flex items-start gap-2 rounded-xl border border-[#E6BE82] bg-[#FEF6E8] px-3 py-2 text-[11px] leading-relaxed font-medium text-[#8A460E]">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#C46A17]" />
+                <span className="tabular-nums">
+                  車いすの目安（8.3%）を超える坂が約 {Math.max(1, Math.round(route.steepSegmentsM))} m あります
+                </span>
+              </div>
+            )}
+
             <ElevationSparkline
               profile={route.profile}
               totalDistanceM={route.totalDistanceM}
               mode={route.mode}
+              usesShureiBridge={route.usesShureiBridge}
             />
           </div>
         ) : (
@@ -351,7 +400,7 @@ export function RoutePanel({
                   </>
                 ) : (
                   <span>
-                    同じ地点または歩道ネットワーク未接続の建物が選択されています。別の建物を選んでください。
+                    歩道ネットワークに接続していない建物が選択されています。別の建物を選んでください。
                   </span>
                 )}
               </div>

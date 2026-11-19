@@ -4,6 +4,7 @@ interface ElevationSparklineProps {
   profile: ElevationSample[];
   totalDistanceM: number;
   mode: RouteMode;
+  usesShureiBridge?: boolean;
 }
 
 const MODE_STROKE: Record<RouteMode, string> = {
@@ -16,6 +17,7 @@ export function ElevationSparkline({
   profile,
   totalDistanceM,
   mode,
+  usesShureiBridge = false,
 }: ElevationSparklineProps) {
   if (profile.length < 2) {
     return null;
@@ -161,7 +163,7 @@ export function ElevationSparkline({
           {coords.some((c) => c.isBridge) && (
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-full border border-[#1F7A8C] bg-[#E2F4FA]" />
-              高架（秀麗橋）
+              {usesShureiBridge ? '高架（秀麗橋）' : '高架デッキ'}
             </span>
           )}
         </div>
