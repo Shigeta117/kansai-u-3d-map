@@ -1,7 +1,14 @@
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { getCampusConfig } from '../../domain/campus-registry';
 import type { BuildingFeature } from '../../domain/types';
-import { buildMainGate } from './mainGate';
+import {
+  buildMainGate,
+  SHUREI_BODY_BELOW_DECK_M,
+  SHUREI_PARAPET_HEIGHT_M,
+  SHUREI_WALK_DECK_ABOVE_GROUND_M,
+} from './mainGate';
 
 function createMainGateBuilding(): BuildingFeature {
   const cx = -127.7;
@@ -133,9 +140,16 @@ describe('buildMainGate', () => {
       return { box, minGround: Math.min(...grounds), maxGround: Math.max(...grounds) };
     };
 
-    it('keeps the Shurei Bridge at the 3rd floor of the north and south wings (groundVisualY + 8)', () => {
-      const { box } = footprint('shurei-bridge-soffit');
-      expect(box.min.y).toBeCloseTo(groundVisualY + 8, 5);
+    it('秀麗橋は上を歩く: 本体の上面（歩く面）が地面から 8m、両側に手すりの壁、本体は歩く面より下', () => {
+      const body = footprint('shurei-bridge-body').box;
+      expect(body.max.y).toBeCloseTo(groundVisualY + SHUREI_WALK_DECK_ABOVE_GROUND_M, 5);
+      for (const side of ['west', 'east']) {
+        const parapet = footprint(`shurei-bridge-parapet-${side}`).box;
+        expect(parapet.min.y).toBeCloseTo(body.max.y, 5);
+        expect(parapet.max.y).toBeCloseTo(body.max.y + SHUREI_PARAPET_HEIGHT_M, 5);
+      }
+      const soffit = footprint('shurei-bridge-soffit').box;
+      expect(soffit.min.y).toBeCloseTo(body.max.y - SHUREI_BODY_BELOW_DECK_M, 5);
     });
 
     it('stands the monument sign, hedge, flagpoles and clock planter on their own ground', () => {
@@ -183,5 +197,27 @@ describe('buildMainGate', () => {
         expect(lift).toBeLessThan(0.14);
       }
     });
+  });
+});
+
+describe('秀麗橋の歩く面と経路のデータの床', () => {
+  it('walk-graph の秀麗橋の床の高さ（表示）と、モデルの歩く面の高さが 0.3m 以内でそろう', () => {
+    const read = <T,>(f: string): T =>
+      JSON.parse(readFileSync(new URL(`../../../../../public/data/senriyama/${f}`, import.meta.url), 'utf8')) as T;
+    const buildings = read<BuildingFeature[]>('buildings.json');
+    const structures = read<{ bridges: { id: string; points: [number, number, number][] }[] }>('structures.json');
+    const gate = buildings.find((b) => b.id === 'main-gate');
+    const shurei = structures.bridges.find((b) => b.id === 'bridge-shurei-north');
+    expect(gate).toBeDefined();
+    expect(shurei).toBeDefined();
+    if (!gate || !shurei) return;
+    // 橋の上（z 108〜137）の床のノード
+    const onBridge = shurei.points.filter(([, , z]) => z > 108 && z < 137);
+    expect(onBridge.length).toBeGreaterThan(0);
+    const exag = getCampusConfig('senriyama').verticalExaggeration;
+    for (const [, deckElev] of onBridge) {
+      const deckAboveGateVisual = (deckElev - gate.groundY) * exag;
+      expect(Math.abs(deckAboveGateVisual - SHUREI_WALK_DECK_ABOVE_GROUND_M)).toBeLessThan(0.3);
+    }
   });
 });
