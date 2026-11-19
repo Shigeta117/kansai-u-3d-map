@@ -10,6 +10,9 @@
   --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
   --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* transitions.dev の --ease-smooth-out（開閉・スライド・リサイズ・位置の変化の既定）と Card resize の時間 */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-resize: 300ms;
 
   --distance-sm: 4px;
   --distance-md: 10px;
@@ -91,6 +94,29 @@
   .t-panel-right[data-state='closed'] {
     transform: translateX(var(--distance-lg));
   }
+}
+
+/*
+ * Mobile Bottom Sheet（BottomSheet.tsx・sm 未満だけで使う）
+ * - 出入り: Panel reveal に合わせて 400ms open / 350ms close、どちらも --ease-smooth-out。画面の下端から全体が出入りする
+ * - 段の移動（高さの変化）: Card resize の 300ms・対称（同じ面の大きさが行き来する 1 つの可逆な動き）
+ * - 指で動かしている間は動きを付けない（data-dragging）。下へ払って閉じるときは data-dismissing で close の時間にする
+ */
+.t-sheet {
+  transition-property: transform, height;
+  transition-timing-function: var(--ease-smooth-out), var(--ease-smooth-out);
+}
+.t-sheet[data-state='open'] {
+  transform: translateY(0);
+  transition-duration: var(--duration-slow), var(--duration-resize);
+}
+.t-sheet[data-state='closed'],
+.t-sheet[data-dismissing='true'] {
+  transform: translateY(100%);
+  transition-duration: var(--duration-panel-close), var(--duration-resize);
+}
+.t-sheet[data-dragging='true'] {
+  transition-duration: 0ms, 0ms;
 }
 
 /* Picker Popover: 250ms open / 150ms close */
@@ -189,6 +215,12 @@
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
     transform: none !important;
+  }
+
+  /* シートは位置そのもの（閉じた状態は画面の外）なので transform は消さず、動きだけ止める */
+  .t-sheet {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 
   .t-tab-panel,
