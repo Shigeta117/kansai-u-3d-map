@@ -16,7 +16,7 @@ import {
   buildBuildingsGroup,
   type BuildingMeshRecord,
 } from './BuildingBuilder';
-import { CameraRig } from './CameraRig';
+import { CameraRig, type CameraPose } from './CameraRig';
 import { buildFoliageGroup } from './FoliageBuilder';
 import { LightingRig } from './LightingRig';
 import { RouteOverlay } from './RouteOverlay';
@@ -32,6 +32,7 @@ export interface CampusSceneOptions {
   campusOnly?: boolean;
   initialTheme?: LightingTheme;
   initialPresetId?: string;
+  initialCamera?: CameraPose;
 }
 
 export class CampusScene {
@@ -49,16 +50,25 @@ export class CampusScene {
   private readonly campusRecords: Map<string, BuildingMeshRecord>;
   private readonly interactiveMeshes: THREE.Object3D[];
   private readonly animatedRotors: THREE.Object3D[];
-  private readonly updateTransport: (elapsedSec: number) => void;
+  private readonly transportCars: THREE.Object3D[];
+  private readonly updateTransport: (elapsedSec: number) => boolean;
   private readonly labelTargets: BuildingFeature[];
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly projVec = new THREE.Vector3();
+  private readonly frustum = new THREE.Frustum();
+  private readonly projScreenMatrix = new THREE.Matrix4();
+  private readonly tempWorldPos = new THREE.Vector3();
+  private readonly tempSphere = new THREE.Sphere();
 
   private rafId: number | null = null;
   private startTimeMs = performance.now();
   private isDisposed = false;
   private isVisible = true;
+  private needsRender = true;
+  private labelsDirty = true;
+  private frustumDirty = true;
+  private wasTransportVisible = false;
   private prefersReducedMotion = false;
   private motionMediaQuery: MediaQueryList | null = null;
   private pointerDownInfo: { x: number; y: number; time: number } | null = null;
@@ -89,15 +99,17 @@ export class CampusScene {
       antialias: true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.setSize(width, height);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.04;
     this.renderer.domElement.style.display = 'block';
     this.renderer.domElement.style.width = '100%';
     this.renderer.domElement.style.height = '100%';
+    this.renderer.domElement.style.touchAction = 'none';
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
@@ -111,6 +123,7 @@ export class CampusScene {
       config,
       options.initialPresetId,
       this.prefersReducedMotion,
+      options.initialCamera,
     );
 
     const terrainGroup = buildTerrainGroup(
@@ -158,7 +171,8 @@ export class CampusScene {
     this.scene.add(foliageGroup);
 
     if (options.campusOnly) {
-      this.updateTransport = () => {};
+      this.transportCars = [];
+      this.updateTransport = () => false;
     } else {
       const transportResult = buildTransportGroup(
         dataset.transport,
@@ -166,11 +180,15 @@ export class CampusScene {
         config,
       );
       this.scene.add(transportResult.group);
+      this.transportCars = transportResult.cars;
       this.updateTransport = transportResult.update;
     }
 
     this.routeOverlay = new RouteOverlay();
     this.scene.add(this.routeOverlay.group);
+
+    this.scene.updateMatrixWorld(true);
+    this.renderer.shadowMap.needsUpdate = true;
 
     this.labelTargets = dataset.buildings
       .filter((b) => b.landmarkId && b.labelPriority <= 7)
@@ -185,6 +203,7 @@ export class CampusScene {
 
     dom.addEventListener('pointerdown', this.handlePointerDown);
     dom.addEventListener('pointerup', this.handlePointerUp);
+    this.cameraRig.controls.addEventListener('change', this.handleControlsChange);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.motionMediaQuery?.addEventListener('change', this.handleMotionChange);
 
@@ -196,9 +215,22 @@ export class CampusScene {
     }
   }
 
+  private handleControlsChange = (): void => {
+    this.needsRender = true;
+    this.labelsDirty = true;
+    this.frustumDirty = true;
+  };
+
   private handleMotionChange = (ev: MediaQueryListEvent): void => {
     this.prefersReducedMotion = ev.matches;
     this.cameraRig.setReducedMotion(ev.matches);
+    this.routeOverlay.update(
+      (performance.now() - this.startTimeMs) * 0.001,
+      this.prefersReducedMotion,
+    );
+    this.needsRender = true;
+    this.labelsDirty = true;
+    this.frustumDirty = true;
   };
 
   private handlePointerDown = (ev: PointerEvent): void => {
@@ -239,8 +271,11 @@ export class CampusScene {
 
   private handleVisibilityChange = (): void => {
     this.isVisible = document.visibilityState !== 'hidden';
-    if (this.isVisible && this.rafId === null && !this.isDisposed) {
-      this.startLoop();
+    if (this.isVisible && !this.isDisposed) {
+      this.needsRender = true;
+      if (this.rafId === null) {
+        this.startLoop();
+      }
     }
   };
 
@@ -249,6 +284,9 @@ export class CampusScene {
     const h = Math.max(1, this.container.clientHeight);
     this.cameraRig.setAspect(w, h);
     this.renderer.setSize(w, h);
+    this.needsRender = true;
+    this.labelsDirty = true;
+    this.frustumDirty = true;
   };
 
   private startLoop(): void {
@@ -260,17 +298,66 @@ export class CampusScene {
       this.rafId = requestAnimationFrame(tick);
 
       const elapsedSec = (nowMs - this.startTimeMs) * 0.001;
-      this.cameraRig.update(nowMs);
+      const didFly = this.cameraRig.update(nowMs);
+      if (didFly) {
+        this.needsRender = true;
+        this.labelsDirty = true;
+        this.frustumDirty = true;
+      }
+
+      if (this.frustumDirty) {
+        this.cameraRig.camera.updateMatrixWorld();
+        this.projScreenMatrix.multiplyMatrices(
+          this.cameraRig.camera.projectionMatrix,
+          this.cameraRig.camera.matrixWorldInverse,
+        );
+        this.frustum.setFromProjectionMatrix(this.projScreenMatrix);
+        this.frustumDirty = false;
+      }
+
       if (!this.prefersReducedMotion) {
-        this.updateTransport(elapsedSec);
+        if (this.transportCars.length > 0) {
+          const trainMoved = this.updateTransport(elapsedSec);
+          let anyCarVisible = false;
+          for (const car of this.transportCars) {
+            this.tempSphere.set(car.position, 10);
+            if (this.frustum.intersectsSphere(this.tempSphere)) {
+              anyCarVisible = true;
+              break;
+            }
+          }
+          if (trainMoved && (anyCarVisible || this.wasTransportVisible)) {
+            this.needsRender = true;
+          }
+          this.wasTransportVisible = anyCarVisible;
+        }
+
         for (const rotor of this.animatedRotors) {
-          rotor.rotation.y = elapsedSec * 1.6;
+          rotor.getWorldPosition(this.tempWorldPos);
+          this.tempSphere.set(this.tempWorldPos, 6);
+          if (this.frustum.intersectsSphere(this.tempSphere)) {
+            rotor.rotation.y = elapsedSec * 1.6;
+            this.needsRender = true;
+          }
+        }
+
+        if (this.routeOverlay.hasActiveRoute()) {
+          this.routeOverlay.update(elapsedSec, false);
+          this.needsRender = true;
         }
       }
-      this.routeOverlay.update(elapsedSec, this.prefersReducedMotion);
 
-      this.renderer.render(this.scene, this.cameraRig.camera);
-      this.emitProjectedLabels();
+      if (this.needsRender) {
+        this.needsRender = false;
+        this.renderer.render(this.scene, this.cameraRig.camera);
+        if (this.labelsDirty) {
+          this.labelsDirty = false;
+          this.emitProjectedLabels();
+        }
+      } else if (this.labelsDirty) {
+        this.labelsDirty = false;
+        this.emitProjectedLabels();
+      }
     };
     this.rafId = requestAnimationFrame(tick);
   }
@@ -321,11 +408,16 @@ export class CampusScene {
     this.callbacks.onLabelsUpdate(labels);
   }
 
+  requestRender(): void {
+    this.needsRender = true;
+  }
+
   setHighlightState(
     selectedId: string | null,
     activeCategory: BuildingCategory | 'all',
   ): void {
     applyBuildingVisualStates(this.campusRecords, selectedId, activeCategory);
+    this.needsRender = true;
   }
 
   focusBuilding(building: BuildingFeature): void {
@@ -334,12 +426,29 @@ export class CampusScene {
       this.dataset.terrain.minElevation,
       this.config.verticalExaggeration,
     );
+    this.needsRender = true;
+    this.labelsDirty = true;
+    this.frustumDirty = true;
   }
 
   flyToPreset(presetId: string): void {
     const preset = this.config.cameraPresets.find((p) => p.id === presetId);
     if (!preset) return;
     this.cameraRig.flyTo(preset.position, preset.target);
+    this.needsRender = true;
+    this.labelsDirty = true;
+    this.frustumDirty = true;
+  }
+
+  resetNorth(): void {
+    this.cameraRig.resetNorth();
+    this.needsRender = true;
+    this.labelsDirty = true;
+    this.frustumDirty = true;
+  }
+
+  getCameraParam(): string {
+    return this.cameraRig.getCameraParam();
   }
 
   setRoute(route: RouteResult | null): void {
@@ -348,17 +457,22 @@ export class CampusScene {
       this.dataset.terrain.minElevation,
       this.config,
     );
+    this.needsRender = true;
     if (route) {
       this.cameraRig.frameRoute(
         route,
         this.dataset.terrain.minElevation,
         this.config.verticalExaggeration,
       );
+      this.labelsDirty = true;
+      this.frustumDirty = true;
     }
   }
 
   setLightingTheme(theme: LightingTheme): void {
     this.lightingRig.applyTheme(theme, this.scene);
+    this.renderer.shadowMap.needsUpdate = true;
+    this.needsRender = true;
   }
 
   dispose(): void {
@@ -371,6 +485,7 @@ export class CampusScene {
     const dom = this.renderer.domElement;
     dom.removeEventListener('pointerdown', this.handlePointerDown);
     dom.removeEventListener('pointerup', this.handlePointerUp);
+    this.cameraRig.controls.removeEventListener('change', this.handleControlsChange);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.motionMediaQuery?.removeEventListener('change', this.handleMotionChange);
 

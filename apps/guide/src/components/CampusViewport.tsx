@@ -2,12 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import {
   CampusScene,
   type BuildingCategory,
+  type CameraPose,
   type CampusConfig,
   type CampusDataset,
   type LightingTheme,
   type ProjectedLabel,
   type RouteResult,
 } from '@kansai-u-3d/core';
+
+type KumWindow = Window & {
+  __kum?: {
+    getCameraParam: () => string;
+  };
+};
 
 interface CampusViewportProps {
   dataset: CampusDataset;
@@ -16,6 +23,7 @@ interface CampusViewportProps {
   activeCategory: BuildingCategory | 'all';
   activeRoute: RouteResult | null;
   lighting: LightingTheme;
+  initialCamera?: CameraPose;
   onSelectBuilding: (buildingId: string | null) => void;
   onLabelsUpdate: (labels: ProjectedLabel[]) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
@@ -40,6 +48,7 @@ export function CampusViewport({
   activeCategory,
   activeRoute,
   lighting,
+  initialCamera,
   onSelectBuilding,
   onLabelsUpdate,
   sceneRef,
@@ -60,17 +69,34 @@ export function CampusViewport({
       return;
     }
 
-    const scene = new CampusScene(el, dataset, config, {
-      onSelectBuilding: (id) => onSelectRef.current(id),
-      onLabelsUpdate: (labels) => onLabelsRef.current(labels),
-    });
+    const scene = new CampusScene(
+      el,
+      dataset,
+      config,
+      {
+        onSelectBuilding: (id) => onSelectRef.current(id),
+        onLabelsUpdate: (labels) => onLabelsRef.current(labels),
+      },
+      {
+        initialCamera,
+      },
+    );
     sceneRef.current = scene;
 
+    if (import.meta.env.DEV) {
+      (window as KumWindow).__kum = {
+        getCameraParam: () => scene.getCameraParam(),
+      };
+    }
+
     return () => {
+      if (import.meta.env.DEV) {
+        delete (window as KumWindow).__kum;
+      }
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [dataset, config, sceneRef]);
+  }, [dataset, config, sceneRef, initialCamera]);
 
   useEffect(() => {
     sceneRef.current?.setHighlightState(selectedId, activeCategory);
@@ -102,7 +128,7 @@ export function CampusViewport({
   return (
     <div
       ref={containerRef}
-      className="h-[100dvh] w-full cursor-grab active:cursor-grabbing"
+      className="h-[100dvh] w-full touch-none cursor-grab active:cursor-grabbing"
     />
   );
 }

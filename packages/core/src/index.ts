@@ -29,7 +29,12 @@ export { sculptLandmarkDetails, type SculptExtraResult } from './scene/LandmarkS
 export { buildFoliageGroup } from './scene/FoliageBuilder';
 export { buildTransportGroup, type TransportBuildResult } from './scene/TransportBuilder';
 export { RouteOverlay } from './scene/RouteOverlay';
-export { CameraRig } from './scene/CameraRig';
+export {
+  CameraRig,
+  formatCameraParam,
+  parseCameraParam,
+  type CameraPose,
+} from './scene/CameraRig';
 export { LightingRig } from './scene/LightingRig';
 export {
   CampusScene,
