@@ -9,6 +9,9 @@ const ROUTE_COLORS: Record<RouteMode, string> = {
   'step-free': SCENE_PALETTE.accents.routeStepFree,
 };
 
+/** 物に隠れた区間の線の不透明度（見えている区間との区別がつき、経路の続きは追える濃さ） */
+export const HIDDEN_ROUTE_OPACITY = 0.45;
+
 export class RouteOverlay {
   readonly group = new THREE.Group();
   private curve: THREE.CatmullRomCurve3 | null = null;
@@ -64,6 +67,21 @@ export class RouteOverlay {
     tubeMesh.castShadow = false;
     tubeMesh.name = 'route-tube';
     this.group.add(tubeMesh);
+
+    // 秀麗橋（中の詰まった箱）・屋根付きの通路・建物の陰を通る区間は、線が手前の物に隠れて消える。
+    // 隠れた部分だけを薄く描く: 奥行きが「すでに描かれた物より奥」のときだけ描き、奥行きは書かない。
+    // 見えている部分は上の管と同じ奥行きなので（GreaterDepth は等しいと描かない）重ならない
+    const hiddenMat = new THREE.MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: HIDDEN_ROUTE_OPACITY,
+      depthWrite: false,
+      depthFunc: THREE.GreaterDepth,
+    });
+    const hiddenMesh = new THREE.Mesh(tubeGeo, hiddenMat);
+    hiddenMesh.name = 'route-tube-hidden';
+    hiddenMesh.renderOrder = 10;
+    this.group.add(hiddenMesh);
 
     const baseGeo = new THREE.TubeGeometry(curve, segments, 1.9, 6, false);
     baseGeo.scale(1, 0.35, 1);

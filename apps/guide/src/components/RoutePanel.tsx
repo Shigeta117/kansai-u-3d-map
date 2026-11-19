@@ -335,13 +335,19 @@ export function RoutePanel({
             >
               <div>
                 <div className="text-[10.5px] text-[#666F7B]">徒歩目安</div>
-                <div className="tabular-nums whitespace-nowrap text-[16px] font-bold text-[#1D2430]">
+                <div
+                  data-testid="route-minutes"
+                  className="tabular-nums whitespace-nowrap text-[16px] font-bold text-[#1D2430]"
+                >
                   約 {route.estimatedMinutes}分
                 </div>
               </div>
               <div>
                 <div className="text-[10.5px] text-[#666F7B]">距離</div>
-                <div className="tabular-nums whitespace-nowrap text-[16px] font-bold text-[#1D2430]">
+                <div
+                  data-testid="route-distance"
+                  className="tabular-nums whitespace-nowrap text-[16px] font-bold text-[#1D2430]"
+                >
                   {route.totalDistanceM.toFixed(0)}m
                 </div>
               </div>

@@ -19,6 +19,7 @@
     "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p apps/guide/tsconfig.json --noEmit && tsc -p apps/lite/tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "data:fetch": "node scripts/fetch-open-data.mjs",
     "data:build": "node scripts/build-campus-data.mjs",
     "data:refresh": "npm run data:fetch && npm run data:build",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.26.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.1.6",
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.1.4",

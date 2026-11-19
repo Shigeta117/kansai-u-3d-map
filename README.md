@@ -71,6 +71,7 @@ http://localhost:3242/?embed=1&preset=west-access&theme=golden&scope=campus
 npm run typecheck   # packages/core, apps/guide, apps/lite の厳格型チェック
 npm run lint        # ESLint（no-explicit-any: error / 警告0確認）
 npm run test        # Vitest ユニットテスト（投影・検索・3モードルーティング）
+npm run test:e2e    # Playwright E2E（案内アプリの検索→経路）。Mac の Google Chrome を使い、ポート 3252 で開発サーバーを起動する
 npm run build       # 両アプリの Vite プロダクションビルド
 npm run export:3d   # GLB / OBJ 2バリエーション書き出し + ノード/サイズ検証
 ```
