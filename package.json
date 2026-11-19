@@ -1,0 +1,45 @@
+{
+  "name": "kansai-u-3d-map",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Kansai University Senriyama Campus interactive miniature 3D map & open data pipeline",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "data:fetch": "node scripts/fetch-open-data.mjs",
+    "data:build": "node scripts/build-campus-data.mjs",
+    "data:refresh": "npm run data:fetch && npm run data:build",
+    "export:3d": "node scripts/export-3d-assets.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.511.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "three": "^0.175.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "@tailwindcss/vite": "^4.1.6",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.4",
+    "@types/three": "^0.175.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "eslint": "^9.26.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.0.0",
+    "pngjs": "^7.0.0",
+    "tailwindcss": "^4.1.6",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1",
+    "vitest": "^3.1.3"
+  }
+}
