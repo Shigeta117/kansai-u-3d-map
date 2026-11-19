@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { LabelsFrame, LabelsListener } from '../domain/labels';
 import { computeVisualY } from '../domain/projection';
 import type {
   BuildingCategory,
@@ -29,7 +30,7 @@ import { buildTransportGroup } from './TransportBuilder';
 
 export interface CampusSceneCallbacks {
   onSelectBuilding: (buildingId: string | null) => void;
-  onLabelsUpdate: (labels: ProjectedLabel[]) => void;
+  onLabelsUpdate?: (labels: ProjectedLabel[]) => void;
 }
 
 export interface CampusSceneOptions {
@@ -65,6 +66,8 @@ export class CampusScene {
   private readonly projScreenMatrix = new THREE.Matrix4();
   private readonly tempWorldPos = new THREE.Vector3();
   private readonly tempSphere = new THREE.Sphere();
+  private readonly labelListeners = new Set<LabelsListener>();
+  private lastLabelsFrame: LabelsFrame | null = null;
 
   private rafId: number | null = null;
   private startTimeMs = performance.now();
@@ -203,7 +206,10 @@ export class CampusScene {
     this.renderer.shadowMap.needsUpdate = true;
 
     this.labelTargets = dataset.buildings
-      .filter((b) => b.landmarkId && b.labelPriority <= 7)
+      .filter(
+        (b) =>
+          Boolean(b.landmarkId) || (b.inCampus && b.shortName.trim().length > 0),
+      )
       .sort((a, b) => a.labelPriority - b.labelPriority);
 
     this.bindEvents();
@@ -400,6 +406,11 @@ export class CampusScene {
   }
 
   private emitProjectedLabels(): void {
+    if (this.labelListeners.size === 0 && !this.callbacks.onLabelsUpdate) {
+      this.lastLabelsFrame = null;
+      return;
+    }
+
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (width <= 0 || height <= 0) return;
@@ -407,6 +418,7 @@ export class CampusScene {
     const minElev = this.dataset.terrain.minElevation;
     const exag = this.config.verticalExaggeration;
     const camPos = this.cameraRig.camera.position;
+    const cameraDistance = camPos.distanceTo(this.cameraRig.controls.target);
 
     const labels: ProjectedLabel[] = [];
     for (const b of this.labelTargets) {
@@ -437,12 +449,35 @@ export class CampusScene {
         screenX,
         screenY,
         distanceToCamera,
-        priority: b.labelPriority,
+        priority: b.landmarkId ? b.labelPriority : 99,
         visible,
       });
     }
 
-    this.callbacks.onLabelsUpdate(labels);
+    const frame: LabelsFrame = {
+      labels,
+      cameraDistance,
+      viewportWidth: width,
+      viewportHeight: height,
+    };
+    this.lastLabelsFrame = frame;
+
+    this.callbacks.onLabelsUpdate?.(labels);
+    for (const listener of this.labelListeners) {
+      listener(frame);
+    }
+  }
+
+  subscribeLabels(listener: LabelsListener): () => void {
+    this.labelListeners.add(listener);
+    if (this.lastLabelsFrame && !this.labelsDirty) {
+      listener(this.lastLabelsFrame);
+    } else {
+      this.labelsDirty = true;
+    }
+    return () => {
+      this.labelListeners.delete(listener);
+    };
   }
 
   requestRender(): void {
@@ -515,6 +550,8 @@ export class CampusScene {
 
   dispose(): void {
     this.isDisposed = true;
+    this.labelListeners.clear();
+    this.lastLabelsFrame = null;
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
