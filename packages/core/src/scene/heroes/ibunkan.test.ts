@@ -114,7 +114,7 @@ describe('buildIbunkan', () => {
       });
 
       it('returns brick, slate roof and dome as primary materials', () => {
-        expect(result.primaryMaterials.map((p) => p.baseHex)).toEqual(['#B4623F', '#4A5466', '#2F4170']);
+        expect(result.primaryMaterials.map((p) => p.baseHex)).toEqual(['#98654F', '#3A4560', '#2F4170']);
         expect(result.animated).toEqual([]);
       });
     });

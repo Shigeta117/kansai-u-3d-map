@@ -14,6 +14,11 @@ import type { HeroBuilder } from './types';
  *   南へ延び、その先に緑青色の屋根の塊（幅約 25m）がつながる。その南に横長の緑青色の帯、さらに南に緑青色の
  *   屋根の長い棟。左右の翼の屋根は灰色の陸屋根、南東の細い棟は赤茶色
  *
+ * 妻面の根拠（2 回目のレビューで「写真で裏が取れない」と言われたので確かめ直した）: 関西大学100周年記念会館.JPG と
+ * 100-nen_Kinen_Kaikan.jpg の両方で、翼の奥の円弧の妻壁はレンガ（目地が見える）で、中央に明るい石の枠の楕円の窓
+ * （ガラスは暗い青）、その下に入口の上の白っぽい弓形の帯が写る。2014 年の写真でも車寄せの左に同じレンガの円弧の壁と
+ * 白い弓形が見える。妻壁の上端は緑青の屋根の深い軒の陰で、暗い帯になる（オレンジには見えない）
+ *
  * かまぼこ屋根の向きと位置: 写真で円弧の縁が見えるのは、北の広場から見た車寄せの突き当たりの面
  * （OSM の輪郭の北の切り欠きの奥の辺、s = -30.1）。円弧は妻面の形なので、円筒の軸は建物の長手（南北から
  * 約 17.6° 東へ振れた向き）に沿う。空中写真で車寄せがつながる緑青色の塊（幅約 25m、北の端から約 27m）を
@@ -32,7 +37,13 @@ const SOFFIT_HEX = '#E6E1D6';
 const BRONZE_HEX = '#A9884F';
 const TRIM_HEX = '#E9E6DF';
 const DARK_HEX = '#3A3F42';
-const OVAL_GLASS_HEX = '#2F3A46';
+const OVAL_GLASS_HEX = '#2E3C5E';
+/** 妻壁の上端の、深い軒の陰の帯（写真で緑青の軒の下が暗い） */
+const EAVE_SHADOW_HEX = '#34383F';
+/** 陰の帯の高さ（関西大学100周年記念会館.JPG で楕円の窓の幅 3m との比から約 1.2m） */
+const EAVE_SHADOW_DEPTH_M = 1.2;
+/** 南西の細い棟の屋根（空中写真で灰色 #6D7067。茶色の基壇の色にしない） */
+const WEST_STRIP_ROOF_HEX = '#6D7067';
 
 /** 底を、輪郭の下のいちばん低い地面からさらに下ろす深さ (m) */
 const FOOTING_BELOW_LOWEST_GROUND_M = 0.5;
@@ -81,12 +92,16 @@ const EAST_WING_SOUTH: readonly ST[] = [
   [-12.0, eastEdgeT(-12.0)],
   [-12.0, HALL_T1],
 ];
-/** ホールの南で全幅に広がる緑青色の帯（空中写真）。南の端は輪郭の西の辺の段（s = -1.0）に合わせる */
+/**
+ * ホールの南で全幅に広がる緑青色の帯（空中写真で s = -11〜-2 が東西の端まで緑青）。
+ * 南の端は、その南の設備の暗い帯の手前（s = -1.5）まで
+ */
+const CROSS_WING_SOUTH_S = -1.5;
 const CROSS_WING: readonly ST[] = [
   [-13.0, westEdgeT(-13.0)],
   [-13.0, eastEdgeT(-13.0)],
-  [-1.0, eastEdgeT(-1.0)],
-  [-1.0, -18.9],
+  [CROSS_WING_SOUTH_S, eastEdgeT(CROSS_WING_SOUTH_S)],
+  [CROSS_WING_SOUTH_S, -18.9],
 ];
 const HALL: readonly ST[] = [
   [HALL_NORTH_S, HALL_T0],
@@ -94,16 +109,41 @@ const HALL: readonly ST[] = [
   [HALL_SOUTH_S, HALL_T1],
   [HALL_SOUTH_S, HALL_T0],
 ];
-/** 南の緑青色の屋根の長い棟（空中写真）。南の端の曲面の張り出しと東西の細い部分は低い基壇に残す */
+/**
+ * 南の緑青色の屋根の長い棟（空中写真で s = 3〜36、南の端の半円の張り出しまで緑青）。
+ * 輪郭の南の端の頂点（半円の部分）をそのまま使う。東西の細い部分は低い基壇に残す
+ */
+const SOUTH_BLOCK_NORTH_S = 2.5;
 const SOUTH_BLOCK: readonly ST[] = [
-  [-1.0, -10.6],
-  [-1.0, 14.4],
-  [34.0, 14.3],
-  [34.0, -10.5],
+  [SOUTH_BLOCK_NORTH_S, -10.6],
+  [SOUTH_BLOCK_NORTH_S, 14.4],
+  [24.5, 14.3],
+  [34.0, 14.2],
+  [34.2, 10.6],
+  [36.6, 7.5],
+  [38.0, 2.3],
+  [36.5, -3.9],
+  [33.9, -6.9],
+  [33.9, -10.5],
 ];
-/** 横長の帯の上の暗い帯（空中写真で設備が並ぶ） */
-const DARK_STRIP_S0 = -3.0;
-const DARK_STRIP_S1 = -1.2;
+/**
+ * 横長の帯と南の棟の間の、設備が並ぶ暗い帯（空中写真で s ≈ -1〜2.5、t ≈ -8〜13）。
+ * 南の棟の陰に入る低い面とした
+ */
+const DARK_STRIP: readonly ST[] = [
+  [CROSS_WING_SOUTH_S - 0.1, -8.0],
+  [CROSS_WING_SOUTH_S - 0.1, 13.0],
+  [SOUTH_BLOCK_NORTH_S + 0.1, 13.0],
+  [SOUTH_BLOCK_NORTH_S + 0.1, -8.0],
+];
+const DARK_STRIP_TOP_ABOVE_REF_M = 1.0;
+/** 南西の細い棟（輪郭の西の段から南へ）。屋根は灰色 */
+const WEST_STRIP: readonly ST[] = [
+  [-1.0, -16.8],
+  [24.5, -17.4],
+  [24.9, -10.7],
+  [-1.0, -10.6],
+];
 
 /**
  * 高さは北の広場の高さ（ホールの妻面の中央・両翼の北の面の中央の地面の高い方）を基準にする。
@@ -140,13 +180,20 @@ const ENTRANCE_GLASS_HALF_WIDTH_M = 7.0;
 /** 空中写真で車寄せの屋根の真上（2014 年の写真で車寄せの消点が建物の軸より西へ約 5° ずれるのと合う） */
 const CANOPY_NORTH: ST = [-55.9, 3.4];
 const CANOPY_SOUTH: ST = [HALL_NORTH_S - 0.3, 0.63];
-const CANOPY_WIDTH_M = 7.0;
-const CANOPY_ARC_RISE_M = 1.0;
-const CANOPY_SHELL_THICKNESS_M = 0.3;
-/** 車寄せの屋根の下端（中心線）の、その場の地面からの高さ */
-const CANOPY_CLEARANCE_M = 3.8;
-/** 柱（2 列 × 5 本）。写真で前の端から少し下がった所から、入口の手前まで */
-const CANOPY_COLUMN_OFFSET_M = 2.7;
+/**
+ * 車寄せの屋根の断面。写真（2014 年）で、屋根は柱の列の幅の約 1.6 倍まで左右に張り出し、薄く、
+ * 中ほどは平らに近く、両端だけが下へ巻き込む浅い曲面（前の縁の円弧の高さは幅の約 0.1）。
+ * 空中写真では中央の緑青が幅約 5m、その両側に明るい縁が約 1.2m ずつ見えるので、全幅は約 7.6m
+ */
+const CANOPY_WIDTH_M = 7.6;
+const CANOPY_ARC_RISE_M = 0.65;
+/** 断面の形の指数（2 で放物線。大きいほど中ほどが平らで、端だけが下がる） */
+const CANOPY_PROFILE_POWER = 2.6;
+const CANOPY_SHELL_THICKNESS_M = 0.2;
+/** 車寄せの屋根の両端の下端の、その場の地面からの高さ（中ほどはこれに CANOPY_ARC_RISE_M を足した高さ） */
+const CANOPY_CLEARANCE_M = 3.3;
+/** 柱（2 列 × 5 本）。写真で左右に 5 本前後ずつ。前の端から少し下がった所から、入口の手前まで */
+const CANOPY_COLUMN_OFFSET_M = 2.3;
 const CANOPY_COLUMN_RADIUS_M = 0.14;
 const CANOPY_COLUMN_STATIONS_M = [1.6, 7.4, 13.2, 19.0, 24.2] as const;
 
@@ -241,6 +288,66 @@ function arcBandShape(cx: number, cy: number, r0: number, r1: number, halfAngle:
   return shape;
 }
 
+/** 円弧の上の点（中心 (cx, cy)、半径 r、角度 a0 から a1 まで n 等分） */
+function arcPoints(cx: number, cy: number, r: number, a0: number, a1: number, n: number): THREE.Vector2[] {
+  const pts: THREE.Vector2[] = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push(new THREE.Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r));
+  }
+  return pts;
+}
+
+/**
+ * 平面の多角形（x, y）を z の位置に張る面。facing が −1 なら −z 向き、+1 なら +z 向き。
+ * ExtrudeGeometry が手元の three で蓋の面を作らないので、見える端の面はこれで張る
+ */
+function planarFace(points: readonly THREE.Vector2[], z: number, facing: 1 | -1): THREE.BufferGeometry {
+  const tris = THREE.ShapeUtils.triangulateShape([...points], []);
+  const pos: number[] = [];
+  for (const [ia, ib, ic] of tris) {
+    const pa = points[ia ?? -1];
+    const pb = points[ib ?? -1];
+    const pc = points[ic ?? -1];
+    if (!pa || !pb || !pc) continue;
+    const cross = (pb.x - pa.x) * (pc.y - pa.y) - (pb.y - pa.y) * (pc.x - pa.x);
+    const [p1, p2, p3] = cross > 0 === facing > 0 ? [pa, pb, pc] : [pa, pc, pb];
+    pos.push(p1.x, p1.y, z, p2.x, p2.y, z, p3.x, p3.y, z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * 車寄せの屋根の断面（幅 2·half、中ほどが平らで両端が下へ巻き込む浅い曲面）。
+ * 下の面は y = rise·(1 − |u|^power)（u = x / half）、上の面はその thickness 上。両端で下の面は y = 0
+ */
+function canopyProfileShape(
+  half: number,
+  rise: number,
+  power: number,
+  thickness: number,
+  bottomOffset = 0,
+): THREE.Shape {
+  const n = 24;
+  const curve = (x: number): number => rise * (1 - Math.abs(x / half) ** power);
+  const shape = new THREE.Shape();
+  for (let i = 0; i <= n; i++) {
+    const x = -half + (2 * half * i) / n;
+    const y = curve(x) + bottomOffset + thickness;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  for (let i = n; i >= 0; i--) {
+    const x = -half + (2 * half * i) / n;
+    shape.lineTo(x, curve(x) + bottomOffset);
+  }
+  shape.closePath();
+  return shape;
+}
+
 export const buildCentenary: HeroBuilder = (ctx) => {
   const polygon = usablePolygon(ctx.building.polygon);
   const centroid =
@@ -273,6 +380,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const trimMat = standard(TRIM_HEX, 0.7);
   const darkMat = standard(DARK_HEX, 0.8);
   const ovalGlassMat = standard(OVAL_GLASS_HEX, 0.35, 0.05);
+  const eaveShadowMat = standard(EAVE_SHADOW_HEX, 0.9);
+  const westStripRoofMat = standard(WEST_STRIP_ROOF_HEX, 0.92);
 
   const bottom = minGroundUnder(ctx, polygon) - FOOTING_BELOW_LOWEST_GROUND_M;
   const hallFaceGround = groundAt(HALL_NORTH_S, HALL_CENTER_T);
@@ -296,6 +405,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
     group.add(mesh);
   };
   addPrism(polygon, baseTop, baseRoofMat, true, true);
+  addPrism(toWorldPolygon(WEST_STRIP), baseTop + 0.05, westStripRoofMat, false);
+  addPrism(toWorldPolygon(DARK_STRIP), refY + DARK_STRIP_TOP_ABOVE_REF_M, darkMat, false);
   addPrism(toWorldPolygon(SOUTH_BLOCK), refY + SOUTH_BLOCK_TOP_ABOVE_REF_M, patinaMat, true);
   addPrism(toWorldPolygon(CROSS_WING), refY + CROSS_WING_TOP_ABOVE_REF_M, patinaMat, true);
   for (const wing of [WEST_WING_NORTH, WEST_WING_SOUTH, EAST_WING_NORTH, EAST_WING_SOUTH]) {
@@ -308,26 +419,47 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const hallHalfSpan = (HALL_T1 - HALL_T0) / 2;
   const vaultRadius = (hallHalfSpan * hallHalfSpan + VAULT_RISE_M * VAULT_RISE_M) / (2 * VAULT_RISE_M);
   const vaultCenterY = VAULT_RISE_M - vaultRadius;
-  const tympanumShape = new THREE.Shape();
   const tympanumHalfAngle = Math.asin(hallHalfSpan / vaultRadius);
-  tympanumShape.moveTo(HALL_CENTER_T - hallHalfSpan, 0);
-  tympanumShape.absarc(
+  const hallLength = HALL_SOUTH_S - HALL_NORTH_S;
+  // 妻壁（弓形）の北と南の面。ExtrudeGeometry は手元の three（r175）で前後の蓋の面を作らず、
+  // 2 回目のレビューの「オレンジの弧」はこの穴から奥の床（レンガ色）が見えていたもの。平らな面を自前で張る
+  const tympanumOutline = arcPoints(
     HALL_CENTER_T,
     vaultCenterY,
     vaultRadius,
     Math.PI / 2 + tympanumHalfAngle,
     Math.PI / 2 - tympanumHalfAngle,
-    true,
+    32,
   );
-  tympanumShape.closePath();
-  const hallLength = HALL_SOUTH_S - HALL_NORTH_S;
-  const tympanum = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(tympanumShape, { depth: hallLength, bevelEnabled: false, curveSegments: 24 }),
-    brickMat,
-  );
-  tympanum.position.set(0, springY, HALL_NORTH_S);
-  tympanum.castShadow = true;
-  local.add(tympanum);
+  const tympanumNorth = new THREE.Mesh(planarFace(tympanumOutline, HALL_NORTH_S, -1), brickMat);
+  tympanumNorth.position.y = springY;
+  tympanumNorth.castShadow = true;
+  const tympanumSouth = new THREE.Mesh(planarFace(tympanumOutline, HALL_SOUTH_S, 1), brickMat);
+  tympanumSouth.position.y = springY;
+  local.add(tympanumNorth, tympanumSouth);
+
+  // 妻壁の上端の、深い軒の陰の帯（写真で緑青の軒の下が暗い）
+  const eaveShadowOutline = [
+    ...arcPoints(
+      HALL_CENTER_T,
+      vaultCenterY,
+      vaultRadius,
+      Math.PI / 2 + tympanumHalfAngle,
+      Math.PI / 2 - tympanumHalfAngle,
+      32,
+    ),
+    ...arcPoints(
+      HALL_CENTER_T,
+      vaultCenterY,
+      vaultRadius - EAVE_SHADOW_DEPTH_M,
+      Math.PI / 2 - tympanumHalfAngle,
+      Math.PI / 2 + tympanumHalfAngle,
+      32,
+    ),
+  ];
+  const eaveShadow = new THREE.Mesh(planarFace(eaveShadowOutline, HALL_NORTH_S - 0.04, -1), eaveShadowMat);
+  eaveShadow.position.y = springY;
+  local.add(eaveShadow);
 
   const shellInner = vaultRadius + 0.02;
   const shellHalfAngle = Math.asin((hallHalfSpan + VAULT_EAVE_SIDE_M) / shellInner);
@@ -343,6 +475,29 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   shell.castShadow = true;
   shell.receiveShadow = true;
   local.add(shell);
+  // 屋根の殻の南北の端の縁（ExtrudeGeometry が蓋を作らないので自前で張る）
+  const shellEdgeOutline = [
+    ...arcPoints(
+      HALL_CENTER_T,
+      vaultCenterY,
+      shellInner + VAULT_SHELL_THICKNESS_M,
+      Math.PI / 2 + shellHalfAngle,
+      Math.PI / 2 - shellHalfAngle,
+      32,
+    ),
+    ...arcPoints(HALL_CENTER_T, vaultCenterY, shellInner, Math.PI / 2 - shellHalfAngle, Math.PI / 2 + shellHalfAngle, 32),
+  ];
+  const shellNorthEdge = new THREE.Mesh(
+    planarFace(shellEdgeOutline, HALL_NORTH_S - VAULT_EAVE_NORTH_M, -1),
+    patinaMat,
+  );
+  shellNorthEdge.position.y = springY;
+  const shellSouthEdge = new THREE.Mesh(
+    planarFace(shellEdgeOutline, HALL_NORTH_S - VAULT_EAVE_NORTH_M + shellLength, 1),
+    patinaMat,
+  );
+  shellSouthEdge.position.y = springY;
+  local.add(shellNorthEdge, shellSouthEdge);
 
   // 屋根の頂部の天窓（空中写真でホールの屋根の中央やや西に暗い四角）
   const crownOuter = shellInner + VAULT_SHELL_THICKNESS_M;
@@ -404,16 +559,7 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const eastCourtGround = groundAt(-39, 9.95);
   addFaceGlass([-47.0, 9.57], [-31.0, 10.36], -0.08, eastCourtGround - 0.3, refY + WING_TOP_ABOVE_REF_M - 0.8);
 
-  // 横長の帯の上の暗い帯
-  const crossTop = refY + CROSS_WING_TOP_ABOVE_REF_M;
-  const darkStrip = new THREE.Mesh(
-    new THREE.BoxGeometry(HALL_T1 - HALL_T0, 0.6, DARK_STRIP_S1 - DARK_STRIP_S0),
-    darkMat,
-  );
-  darkStrip.position.set(HALL_CENTER_T, crossTop + 0.25, (DARK_STRIP_S0 + DARK_STRIP_S1) / 2);
-  local.add(darkStrip);
-
-  // 車寄せ: 断面が円弧の金属の屋根（上は緑青色、下は白い天井）を、地面の傾きに沿わせて置く
+  // 車寄せ: 薄く浅い曲面の金属の屋根（上は緑青色、下は白い天井）を、地面の傾きに沿わせて置く
   const canopyDs = CANOPY_SOUTH[0] - CANOPY_NORTH[0];
   const canopyDt = CANOPY_SOUTH[1] - CANOPY_NORTH[1];
   const canopyLength = Math.hypot(canopyDs, canopyDt);
@@ -425,22 +571,30 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   canopy.rotation.set(pitch, Math.atan2(canopyDt, canopyDs), 0, 'YXZ');
   local.add(canopy);
   const canopyHalf = CANOPY_WIDTH_M / 2;
-  const canopyRadius = (canopyHalf ** 2 + CANOPY_ARC_RISE_M ** 2) / (2 * CANOPY_ARC_RISE_M);
-  const canopyCenterY = CANOPY_ARC_RISE_M - canopyRadius;
-  const canopyHalfAngle = Math.asin(canopyHalf / canopyRadius);
+  const canopyProfile = canopyProfileShape(
+    canopyHalf,
+    CANOPY_ARC_RISE_M,
+    CANOPY_PROFILE_POWER,
+    CANOPY_SHELL_THICKNESS_M,
+  );
   const canopyShell = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(
-      arcBandShape(0, canopyCenterY, canopyRadius, canopyRadius + CANOPY_SHELL_THICKNESS_M, canopyHalfAngle),
-      { depth: canopyLength, bevelEnabled: false, curveSegments: 16 },
-    ),
+    new THREE.ExtrudeGeometry(canopyProfile, { depth: canopyLength, bevelEnabled: false }),
     patinaMat,
   );
   canopyShell.castShadow = true;
   canopy.add(canopyShell);
+  // 前の端の薄い縁（写真で前の縁が見える）。ExtrudeGeometry が蓋を作らないので自前で張る
+  const canopyEdgePoints = canopyProfile.getPoints();
+  const lastEdgePoint = canopyEdgePoints[canopyEdgePoints.length - 1];
+  const firstEdgePoint = canopyEdgePoints[0];
+  if (lastEdgePoint && firstEdgePoint && lastEdgePoint.distanceTo(firstEdgePoint) < 1e-6) {
+    canopyEdgePoints.pop();
+  }
+  canopy.add(new THREE.Mesh(planarFace(canopyEdgePoints, 0, -1), patinaMat));
   const soffit = new THREE.Mesh(
     new THREE.ExtrudeGeometry(
-      arcBandShape(0, canopyCenterY, canopyRadius - 0.04, canopyRadius - 0.005, canopyHalfAngle),
-      { depth: canopyLength - 0.1, bevelEnabled: false, curveSegments: 16 },
+      canopyProfileShape(canopyHalf - 0.05, CANOPY_ARC_RISE_M, CANOPY_PROFILE_POWER, 0.03, -0.035),
+      { depth: canopyLength - 0.1, bevelEnabled: false },
     ),
     soffitMat,
   );
@@ -451,7 +605,7 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const columnGeo = new THREE.CylinderGeometry(CANOPY_COLUMN_RADIUS_M, CANOPY_COLUMN_RADIUS_M, 1, 10);
   const columns = new THREE.InstancedMesh(columnGeo, bronzeMat, CANOPY_COLUMN_STATIONS_M.length * 2);
   const soffitRiseAtColumn =
-    canopyCenterY + Math.sqrt(canopyRadius ** 2 - CANOPY_COLUMN_OFFSET_M ** 2) - 0.04;
+    CANOPY_ARC_RISE_M * (1 - (CANOPY_COLUMN_OFFSET_M / canopyHalf) ** CANOPY_PROFILE_POWER) - 0.04;
   const dirS = canopyDs / canopyLength;
   const dirT = canopyDt / canopyLength;
   const m = new THREE.Matrix4();
