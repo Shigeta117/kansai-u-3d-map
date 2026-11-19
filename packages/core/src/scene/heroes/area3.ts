@@ -56,21 +56,27 @@ const ACCESS_CANOPY_END_U = -312.6;
 
 // --- 塔の段（写真で数えた階数と、面の幅に対する割合） ---
 /**
- * 西の面の北寄りは低い。2012 年・2022 年の写真で、フィンの部分は面の幅の約 6 割で南寄り、
- * その北（写真の左）に 7 階の段、さらに北は低層部（5 階）
+ * 西の面の北寄りは低く、フィンの面の左肩が 2 段下がる（2012 年の写真。2022 年の写真でも 1 段目が見える）。
+ * フィンの部分は面の幅の約 6 割で南寄り。その北（写真の左）の段の上端はフィンの下端より 1 階ほど高く（8 階）、
+ * さらに北の端の上端はフィンの下端とそろう（7 階。2012 年の写真で、フィンの下端の線の延長に乗る）
  */
-const STEP7_NORTH_V = 150.5;
+const STEP_NORTH_V = 150.5;
 const MAIN_TOWER_NORTH_V = 157.4;
 /** 一段高い細い塔（南面の東寄りの、窓が 2 つずつ並ぶ区画）。奥行きは写真に写らないので 8.9m とした */
 const SLENDER = { u0: -292.3, u1: TOWER_EAST_U, v0: 168.0, v1: TOWER_SOUTH_V } as const;
 
 const FLOOR_HEIGHT_M = 3.9;
 const TOWER_FLOORS = 10;
+/** 雁行する棟（5 階） */
 const LOW_FLOORS = 5;
-const STEP_FLOORS = 7;
+/** 西の塊の土台（北の端に見える 2 段目、7 階） */
+const BASE_FLOORS = 7;
+/** 左肩の 1 段目（8 階） */
+const STEP_FLOORS = 8;
+const BASE_PARAPET_M = 0.3;
 /**
  * フィンは 8〜10 階の 3 層（2022 年の写真で、フィンの下に窓の列が 6 段＋入口の階。2012 年の写真でも
- * 窓が 2 つずつの面の 3 段分）。下端は北隣の 7 階の段の屋上とそろう。その上に文字の帯（模型では青い帯）を載せる笠木
+ * 窓が 2 つずつの面の 3 段分）。下端は西の面の北の端（7 階）の屋上とそろう。その上に文字（模型では細い青い線）を載せる笠木
  */
 const FIN_FROM_FLOOR = 7;
 const TOWER_CROWN_M = 2.2;
@@ -89,7 +95,10 @@ const COLORS = {
   roof: '#A9A49A',
   plinth: '#CFC7B5',
   finGlass: '#4E6273',
-  blue: '#2F56B0', // 「関西大学」の青い立体文字と校章（模型では無地の帯と円）
+  blue: '#2F56B0', // 「関西大学」の青い立体文字（模型では文字の位置に細い青い線を 4 本）
+  emblem: '#C2B9A6', // 校章（模型では壁と同系の少し濃い無地の円）
+  windowFrame: '#F7F6F2', // 窓の白い枠（2012 年・2022 年の写真）
+  windowGlass: '#9AAEBE', // 空を映す明るめのガラス
   penthouse: '#8C9093',
   vestibuleGlass: '#5F7A88',
   canopy: '#C9CCCE',
@@ -99,6 +108,14 @@ const COLORS = {
 /** 窓の模様の 1 枚の横幅（m）。塔は四角い窓、低い棟は横長の窓の帯 */
 const TOWER_WINDOW_TILE_M = 2.6;
 const BAND_WINDOW_TILE_M = 1.8;
+
+/** 「関西大学」の文字の代わりの細い青い線: フィンの 6 区画のうち 2〜5 番目の上に 1 本ずつ（2022 年の写真の文字の位置） */
+const LETTER_BAYS = [1, 2, 3, 4] as const;
+const LETTER_WIDTH_OF_BAY = 0.7;
+const LETTER_LINE_M = 0.3;
+/** 校章の円（2012 年の写真で、細い塔の南面の幅の約 1/5、上端から 1 階分ほど下） */
+const EMBLEM_RADIUS_M = 0.8;
+const EMBLEM_BELOW_TOP_M = 2.0;
 
 // ---------------------------------------------------------------------------
 // 小道具
@@ -144,9 +161,13 @@ function rect(u0: number, u1: number, v0: number, v1: number): P2[] {
   ];
 }
 
+/** 壁の辺が窓の無い無地の面か（辺の中点 (u, v) と外向きの法線で判定） */
+type PlainWallTest = (mu: number, mv: number, n: P2) => boolean;
+
 /**
  * 輪郭（穴つき）を baseY から topY まで押し出す。座標は枠の (u, v) を (x, z) として使う。
- * - 材質の番号: 0 = 屋根（上の蓋）、1 = 壁（splitY より上。窓の模様）、2 = 壁（splitY より下。無地の基礎）
+ * - 材質の番号: 0 = 屋根（上の蓋）、1 = 壁（splitY より上。窓の模様）、2 = 壁（splitY より下。無地の基礎）、
+ *   3 = 壁（splitY より上で、isPlain が真の辺。窓の無い無地の面）
  * - 壁の UV は m 単位（u = 輪郭に沿った長さ、v = y − splitY）。模様は texture.repeat で 1 枚の寸法に合わせる
  * - 底の蓋は作らない（いつも地面の下）
  */
@@ -156,6 +177,7 @@ function buildPrism(
   baseY: number,
   topY: number,
   splitY: number,
+  isPlain?: PlainWallTest,
 ): THREE.BufferGeometry {
   const pos: number[] = [];
   const nor: number[] = [];
@@ -187,6 +209,7 @@ function buildPrism(
 
   const upper = { pos: [] as number[], nor: [] as number[], uv: [] as number[] };
   const lower = { pos: [] as number[], nor: [] as number[], uv: [] as number[] };
+  const plain = { pos: [] as number[], nor: [] as number[], uv: [] as number[] };
   const pushQuad = (
     target: typeof upper,
     a: P2,
@@ -234,47 +257,56 @@ function buildPrism(
       const ua = flip ? acc + len : acc;
       const ub = flip ? acc : acc + len;
       pushQuad(lower, a, b, baseY, Math.min(topY, splitY), ua, ub, n);
-      pushQuad(upper, a, b, Math.max(baseY, splitY), topY, ua, ub, n);
+      pushQuad(isPlain?.(mx, mz, n) ? plain : upper, a, b, Math.max(baseY, splitY), topY, ua, ub, n);
       acc += len;
     }
   }
 
   const upperCount = upper.pos.length / 3;
   const lowerCount = lower.pos.length / 3;
-  pos.push(...upper.pos, ...lower.pos);
-  nor.push(...upper.nor, ...lower.nor);
-  uv.push(...upper.uv, ...lower.uv);
+  const plainCount = plain.pos.length / 3;
+  pos.push(...upper.pos, ...lower.pos, ...plain.pos);
+  nor.push(...upper.nor, ...lower.nor, ...plain.nor);
+  uv.push(...upper.uv, ...lower.uv, ...plain.uv);
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.addGroup(0, lidCount, 0);
   geo.addGroup(lidCount, upperCount, 1);
   geo.addGroup(lidCount + upperCount, lowerCount, 2);
+  if (plainCount > 0) geo.addGroup(lidCount + upperCount + lowerCount, plainCount, 3);
   return geo;
 }
 
-/** 壁の窓の模様（掛け算の白地に窓の色）。Node（document が無い）では null を返し、無地の壁になる */
+/**
+ * 壁の窓の模様。地はタイルの色、窓は白い枠と明るめのガラス（写真の窓は白い枠で、空を映して明るい）。
+ * 色をそのまま描くので、材質の color は白にして使う。Node（document が無い）では null を返し、無地の壁になる
+ */
 function createWindowTexture(kind: 'punched' | 'band', tileWidthM: number): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null;
-  const size = 64;
+  const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const g = canvas.getContext('2d');
   if (!g) return null;
-  g.fillStyle = '#FFFFFF';
+  g.fillStyle = COLORS.tile;
   g.fillRect(0, 0, size, size);
-  // 窓の色（タイルの色との掛け算で青灰色の窓になる）
-  g.fillStyle = '#6A7A8C';
-  if (kind === 'punched') {
-    // 四角い窓（幅 1.3m・高さ 1.6m）。canvas の上が v = 1（1 階分の上端）
-    g.fillRect(size * 0.25, size * (1 - 0.72), size * 0.5, size * 0.42);
-  } else {
-    // 横長の窓の帯（高さ 1.6m）と細い方立て
-    g.fillRect(0, size * (1 - 0.72), size, size * 0.42);
-    g.fillStyle = '#E6E6E6';
-    g.fillRect(0, size * (1 - 0.72), 3, size * 0.42);
-  }
+  // 窓の高さ 1.6m（1 階分の 0.30〜0.72）。canvas の上が v = 1（1 階分の上端）
+  const y0 = Math.round(size * (1 - 0.72));
+  const h = Math.round(size * 0.42);
+  // 塔は四角い窓（幅 1.3m）、低い棟は幅 1.5m の窓が細い柱を挟んで並ぶ帯
+  const w = kind === 'punched' ? Math.round(size * 0.5) : Math.round(size * (1.5 / tileWidthM));
+  const x0 = Math.round((size - w) / 2);
+  const frame = Math.max(2, Math.round((0.09 / tileWidthM) * size));
+  g.fillStyle = COLORS.windowFrame;
+  g.fillRect(x0, y0, w, h);
+  g.fillStyle = COLORS.windowGlass;
+  g.fillRect(x0 + frame, y0 + frame, w - frame * 2, h - frame * 2);
+  // 縦の方立てと、上寄りの無目（白）
+  g.fillStyle = COLORS.windowFrame;
+  g.fillRect(Math.round(size / 2 - frame / 2), y0, frame, h);
+  g.fillRect(x0, y0 + Math.round(h * 0.3), w, Math.max(1, Math.round(frame * 0.7)));
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -308,16 +340,20 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   const floorY = Math.max(groundAt(VESTIBULE.u0 - 1, (VESTIBULE.v0 + VESTIBULE.v1) / 2), bottomY + 1);
   const yAtFloor = (floors: number): number => floorY + floors * FLOOR_HEIGHT_M;
 
-  // --- 材質 ---
+  // --- 材質（窓の模様はタイルの色を地に描くので、模様があるときは color を白にする） ---
+  const towerTex = createWindowTexture('punched', TOWER_WINDOW_TILE_M);
+  const towerWallHex = towerTex ? '#FFFFFF' : COLORS.tile;
   const towerWallMat = new THREE.MeshStandardMaterial({
-    color: COLORS.tile,
-    map: createWindowTexture('punched', TOWER_WINDOW_TILE_M),
+    color: towerWallHex,
+    map: towerTex,
     roughness: 0.8,
     metalness: 0.03,
   });
+  const wingTex = createWindowTexture('band', BAND_WINDOW_TILE_M);
+  const wingWallHex = wingTex ? '#FFFFFF' : COLORS.tile;
   const wingWallMat = new THREE.MeshStandardMaterial({
-    color: COLORS.tile,
-    map: createWindowTexture('band', BAND_WINDOW_TILE_M),
+    color: wingWallHex,
+    map: wingTex,
     roughness: 0.8,
     metalness: 0.03,
   });
@@ -326,6 +362,7 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   const finGlassMat = new THREE.MeshStandardMaterial({ color: COLORS.finGlass, roughness: 0.3, metalness: 0.1 });
   const plainTileMat = new THREE.MeshStandardMaterial({ color: COLORS.tile, roughness: 0.8, metalness: 0.03 });
   const blueMat = new THREE.MeshStandardMaterial({ color: COLORS.blue, roughness: 0.45, metalness: 0.08 });
+  const emblemMat = new THREE.MeshStandardMaterial({ color: COLORS.emblem, roughness: 0.75, metalness: 0.03 });
   const penthouseMat = new THREE.MeshStandardMaterial({ color: COLORS.penthouse, roughness: 0.8, metalness: 0.05 });
   const vestibuleMat = new THREE.MeshStandardMaterial({
     color: COLORS.vestibuleGlass,
@@ -335,6 +372,20 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   const canopyMat = new THREE.MeshStandardMaterial({ color: COLORS.canopy, roughness: 0.5, metalness: 0.3 });
   const antennaMat = new THREE.MeshStandardMaterial({ color: COLORS.antenna, roughness: 0.5, metalness: 0.3 });
 
+  /**
+   * 窓の無い無地の面: 塔の南西の隅。2012 年の写真で、塔の南面のうち細い塔より西の部分は地面から上まで窓が無く、
+   * 2022 年の写真でも、フィンの面の右（南）の隅の面は無地
+   */
+  const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.05;
+  const isPlainWall: PlainWallTest = (mu, mv, n) => {
+    const facesSouth = n[1] > 0.9;
+    const facesWest = n[0] < -0.9;
+    if (facesSouth && near(mv, TOWER_SOUTH_V) && mu < SLENDER.u0) return true;
+    if (facesWest && near(mu, CHAMFER_U) && mv > CHAMFER_V) return true;
+    if (facesSouth && near(mv, CHAMFER_V) && mu < CHAMFER_U) return true;
+    return false;
+  };
+
   const addPrism = (
     name: string,
     outer: readonly P2[],
@@ -343,7 +394,12 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
     wallMat: THREE.MeshStandardMaterial,
     baseY = bottomY,
   ): THREE.Mesh => {
-    const mesh = new THREE.Mesh(buildPrism(outer, holes, baseY, topY, floorY), [roofMat, wallMat, plinthMat]);
+    const mesh = new THREE.Mesh(buildPrism(outer, holes, baseY, topY, floorY, isPlainWall), [
+      roofMat,
+      wallMat,
+      plinthMat,
+      plainTileMat,
+    ]);
     mesh.name = name;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -351,27 +407,29 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
     return mesh;
   };
 
-  // --- 1. 塔の低層部（5 階。西の塊の全体。南西の隅は輪郭どおり欠く） ---
+  // --- 1. 西の塊の土台（7 階。北の端だけ屋上が見え、左肩の 2 段目になる。南西の隅は輪郭どおり欠く） ---
   const towerBaseRing: P2[] = [
     [WEST_FACE_U, TOWER_NORTH_V],
     [TOWER_EAST_U, TOWER_NORTH_V],
     [TOWER_EAST_U, TOWER_SOUTH_V],
+    [SLENDER.u0, TOWER_SOUTH_V], // 南面の窓のある東の区画と、無地の西の区画の境目
     [CHAMFER_U, TOWER_SOUTH_V],
     [CHAMFER_U, CHAMFER_V],
     [WEST_FACE_U, CHAMFER_V],
   ];
   const lowTopY = yAtFloor(LOW_FLOORS) + PARAPET_M;
-  addPrism('area3-tower-base', towerBaseRing, [], lowTopY, towerWallMat);
+  const baseTopY = yAtFloor(BASE_FLOORS) + BASE_PARAPET_M;
+  addPrism('area3-tower-base', towerBaseRing, [], baseTopY, towerWallMat);
 
   // 上に載る段は、下の段の屋上から立ち上げる（同じ面の壁が重なって模様がちらつかないように）
-  // --- 2. 7 階の段（フィンの部分の北隣） ---
+  // --- 2. 左肩の 1 段目（8 階。フィンの部分の北隣） ---
   addPrism(
-    'area3-tower-step7',
-    rect(WEST_FACE_U, TOWER_EAST_U, STEP7_NORTH_V, MAIN_TOWER_NORTH_V),
+    'area3-tower-step',
+    rect(WEST_FACE_U, TOWER_EAST_U, STEP_NORTH_V, MAIN_TOWER_NORTH_V),
     [],
     yAtFloor(STEP_FLOORS) + PARAPET_M,
     towerWallMat,
-    lowTopY,
+    baseTopY,
   );
 
   // --- 3. 塔の本体（10 階＋笠木） ---
@@ -380,33 +438,35 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
     [WEST_FACE_U, MAIN_TOWER_NORTH_V],
     [TOWER_EAST_U, MAIN_TOWER_NORTH_V],
     [TOWER_EAST_U, TOWER_SOUTH_V],
+    [SLENDER.u0, TOWER_SOUTH_V], // 南面の窓のある東の区画と、無地の西の区画の境目
     [CHAMFER_U, TOWER_SOUTH_V],
     [CHAMFER_U, CHAMFER_V],
     [WEST_FACE_U, CHAMFER_V],
   ];
-  addPrism('area3-tower-main', mainRing, [], towerTopY, towerWallMat, lowTopY);
+  addPrism('area3-tower-main', mainRing, [], towerTopY, towerWallMat, baseTopY);
 
-  // --- 4. 一段高い細い塔（階段室か機械室。上部に校章〈無地の円〉とアンテナ） ---
+  // --- 4. 一段高い細い塔（階段室か機械室。上部に校章〈無地の円〉とアンテナ）。屋上より上は窓の無い無地（2012 年の写真） ---
   const slenderTopY = towerTopY + SLENDER_EXTRA_M;
   addPrism(
     'area3-tower-slender',
     rect(SLENDER.u0, SLENDER.u1, SLENDER.v0, SLENDER.v1),
     [],
     slenderTopY,
-    towerWallMat,
+    plainTileMat,
     towerTopY,
   );
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.25, 24), blueMat);
+  // 校章: 細い塔の南面の中央、塔の屋上より上の面の中に収まる小さな無地の浮き彫り
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(EMBLEM_RADIUS_M, EMBLEM_RADIUS_M, 0.16, 24), emblemMat);
   disc.name = 'area3-emblem-disc';
   disc.rotation.x = Math.PI / 2;
-  disc.position.set((SLENDER.u0 + SLENDER.u1) / 2, slenderTopY - 2.1, SLENDER.v1 + 0.12);
+  disc.position.set((SLENDER.u0 + SLENDER.u1) / 2, slenderTopY - EMBLEM_BELOW_TOP_M, SLENDER.v1 + 0.08);
   frame.add(disc);
   const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5, 6), antennaMat);
   antenna.name = 'area3-antenna';
   antenna.position.set(SLENDER.u0 + 2.2, slenderTopY + 2.5, SLENDER.v0 + 3.0);
   frame.add(antenna);
 
-  // --- 5. フィンの面（西の面の 8〜10 階）: 窓の縦の帯 6 本・深いフィン・上の笠木と青い帯 ---
+  // --- 5. フィンの面（西の面の 8〜10 階）: 窓の縦の帯 6 本・深いフィン・上の笠木と文字の代わりの青い線 ---
   const finV0 = MAIN_TOWER_NORTH_V;
   const finV1 = CHAMFER_V;
   const bay = (finV1 - finV0) / FIN_BAYS;
@@ -452,12 +512,18 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   lintel.castShadow = true;
   frame.add(lintel);
 
-  // 「関西大学」の青い立体文字の代わりの帯（内側の 4 区画の幅）
-  const blueBand = new THREE.Mesh(unitBox, blueMat);
-  blueBand.name = 'area3-blue-band';
-  blueBand.position.set(WEST_FACE_U - FIN_DEPTH_M - 0.08, finY1 + (towerTopY - finY1) * 0.5, (finV0 + finV1) / 2);
-  blueBand.scale.set(0.16, (towerTopY - finY1) * 0.62, bay * 4);
-  frame.add(blueBand);
+  // 「関西大学」の青い立体文字の代わり: 壁と同じ色の笠木の面に、文字 1 つにつき 1 本の細い青い線（控えめに）
+  const letters = new THREE.InstancedMesh(unitBox, blueMat, LETTER_BAYS.length);
+  letters.name = 'area3-letter-lines';
+  LETTER_BAYS.forEach((k, i) => {
+    dummy.position.set(WEST_FACE_U - FIN_DEPTH_M - 0.04, (finY1 + towerTopY) / 2, finV0 + (k + 0.5) * bay);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(0.08, LETTER_LINE_M, bay * LETTER_WIDTH_OF_BAY);
+    dummy.updateMatrix();
+    letters.setMatrixAt(i, dummy.matrix);
+  });
+  letters.instanceMatrix.needsUpdate = true;
+  frame.add(letters);
 
   // --- 6. 入口の風除室（輪郭の西の張り出し）と、アクセス道の屋根の終点までの庇（2022 年の写真の金属の庇） ---
   const vestibuleTopY = floorY + 3.6;
@@ -519,8 +585,8 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   return {
     group,
     primaryMaterials: [
-      { mat: towerWallMat, baseHex: COLORS.tile },
-      { mat: wingWallMat, baseHex: COLORS.tile },
+      { mat: towerWallMat, baseHex: towerWallHex },
+      { mat: wingWallMat, baseHex: wingWallHex },
       { mat: roofMat, baseHex: COLORS.roof },
     ],
     animated: [],

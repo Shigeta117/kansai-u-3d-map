@@ -147,9 +147,12 @@ describe('buildArea3', () => {
 
   it('exposes the tile walls and the roof as primaryMaterials', () => {
     expect(result.primaryMaterials).toHaveLength(3);
+    // Node では窓の模様（canvas）が作れないので、壁はタイルの色の無地になる
     expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#DCD4C3', '#DCD4C3', '#A9A49A']);
     for (const entry of result.primaryMaterials) {
       expect(entry.mat).toBeInstanceOf(THREE.MeshStandardMaterial);
+      // baseHex は材質の今の色と同じ（選択の解除で色を戻すときに使われる）
+      expect(`#${entry.mat.color.getHexString().toUpperCase()}`).toBe(entry.baseHex);
     }
     expect(result.animated).toEqual([]);
   });
@@ -173,20 +176,60 @@ describe('buildArea3', () => {
     expect(mainBox.min.x).toBeLessThan(-225);
   });
 
-  it('puts 5 deep fins plus the 2 frame edges and the blue band on the west face of the tower', () => {
+  it('puts 5 deep fins plus the 2 frame edges and 4 thin blue lines (not a board) on the west face of the tower', () => {
     const fins = result.group.getObjectByName('area3-fins');
-    const band = result.group.getObjectByName('area3-blue-band');
+    const letters = result.group.getObjectByName('area3-letter-lines');
     const main = result.group.getObjectByName('area3-tower-main');
-    if (!(fins instanceof THREE.InstancedMesh) || !band || !main) throw new Error('fins missing');
+    if (!(fins instanceof THREE.InstancedMesh) || !(letters instanceof THREE.InstancedMesh) || !main) {
+      throw new Error('fins missing');
+    }
     expect(fins.count).toBe(7);
+    expect(letters.count).toBe(4);
+    expect(result.group.getObjectByName('area3-blue-band')).toBeUndefined();
     const finBox = worldBox(fins);
-    const bandBox = worldBox(band);
+    const letterBox = worldBox(letters);
     const mainBox = worldBox(main);
-    // フィンと帯は塔の西の面より外（西）に出る
+    // フィンと青い線は塔の西の面より外（西）に出る
     expect(finBox.min.x).toBeLessThan(mainBox.min.x);
-    expect(bandBox.min.x).toBeLessThan(mainBox.min.x);
+    expect(letterBox.min.x).toBeLessThan(mainBox.min.x);
+    // 青い線は細い（一枚板にしない）
+    expect(letterBox.max.y - letterBox.min.y).toBeLessThan(0.5);
     // フィンは塔の上部（8〜10 階）
     expect(finBox.min.y - groundVisualY).toBeGreaterThan(20);
+  });
+
+  it('steps the left shoulder of the fin face down twice (8 storeys, then 7 storeys at the north end)', () => {
+    const step = result.group.getObjectByName('area3-tower-step');
+    const base = result.group.getObjectByName('area3-tower-base');
+    const fins = result.group.getObjectByName('area3-fins');
+    const main = result.group.getObjectByName('area3-tower-main');
+    if (!step || !base || !fins || !main) throw new Error('parts missing');
+    const finBottom = worldBox(fins).min.y;
+    const stepTop = worldBox(step).max.y;
+    const baseTop = worldBox(base).max.y;
+    const mainTop = worldBox(main).max.y;
+    expect(stepTop).toBeGreaterThan(finBottom + 2);
+    expect(stepTop).toBeLessThan(mainTop - 4);
+    expect(baseTop).toBeLessThan(stepTop - 2);
+    expect(Math.abs(baseTop - finBottom)).toBeLessThan(1);
+  });
+
+  it('keeps the emblem a small plain disc inside the slender tower face', () => {
+    const disc = result.group.getObjectByName('area3-emblem-disc');
+    const slender = result.group.getObjectByName('area3-tower-slender');
+    if (!(disc instanceof THREE.Mesh) || !slender) throw new Error('emblem missing');
+    const discBox = worldBox(disc);
+    const slenderBox = worldBox(slender);
+    const mat = disc.material as THREE.MeshStandardMaterial;
+    // 青くしない（壁と同系の色）
+    expect(mat.color.b).toBeLessThan(mat.color.r);
+    expect(discBox.max.y - discBox.min.y).toBeLessThan(2);
+    expect(discBox.max.y).toBeLessThan(slenderBox.max.y);
+    expect(discBox.min.y).toBeGreaterThan(slenderBox.min.y);
+    // 細い塔の面の幅の中に収まる（角からはみ出さない）
+    const slenderSpan = Math.hypot(slenderBox.max.x - slenderBox.min.x, slenderBox.max.z - slenderBox.min.z);
+    const discSpan = Math.hypot(discBox.max.x - discBox.min.x, discBox.max.z - discBox.min.z);
+    expect(discSpan).toBeLessThan(slenderSpan / 3);
   });
 
   it('keeps the courtyard open', () => {

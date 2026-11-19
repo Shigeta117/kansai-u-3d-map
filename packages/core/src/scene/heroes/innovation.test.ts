@@ -144,7 +144,7 @@ describe('buildInnovation', () => {
 
   it('exposes the metal panel, the glass louvers and the glass box as primaryMaterials', () => {
     expect(result.primaryMaterials).toHaveLength(3);
-    expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#868B90', '#6FAEA0', '#AFC6C6']);
+    expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#868B90', '#A3CEC5', '#B3C3C8']);
     for (const entry of result.primaryMaterials) {
       expect(entry.mat).toBeInstanceOf(THREE.MeshStandardMaterial);
       expect(entry.mat.metalness).toBeLessThanOrEqual(0.3);
@@ -172,14 +172,28 @@ describe('buildInnovation', () => {
     if (!(louvers instanceof THREE.InstancedMesh) || !(braces instanceof THREE.InstancedMesh) || !long) {
       throw new Error('louvers missing');
     }
-    expect(louvers.count % 3).toBe(0);
-    expect(louvers.count).toBeGreaterThanOrEqual(60);
+    // 写真ではまばら（1〜3 枚の組と隙間）: 0.95m の格子 41 か所 × 3 階のうち半分ほど
+    expect(louvers.count).toBeGreaterThanOrEqual(50);
+    expect(louvers.count).toBeLessThanOrEqual(70);
     // 7 本の柱と 6 区画 × 2 本の筋交い
     expect(braces.count).toBe(7 + 12);
     const frontV = Math.min(...instances(louvers).flatMap((i) => i.corners.map(toV)));
     const longFrontV = minVertexV(long);
     // ルーバーは正面より外（北東）
     expect(frontV).toBeLessThan(longFrontV);
+  });
+
+  it('shows glass on the ground floor (warm, light, with silver mullions) instead of an opaque brown wall', () => {
+    const gf = result.group.getObjectByName('innovation-ground-floor');
+    if (!(gf instanceof THREE.Mesh)) throw new Error('ground floor missing');
+    const mats = gf.material as THREE.MeshStandardMaterial[];
+    // BoxGeometry の面の順で -v（正面）は 5 番目
+    const front = mats[5];
+    if (!front) throw new Error('front material missing');
+    const hsl = { h: 0, s: 0, l: 0 };
+    front.color.getHSL(hsl, THREE.SRGBColorSpace);
+    expect(hsl.l).toBeGreaterThan(0.5);
+    expect(front.color.r).toBeGreaterThan(front.color.b);
   });
 
   describe('on ground that falls to the south-east', () => {

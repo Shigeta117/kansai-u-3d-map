@@ -67,11 +67,19 @@ const PANEL_ROOF_M = ROOF_M + 0.9;
 const GROUND_FLOOR_SETBACK_M = 1.7;
 const ENTRY_FLOOR_ABOVE_GROUND_M = 0.3;
 
-/** ルーバー: 間隔・幅・角度（写真では面に対して斜めに振れたガラスの板。角度はばらつかせる） */
-const FIN_PITCH_M = 1.3;
-const FIN_WIDTH_M = 1.25;
+/**
+ * ルーバー: 面に対して斜めに振れた淡い青緑のガラスの細い板。写真（Commons の 2 枚）では 1〜3 枚ずつの組が
+ * まばらに付き、組の間から奥のガラスと窓の枠が見える。0.95m の格子のうち半分に置き（2 枚・隙間・1 枚・隙間 2 つ）、
+ * 階ごとにずらす
+ */
+const FIN_PITCH_M = 0.95;
+const FIN_WIDTH_M = 0.8;
 const FIN_ANGLES_DEG = [24, 36, 18, 30, 22, 33] as const;
 const FIN_FRONT_V = FRONT_V - 0.75;
+const FIN_PATTERN = [true, true, false, true, false, false] as const;
+const FIN_FLOOR_SHIFT = 2;
+/** 1 階のガラスの方立ての間隔（写真では筋交いの 1 区画に 3〜4 枚） */
+const GROUND_MULLION_PITCH_M = 2.2;
 /** 1 階の正面の筋交い: 柱 7 本・6 区画、各区画に山形の 2 本 */
 const BRACE_BAYS = 6;
 
@@ -88,10 +96,11 @@ const COLORS = {
   concrete: '#BDBAB2', // 打ち放しの基壇
   stair: '#C8C5BD',
   panel: '#868B90', // 縦の目地の金属パネル
-  darkGlass: '#4A6266',
-  warmGlass: '#8A7356', // 1 階のカフェ（木の内装が透けるガラス）。看板は作らない
-  glassBox: '#AFC6C6', // 銀の方立てで割った淡い青緑のガラス
-  fin: '#6FAEA0', // 青緑のガラスのルーバー
+  backGlass: '#97A9AE', // ルーバーの奥のガラスと窓の枠（灰青。写真では組の間から明るく見える）
+  warmGlass: '#BCA684', // 1 階のカフェ: 暖色の室内が透けるガラス（方立ては銀の線）。看板は作らない
+  warmGlow: '#2E2112', // 室内の明かり（ごく弱い自己発光）
+  glassBox: '#B3C3C8', // 明るい灰青のガラス（銀の方立てで割る）
+  fin: '#A3CEC5', // 淡い青緑のガラスのルーバー
   silver: '#D2D6D8',
   steel: '#565B61',
   roof: '#8E908F',
@@ -122,10 +131,11 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
   const concreteMat = mat(COLORS.concrete, 0.9, 0.02);
   const stairMat = mat(COLORS.stair, 0.88, 0.02);
   const panelMat = mat(COLORS.panel, 0.6, 0.15);
-  const darkGlassMat = mat(COLORS.darkGlass, 0.25, 0.1);
-  const warmGlassMat = mat(COLORS.warmGlass, 0.35, 0.05);
-  const glassBoxMat = mat(COLORS.glassBox, 0.2, 0.1);
-  const finMat = mat(COLORS.fin, 0.3, 0.1);
+  const backGlassMat = mat(COLORS.backGlass, 0.3, 0.08);
+  const warmGlassMat = mat(COLORS.warmGlass, 0.25, 0.05);
+  warmGlassMat.emissive.set(COLORS.warmGlow);
+  const glassBoxMat = mat(COLORS.glassBox, 0.15, 0.1);
+  const finMat = mat(COLORS.fin, 0.25, 0.05);
   const silverMat = mat(COLORS.silver, 0.4, 0.3);
   const steelMat = mat(COLORS.steel, 0.5, 0.25);
   const roofMat = mat(COLORS.roof, 0.85, 0.02);
@@ -161,7 +171,7 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
   plinth.receiveShadow = true;
   group.add(plinth);
 
-  // --- 2. 長い棟の 1 階（カフェ。正面と南東の端は木の内装が透けるガラス。正面は下げてテラスに） ---
+  // --- 2. 長い棟の 1 階（カフェ。正面と南東の端は暖色の室内が透けるガラス。正面は下げてテラスに） ---
   const upperY0 = floorY + GROUND_FLOOR_M;
   addBox(
     'innovation-ground-floor',
@@ -174,7 +184,7 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
     [warmGlassMat, panelMat, roofMat, concreteMat, panelMat, warmGlassMat],
   );
 
-  // --- 3. 長い棟の 2〜4 階（正面は暗いガラス、その前にルーバー） ---
+  // --- 3. 長い棟の 2〜4 階（正面は灰青のガラス、その前にルーバー） ---
   const roofY = floorY + ROOF_M;
   addBox('innovation-long-upper', LONG_U0, PANEL_U0, upperY0, roofY, FRONT_V, BACK_V, [
     panelMat,
@@ -182,19 +192,19 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
     roofMat,
     panelMat,
     panelMat,
-    darkGlassMat,
+    backGlassMat,
   ]);
 
   // --- 4. 縦の目地の金属パネルの棟（長い棟の南東の端。南の張り出しまで通す） ---
   const panelTopY = floorY + PANEL_ROOF_M;
-  // 正面はルーバーの奥の暗いガラス（長い棟と同じ）。屋根の線より上に出る分は金属パネルの笠
+  // 正面はルーバーの奥のガラス（長い棟と同じ）。屋根の線より上に出る分は金属パネルの笠
   addBox('innovation-panel-block', PANEL_U0, PANEL_U1, upperY0, roofY, FRONT_V, BACK_V, [
     panelMat,
     panelMat,
     roofMat,
     panelMat,
     panelMat,
-    darkGlassMat,
+    backGlassMat,
   ]);
   addBox('innovation-panel-cap', PANEL_U0, PANEL_U1, roofY, panelTopY, FRONT_V, BACK_V, [
     panelMat,
@@ -272,6 +282,21 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
     const y = upperY0 + i * UPPER_FLOOR_M + (i === UPPER_FLOORS ? 0.2 : 0);
     silver.push({ c: [(LONG_U0 + PANEL_U1) / 2, y, FRONT_V - 0.2], s: [PANEL_U1 - LONG_U0, 0.36, 0.5] });
   }
+  // 1 階のガラスの方立て（正面と南東の端。茶色の壁ではなくガラスに見えるように）
+  const gfFrontV = FRONT_V + GROUND_FLOOR_SETBACK_M - 0.05;
+  const gfMullions = Math.floor((PANEL_U1 - LONG_U0) / GROUND_MULLION_PITCH_M);
+  for (let k = 1; k < gfMullions; k++) {
+    const u = LONG_U0 + (k * (PANEL_U1 - LONG_U0)) / gfMullions;
+    silver.push({ c: [u, floorY + GROUND_FLOOR_M / 2, gfFrontV], s: [0.1, GROUND_FLOOR_M, 0.1] });
+  }
+  for (let k = 1; k < 7; k++) {
+    const v = FRONT_V + GROUND_FLOOR_SETBACK_M + (k * (BACK_V - FRONT_V - GROUND_FLOOR_SETBACK_M)) / 7;
+    silver.push({ c: [PANEL_U1 + 0.05, floorY + GROUND_FLOOR_M / 2, v], s: [0.1, GROUND_FLOOR_M, 0.1] });
+  }
+  silver.push({
+    c: [(LONG_U0 + PANEL_U1) / 2, floorY + GROUND_FLOOR_M - 1.0, gfFrontV],
+    s: [PANEL_U1 - LONG_U0, 0.1, 0.1],
+  });
   const silverMesh = new THREE.InstancedMesh(unitBox, silverMat, silver.length);
   silverMesh.name = 'innovation-silver-lines';
   silver.forEach(({ c, s }, i) => {
@@ -284,22 +309,26 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
   silverMesh.instanceMatrix.needsUpdate = true;
   frame.add(silverMesh);
 
-  // --- 8. 斜めのガラスのルーバー（正面の 2〜4 階） ---
-  const finsPerFloor = Math.floor((PANEL_U1 - LONG_U0 - 1.0) / FIN_PITCH_M) + 1;
-  const fins = new THREE.InstancedMesh(unitBox, finMat, finsPerFloor * UPPER_FLOORS);
-  fins.name = 'innovation-louvers';
-  let fi = 0;
+  // --- 8. 斜めのガラスのルーバー（正面の 2〜4 階。細い板の組をまばらに） ---
+  const slotsPerFloor = Math.floor((PANEL_U1 - LONG_U0 - 1.0) / FIN_PITCH_M) + 1;
+  const finSlots: { k: number; f: number }[] = [];
   for (let f = 0; f < UPPER_FLOORS; f++) {
-    const y = upperY0 + f * UPPER_FLOOR_M + UPPER_FLOOR_M / 2 + 0.1;
-    for (let k = 0; k < finsPerFloor; k++) {
-      const deg = FIN_ANGLES_DEG[(k + f * 2) % FIN_ANGLES_DEG.length] ?? 36;
-      dummy.position.set(LONG_U0 + 0.5 + k * FIN_PITCH_M, y, FIN_FRONT_V);
-      dummy.rotation.set(0, (deg * Math.PI) / 180, 0);
-      dummy.scale.set(FIN_WIDTH_M, UPPER_FLOOR_M - 0.5, 0.07);
-      dummy.updateMatrix();
-      fins.setMatrixAt(fi++, dummy.matrix);
+    for (let k = 0; k < slotsPerFloor; k++) {
+      if (FIN_PATTERN[(k + f * FIN_FLOOR_SHIFT) % FIN_PATTERN.length]) finSlots.push({ k, f });
     }
   }
+  const fins = new THREE.InstancedMesh(unitBox, finMat, finSlots.length);
+  fins.name = 'innovation-louvers';
+  finSlots.forEach(({ k, f }, fi) => {
+    const y = upperY0 + f * UPPER_FLOOR_M + UPPER_FLOOR_M / 2 + 0.1;
+    const deg = FIN_ANGLES_DEG[(k + f * 2) % FIN_ANGLES_DEG.length] ?? 36;
+    dummy.position.set(LONG_U0 + 0.5 + k * FIN_PITCH_M, y, FIN_FRONT_V);
+    // 板の表は南東寄り（+u）に振れる: Commons の 2 枚（どちらも南東寄りの正面から）で板の広い面が見える
+    dummy.rotation.set(0, (-deg * Math.PI) / 180, 0);
+    dummy.scale.set(FIN_WIDTH_M, UPPER_FLOOR_M - 0.5, 0.07);
+    dummy.updateMatrix();
+    fins.setMatrixAt(fi, dummy.matrix);
+  });
   fins.instanceMatrix.needsUpdate = true;
   fins.castShadow = true;
   frame.add(fins);
