@@ -4,6 +4,7 @@ export * from './domain/indoor-types';
 
 // Domain logic
 export * from './domain/campus-registry';
+export * from './domain/labels';
 export * from './domain/projection';
 export * from './domain/routing';
 export * from './domain/search';
