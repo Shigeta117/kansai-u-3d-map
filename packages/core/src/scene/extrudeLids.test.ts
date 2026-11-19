@@ -97,7 +97,11 @@ describe('組み上げたシーンの押し出しの蓋', () => {
   const terrain = readData<TerrainGrid>('terrain.json');
   const buildings = readData<BuildingFeature[]>('buildings.json');
   const config = getCampusConfig('senriyama');
-  const built = buildBuildingsGroup(buildings, terrain.minElevation, config, { terrain });
+  // 部品をまとめると ExtrudeGeometry ではなくなり蓋の検査を素通りするので、まとめる前のメッシュで調べる
+  const built = buildBuildingsGroup(buildings, terrain.minElevation, config, {
+    terrain,
+    mergeStaticParts: false,
+  });
 
   it('周辺の建物に屋根がある（上向きの面の面積が輪郭の面積の合計とほぼ同じ）', () => {
     const mesh = built.root.getObjectByName('surrounding-buildings');

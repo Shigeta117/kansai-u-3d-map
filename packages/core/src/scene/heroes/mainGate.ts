@@ -19,6 +19,14 @@ const COLORS = {
   paving: "#D8D2C6",
 } as const;
 
+/** 秀麗橋の歩く面の、正門の地面（表示の高さ）からの高さ。経路のデータの床（walk-graph の秀麗橋のノード）と同じ */
+export const SHUREI_WALK_DECK_ABOVE_GROUND_M = 8.0;
+/** 歩く面から橋の底（下面の帯の下端）までの深さ（推定） */
+export const SHUREI_BODY_BELOW_DECK_M = 3.0;
+/** 歩く面の両側の手すりの壁の高さと厚み（推定） */
+export const SHUREI_PARAPET_HEIGHT_M = 1.3;
+const SHUREI_PARAPET_THICKNESS_M = 0.45;
+
 interface ReedTubeSpec {
   angle: number;
   radius: number;
@@ -215,7 +223,12 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   const dummy = new THREE.Object3D();
 
   // ---------------------------------------------------------------------------
-  // 1. 秀麗橋（Shurei Bridge: z 108..137, center x -115, depth 14m, y 8..13.5m）
+  // 1. 秀麗橋（Shurei Bridge: z 108..137, center x -115, depth 14m）
+  //    人は橋の上を歩く（持ち主の確認、2026-11-20）。歩く面を経路のデータの床の高さ
+  //    （正門の地面から表示で約 8m。scripts/build-campus-data.mjs の秀麗橋の床の推定）に合わせ、
+  //    両側に石張りの手すりの壁を立て、橋の本体は歩く面より下に置く。
+  //    下の空き 5m・石の帯 4.3m の比は、外から撮った写真（Commons、The_main_gate_of_Kansai_University）の
+  //    くぐる高さと帯の厚みの比（約 5 : 4.3）に合わせた推定
   // ---------------------------------------------------------------------------
   const bridgeCenterX = -115;
   const bridgeDepthX = 14;
@@ -223,10 +236,11 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   const bridgeZEnd = 137;
   const bridgeLengthZ = bridgeZEnd - bridgeZStart; // 29m
   const bridgeCenterZ = (bridgeZStart + bridgeZEnd) * 0.5; // 122.5
-  const bridgeBottomY = y0 + 8.0;
-  const bridgeTopY = y0 + 13.5;
+  const walkDeckY = y0 + SHUREI_WALK_DECK_ABOVE_GROUND_M;
+  const bridgeBottomY = walkDeckY - SHUREI_BODY_BELOW_DECK_M;
+  const bridgeTopY = walkDeckY + SHUREI_PARAPET_HEIGHT_M;
   const soffitThickness = 0.7; // 俯瞰・遠景でも通路をくぐる影の帯に読めるよう厚めにする
-  const stoneBodyHeight = bridgeTopY - (bridgeBottomY + soffitThickness); // 5.42m
+  const stoneBodyHeight = walkDeckY - (bridgeBottomY + soffitThickness); // 2.3m
 
   const bridgeBody = new THREE.Mesh(
     new THREE.BoxGeometry(bridgeDepthX, stoneBodyHeight, bridgeLengthZ),
@@ -241,6 +255,25 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   bridgeBody.castShadow = true;
   bridgeBody.receiveShadow = true;
   group.add(bridgeBody);
+
+  // 歩く面の両側（正門の外側＝西と、キャンパス側＝東）の石張りの手すりの壁。外の面は本体の面にそろえる
+  const parapetGeo = new THREE.BoxGeometry(
+    SHUREI_PARAPET_THICKNESS_M,
+    SHUREI_PARAPET_HEIGHT_M,
+    bridgeLengthZ,
+  );
+  for (const [side, sign] of [["west", -1], ["east", 1]] as const) {
+    const parapet = new THREE.Mesh(parapetGeo, bridgeStoneMat);
+    parapet.name = `shurei-bridge-parapet-${side}`;
+    parapet.position.set(
+      bridgeCenterX + sign * (bridgeDepthX - SHUREI_PARAPET_THICKNESS_M) * 0.5,
+      walkDeckY + SHUREI_PARAPET_HEIGHT_M * 0.5,
+      bridgeCenterZ,
+    );
+    parapet.castShadow = true;
+    parapet.receiveShadow = true;
+    group.add(parapet);
+  }
 
   // 橋の下面（濃い灰色 #7F7C76 の厚い帯。写真では橋の下面が暗く見える）
   const bridgeSoffit = new THREE.Mesh(
@@ -257,8 +290,11 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   bridgeSoffit.receiveShadow = true;
   group.add(bridgeSoffit);
 
-  // 石の横目地（高さ 0.1m の帯を 1.2m おきに西・東の両面に配置）
-  const jointHeightsFromGround = [9.2, 10.4, 11.6, 12.8];
+  // 石の横目地（高さ 0.1m の帯を 1.2m おきに西・東の両面に配置。下面の帯の上から、上端の 0.3m 手前まで）
+  const jointHeightsFromGround: number[] = [];
+  for (let h = bridgeBottomY - y0 + soffitThickness + 1.2; h < bridgeTopY - y0 - 0.3; h += 1.2) {
+    jointHeightsFromGround.push(h);
+  }
   const jointGeo = new THREE.BoxGeometry(0.06, 0.1, bridgeLengthZ - 0.04);
   const jointInst = new THREE.InstancedMesh(
     jointGeo,
@@ -293,7 +329,7 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   // ---------------------------------------------------------------------------
   // 2. 秀麗橋 西・東の面中央の無地の丸い浮き彫り（直径 1.6m・厚さ 0.2m。石より少し濃い同系色）
   // ---------------------------------------------------------------------------
-  const emblemCenterY = (bridgeBottomY + bridgeTopY) * 0.5; // y0 + 10.75
+  const emblemCenterY = (bridgeBottomY + soffitThickness + bridgeTopY) * 0.5; // 下面の帯を除いた石の帯の中央
   const emblemEmbed = 0.02;
   const emblemThickness = 0.2;
   const emblemGeo = new THREE.CylinderGeometry(

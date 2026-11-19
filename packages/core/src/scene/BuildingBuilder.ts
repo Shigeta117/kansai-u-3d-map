@@ -11,6 +11,7 @@ import { SENRIYAMA_AERIAL_ROOF_HEX } from '../data/campuses/senriyama/roof-color
 import { ensureExtrudeLids } from './extrudeLids';
 import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
+import { mergeStaticMeshes } from './mergeStaticMeshes';
 import { SCENE_PALETTE } from './palette';
 import { mergeSimpleGeometries } from './TerrainBuilder';
 
@@ -156,6 +157,28 @@ function getShadeVariant(baseHex: string, id: string): string {
   return `#${c.getHexString()}`;
 }
 
+/**
+ * 建物 1 棟の group を仕上げる。動かない部品を材質ごとにまとめ（mergeParts のとき。回る物は残す）、
+ * まとめた後のメッシュに buildingId を付けて選択の当たり判定の対象に入れる
+ */
+function finalizeBuildingGroup(
+  group: THREE.Group,
+  buildingId: string,
+  animated: readonly THREE.Object3D[],
+  mergeParts: boolean,
+  interactiveMeshes: THREE.Object3D[],
+): void {
+  if (mergeParts) {
+    mergeStaticMeshes(group, { keep: animated });
+  }
+  group.traverse((obj) => {
+    obj.userData = { ...obj.userData, buildingId };
+    if (obj instanceof THREE.Mesh) {
+      interactiveMeshes.push(obj);
+    }
+  });
+}
+
 export function isBuildingWithinDiorama(
   building: Pick<BuildingFeature, 'polygon' | 'centroid'>,
   diorama: DioramaConfig,
@@ -190,6 +213,11 @@ export function buildBuildingsGroup(
     campusOnly?: boolean;
     terrain?: TerrainGrid;
     roofColorMode?: RoofColorMode;
+    /**
+     * 建物ごとに、動かない部品を材質ごとに 1 つのメッシュにまとめる（既定 true。描画命令を減らす）。
+     * 3D の書き出し（forExport）ではまとめない。テストで部品ごとのメッシュを調べるときは false にする
+     */
+    mergeStaticParts?: boolean;
   } = {},
 ): BuildingsBuildResult {
   const root = new THREE.Group();
@@ -200,6 +228,7 @@ export function buildBuildingsGroup(
   const interactiveMeshes: THREE.Object3D[] = [];
   const animatedRotors: THREE.Object3D[] = [];
   const facadeTex = options.forExport ? null : createFacadeBandTexture();
+  const mergeParts = !options.forExport && (options.mergeStaticParts ?? true);
 
   const surroundingGeos: THREE.BufferGeometry[] = [];
   const baseSurroundingColor = new THREE.Color(SCENE_PALETTE.buildings.surrounding);
@@ -243,12 +272,7 @@ export function buildBuildingsGroup(
       const hero = heroBuilder({ building: b, groundVisualY, sampleGroundVisualY });
       hero.group.name = `building-${b.id}`;
       hero.group.userData = { buildingId: b.id };
-      hero.group.traverse((obj) => {
-        obj.userData = { ...obj.userData, buildingId: b.id };
-        if (obj instanceof THREE.Mesh) {
-          interactiveMeshes.push(obj);
-        }
-      });
+      finalizeBuildingGroup(hero.group, b.id, hero.animated, mergeParts, interactiveMeshes);
       animatedRotors.push(...hero.animated);
       root.add(hero.group);
       campusRecords.set(b.id, {
@@ -275,14 +299,9 @@ export function buildBuildingsGroup(
       );
       if (sculpted.meshes.length > 0) {
         for (const m of sculpted.meshes) {
-          m.traverse((obj) => {
-            obj.userData = { buildingId: b.id };
-            if (obj instanceof THREE.Mesh) {
-              interactiveMeshes.push(obj);
-            }
-          });
           spotGroup.add(m);
         }
+        finalizeBuildingGroup(spotGroup, b.id, sculpted.animatedRotors, mergeParts, interactiveMeshes);
         animatedRotors.push(...sculpted.animatedRotors);
       } else {
         const padMat = new THREE.MeshStandardMaterial({
@@ -352,18 +371,12 @@ export function buildBuildingsGroup(
     bodyMesh.receiveShadow = true;
     bodyMesh.userData = { buildingId: b.id };
     bGroup.add(bodyMesh);
-    interactiveMeshes.push(bodyMesh);
 
     const sculpted = sculptLandmarkDetails(b, roofVisualY, groundVisualY, wallHex);
     for (const m of sculpted.meshes) {
-      m.traverse((obj) => {
-        obj.userData = { buildingId: b.id };
-        if (obj instanceof THREE.Mesh) {
-          interactiveMeshes.push(obj);
-        }
-      });
       bGroup.add(m);
     }
+    finalizeBuildingGroup(bGroup, b.id, sculpted.animatedRotors, mergeParts, interactiveMeshes);
     animatedRotors.push(...sculpted.animatedRotors);
 
     root.add(bGroup);
