@@ -38,6 +38,8 @@ export interface CampusSceneOptions {
   initialTheme?: LightingTheme;
   initialPresetId?: string;
   initialCamera?: CameraPose;
+  /** 撮影・検収用に、カメラの寄りと傾きの制限を外す（URL の free=1） */
+  freeCamera?: boolean;
 }
 
 export class CampusScene {
@@ -134,6 +136,7 @@ export class CampusScene {
       options.initialPresetId,
       this.prefersReducedMotion,
       options.initialCamera,
+      options.freeCamera ?? false,
     );
 
     const terrainGroup = buildTerrainGroup(
