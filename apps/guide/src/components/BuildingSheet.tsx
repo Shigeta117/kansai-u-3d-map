@@ -61,7 +61,7 @@ function AccessibilityNotice({ buildingId }: { buildingId?: string }) {
             </li>
             <li>
               多機能トイレ: {ACCESS_LABEL[official.accessibleRestroom]}
-              {official.restroomFloors ? `（${official.restroomFloors}）` : ''}
+              {official.restroomFloors ? ` — ${official.restroomFloors}` : ''}
             </li>
           </ul>
           <p className="mt-1">設備は改修されている可能性があります。移動の前に大学のページで確かめてください。下の出入口・連絡の一覧は未確認です。</p>

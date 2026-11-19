@@ -25,6 +25,8 @@ export const SENRIYAMA_BUILDING_FACTS: readonly BuildingFact[] = [
   { id: 'way_624590000', levelsAbove: 5, source: KANCAN },
   { id: 'area1-3', levelsAbove: 5, source: KANCAN },
   { id: 'way_423067254', levelsAbove: 5, source: KANCAN },
+  // 総合図書館: 地上 3 階・地下 2 階（docs/visual-research/library.md）。バリアフリーマップでも書庫が B2 階まで
+  { id: 'library', levelsAbove: 3, source: '総合図書館の調査メモ・バリアフリーマップ' },
 ];
 
 const FLOOR_HEIGHT_M = 3.8;
