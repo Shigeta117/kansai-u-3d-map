@@ -5,8 +5,9 @@
 定義場所: [`packages/core/src/domain/indoor-types.ts`](../packages/core/src/domain/indoor-types.ts)  
 千里山キャンパス収録ファイル: [`apps/guide/src/data/indoor/senriyama-indoor.ts`](../apps/guide/src/data/indoor/senriyama-indoor.ts)
 
-> **出典とフロア平面図の扱いについて**  
-> 各学舎の棟区分・教室番号・オフィスおよび学生支援施設の階数配置は、関西大学教務ガイド **「KAN-CAN! 千里山キャンパス 学舎・教室（一覧）」（2026.10.5 更新）** の公開テーブルを解析して収録しています。防犯・管理上の配慮から詳細なフロア平面図画像は同梱せず保留としています。
+> **出典とフロア平面図・バリアフリー情報の扱いについて**  
+> 各学舎の棟区分・教室番号・オフィスおよび学生支援施設の階数配置は、関西大学教務ガイド **「KAN-CAN! 千里山キャンパス 学舎・教室（一覧）」（2026.10.5 更新）** の公開テーブルをもとに収録しています。防犯・管理上の配慮から詳細なフロア平面図画像は同梱せず保留としています。  
+> 一方、**バリアフリー情報（段差・エレベーター・多機能トイレ）・定員・設備（電源等）は KAN-CAN! に記載が無いため未確認**です。現在の千里山データ（28棟）ではバリアフリー系フィールドはすべて `'unknown'` とし、出典の無い `powerOutlets`・`capacity` は入れていません。
 
 ---
 
@@ -33,11 +34,33 @@
 | `wingLabel` | `string?` | 棟ラベル（例: `'D棟（4号館）'`, `'A〜D棟（第3学舎1〜4号館）'`） |
 | `numberingRule` | `string?` | その建物の教室番号の読み方解説 |
 | `sourceName` / `sourceUrl` / `sourceUpdatedAt` | `string?` | 公開データ出典メタ情報 |
+| `accessibilitySource` | `string?` | バリアフリー系フィールド（`access` / `elevator` / `accessibleRestroom`）に出典つきで確認済みの値を入れる場合の出典名・URL |
 | `summaryNote` | `string?` | 建物の利用・オフィス配置サマリー |
 | `floors` | `FloorMeta[]` | 地下階〜地上階の階層メタ一覧 |
 | `entrances` | `BuildingEntrance[]` | 出入口一覧 |
 | `connectors` | `BuildingConnector[]` | 秀麗橋や連絡通路など他棟への接続関係 |
 | `rooms` | `RoomEntry[]` | 教室・オフィス・ホール等の一覧 |
+
+### バリアフリー状態の 3 値表現（`AccessStatus`）
+
+```ts
+export type AccessStatus = 'yes' | 'no' | 'unknown';
+```
+
+バリアフリーに関わるフィールドは真偽値（`boolean`）ではなく 3 値の `AccessStatus` を使用します。
+
+| 型・フィールド | 型 | 省略時の扱い |
+|---|---|---|
+| `BuildingEntrance.access` | `AccessStatus` | 必須 |
+| `BuildingConnector.access` | `AccessStatus` | 必須 |
+| `RoomEntry.access` | `AccessStatus?` | `'unknown'` 扱い |
+| `FloorMeta.elevator` | `AccessStatus?` | `'unknown'` 扱い |
+| `FloorMeta.accessibleRestroom` | `AccessStatus?` | `'unknown'` 扱い |
+
+**データ入力ルール**:
+- バリアフリー系の値は、信頼できる出典（大学の公式バリアフリーマップや現地確認記録など）があるときだけ `'yes'` または `'no'` を入れ、`BuildingFloorPlan.accessibilitySource` に出典を記録します。
+- 出典が無い場合は推測で `'yes'` や `'no'` にせず、必ず `'unknown'`（未確認）にします。
+- UI では `'yes'` のときのみ肯定バッジを表示し、`'no'` のときは「段差あり」、`'unknown'` のときは個別バッジを出さず未確認である旨の注意と大学公式アクセスマップへの案内を表示します。
 
 ### `RoomEntry` とレンジ展開検索（`searchableCodes`）
 

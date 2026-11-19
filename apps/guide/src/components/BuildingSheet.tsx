@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Compass,
   DoorOpen,
+  ExternalLink,
   Hash,
   Layers,
   MapPin,
@@ -37,6 +38,25 @@ interface BuildingSheetProps {
   onNavigateTo: (building: BuildingFeature) => void;
   onSetAsOrigin: (building: BuildingFeature) => void;
   onJumpToBuildingId: (buildingId: string) => void;
+}
+
+function AccessibilityUnverifiedNotice() {
+  return (
+    <div className="rounded-xl border border-[#E3DDD1] bg-[#F5F1E8] px-3 py-2 text-[11px] leading-relaxed text-[#4B5360]">
+      <p>
+        バリアフリー情報（段差・エレベーター・多機能トイレ）は未確認です。移動の前に大学の公式情報で確かめてください。
+      </p>
+      <a
+        href="https://www.kansai-u.ac.jp/sscc/topimg/access_map.pdf"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 inline-flex items-center gap-1 font-semibold text-[#1B365D] hover:underline"
+      >
+        <span>関西大学 千里山キャンパス アクセスマップ（PDF）</span>
+        <ExternalLink className="h-3 w-3 shrink-0" />
+      </a>
+    </div>
+  );
 }
 
 export function BuildingSheet({
@@ -143,7 +163,7 @@ export function BuildingSheet({
             {target.accessibleWalkNodeId && (
               <span className="inline-flex items-center gap-1 rounded-full bg-[#E2F4F7] px-2 py-0.5 text-[10.5px] font-bold text-[#1F7A8C]">
                 <Accessibility className="h-3 w-3" />
-                段差フリー可
+                段差なし経路の候補あり（参考）
               </span>
             )}
           </div>
@@ -219,7 +239,7 @@ export function BuildingSheet({
 
             <p className="text-[12.5px] leading-relaxed text-[#38404D]">
               {target.description ||
-                '関西大学千里山キャンパスの施設です。ルート検索でここまでの徒歩ルートと高低差・段差フリー経路を確認できます。'}
+                '関西大学千里山キャンパスの施設です。ルート検索でここまでの徒歩ルートと高低差・段差なし参考経路を確認できます。'}
             </p>
 
             {floorPlan?.numberingRule && (
@@ -259,6 +279,7 @@ export function BuildingSheet({
 
         {activeTab === 'floors' && (
           <div key="floors" className="t-tab-panel space-y-2">
+            <AccessibilityUnverifiedNotice />
             {floorPlan ? (
               <>
                 {(floorPlan.numberingRule || floorPlan.summaryNote) && (
@@ -347,6 +368,24 @@ export function BuildingSheet({
                             地表
                           </span>
                         )}
+                        {fl.elevator === 'yes' && (
+                          <span
+                            className={`text-[9px] font-semibold ${
+                              active ? 'text-[#D7E6F5]' : 'text-[#1B365D]'
+                            }`}
+                          >
+                            エレベーター
+                          </span>
+                        )}
+                        {fl.accessibleRestroom === 'yes' && (
+                          <span
+                            className={`text-[9px] font-semibold ${
+                              active ? 'text-[#A7D7EA]' : 'text-[#1F7A8C]'
+                            }`}
+                          >
+                            多機能トイレ
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -400,10 +439,15 @@ export function BuildingSheet({
                           {room.capacity !== undefined && (
                             <span className="tabular-nums">定員約 {room.capacity}名</span>
                           )}
-                          {room.accessible && (
+                          {room.access === 'yes' && (
                             <span className="inline-flex items-center gap-0.5 text-[#1F7A8C]">
                               <Accessibility className="h-3 w-3" />
                               バリアフリー
+                            </span>
+                          )}
+                          {room.access === 'no' && (
+                            <span className="inline-flex items-center gap-0.5 font-semibold text-[#9A4A2E]">
+                              段差あり
                             </span>
                           )}
                           {room.powerOutlets && (
@@ -440,6 +484,7 @@ export function BuildingSheet({
 
         {activeTab === 'access' && (
           <div key="access" className="t-tab-panel space-y-2.5">
+            <AccessibilityUnverifiedNotice />
             {floorPlan && floorPlan.entrances.length > 0 ? (
               <div>
                 <div className="mb-1.5 text-[11px] font-bold text-[#5F6875]">
@@ -456,9 +501,14 @@ export function BuildingSheet({
                           <DoorOpen className="h-3.5 w-3.5 text-[#1B365D]" />
                           <span>{ent.label}</span>
                         </div>
-                        {ent.accessible && (
+                        {ent.access === 'yes' && (
                           <span className="shrink-0 rounded-full bg-[#E2F4F7] px-2 py-0.5 text-[10px] font-bold text-[#1F7A8C]">
                             段差フリー
+                          </span>
+                        )}
+                        {ent.access === 'no' && (
+                          <span className="shrink-0 rounded-full bg-[#FCECE7] px-2 py-0.5 text-[10px] font-bold text-[#9A4A2E]">
+                            段差あり
                           </span>
                         )}
                       </div>
@@ -473,7 +523,7 @@ export function BuildingSheet({
               <div className="rounded-xl border border-[#E6DFD1] bg-white px-3 py-2.5 text-[11.5px] text-[#5F6875]">
                 最寄り歩行ネットワーク：
                 {target.accessibleWalkNodeId
-                  ? '段差フリーノード接続済（完全段差フリー案内に対応）'
+                  ? '段差なし経路の候補あり（OSM 歩道データに基づく参考）'
                   : target.walkNodeId
                     ? '一般歩行ルート接続済'
                     : '外観表示専用スポット'}
@@ -501,9 +551,14 @@ export function BuildingSheet({
                           <span className="text-[12px] font-bold text-[#1D2430]">
                             {conn.label}
                           </span>
-                          {conn.accessible && (
+                          {conn.access === 'yes' && (
                             <span className="shrink-0 rounded bg-[#E2F4F7] px-1.5 py-0.5 text-[9.5px] font-bold text-[#1F7A8C]">
                               段差なし
+                            </span>
+                          )}
+                          {conn.access === 'no' && (
+                            <span className="shrink-0 rounded bg-[#FCECE7] px-1.5 py-0.5 text-[9.5px] font-bold text-[#9A4A2E]">
+                              段差あり
                             </span>
                           )}
                         </div>

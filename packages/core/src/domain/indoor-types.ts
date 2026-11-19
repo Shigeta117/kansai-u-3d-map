@@ -1,5 +1,7 @@
 import type { BuildingCategory, GeoCoord } from './types';
 
+export type AccessStatus = 'yes' | 'no' | 'unknown';
+
 export type RoomKind =
   | 'lecture'
   | 'hall'
@@ -18,7 +20,7 @@ export interface BuildingEntrance {
   floor: number;
   coord?: GeoCoord;
   walkNodeId?: string;
-  accessible: boolean;
+  access: AccessStatus;
   note?: string;
 }
 
@@ -35,7 +37,7 @@ export interface BuildingConnector {
   toBuildingId: string;
   toFloor: number;
   kind: ConnectorKind;
-  accessible: boolean;
+  access: AccessStatus;
   label: string;
   note?: string;
 }
@@ -49,7 +51,7 @@ export interface RoomEntry {
   wing?: string;
   searchableCodes?: string[];
   capacity?: number;
-  accessible?: boolean;
+  access?: AccessStatus;
   powerOutlets?: boolean;
   note?: string;
 }
@@ -58,8 +60,8 @@ export interface FloorMeta {
   floor: number;
   label: string;
   groundAccess?: boolean;
-  hasElevator?: boolean;
-  hasAccessibleRestroom?: boolean;
+  elevator?: AccessStatus;
+  accessibleRestroom?: AccessStatus;
   floorMapImage?: string;
 }
 
@@ -70,6 +72,7 @@ export interface BuildingFloorPlan {
   sourceName?: string;
   sourceUrl?: string;
   sourceUpdatedAt?: string;
+  accessibilitySource?: string;
   summaryNote?: string;
   floors: FloorMeta[];
   entrances: BuildingEntrance[];

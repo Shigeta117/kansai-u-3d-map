@@ -120,4 +120,26 @@ describe('SENRIYAMA_FLOOR_PLANS official KAN-CAN integrity', () => {
     expect(serialized.includes('\u7a93')).toBe(false);
     expect(serialized.includes('\u52b9\u304f')).toBe(false);
   });
+
+  it('marks all unsourced accessibility fields as unknown and omits unsourced powerOutlets and capacity', () => {
+    for (const plan of Object.values(SENRIYAMA_FLOOR_PLANS)) {
+      for (const fl of plan.floors) {
+        expect(fl.elevator).toBe('unknown');
+        expect(fl.accessibleRestroom).toBe('unknown');
+      }
+      for (const ent of plan.entrances) {
+        expect(ent.access).toBe('unknown');
+      }
+      for (const conn of plan.connectors) {
+        expect(conn.access).toBe('unknown');
+      }
+      for (const room of plan.rooms) {
+        expect(room.access ?? 'unknown').toBe('unknown');
+        expect(room.access).not.toBe('yes');
+        expect(room.access).not.toBe('no');
+        expect('powerOutlets' in room).toBe(false);
+        expect('capacity' in room).toBe(false);
+      }
+    }
+  });
 });
