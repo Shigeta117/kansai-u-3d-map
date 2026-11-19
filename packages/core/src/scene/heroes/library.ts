@@ -36,56 +36,202 @@ const COLORS = {
   mullion: '#3A4248',
   canopy: '#EDEAE3',
   stairStone: '#B5B2AA',
-  plinthStone: '#9E9A90',
-  roof: '#B9AFA0',
+  retainingStone: '#9E9A90',
+  // 地面・階段のベージュと分けて、俯瞰で屋上がのっぺりしないように少し濃い灰色にする
+  roof: '#8F8A84',
 } as const;
 
-/** 斜面でも足元が浮かないように地面の下へ伸ばす根入れ深さ (m) */
-const SKIRT_DEPTH_M = 2.5;
-
-/** 大階段・基壇の高さ（下段 2.4m + 上段 2.4m = 4.8m） */
-const STAIR_LOWER_HEIGHT_M = 2.4;
-const STAIR_UPPER_HEIGHT_M = 2.4;
-const PLINTH_HEIGHT_M = STAIR_LOWER_HEIGHT_M + STAIR_UPPER_HEIGHT_M;
+/**
+ * 本体・塔・テラス・擁壁・段の底を、輪郭と階段まわりで引いた地面のいちばん低い所からさらに下ろす深さ (m)。
+ * どこから見ても足元が浮かないようにする
+ */
+const FOOTING_BELOW_LOWEST_GROUND_M = 0.5;
 
 /**
- * 本体 3 階建ての階高・総高と左右の塔状張り出しの高さ。
- * 基壇 4.8m の上に 3 階建て（4.8m × 3 = 14.4m）と塔（+0.6m = 15.0m）を載せ、
- * 最高部を groundVisualY + 19.8m（許容外接箱上限 groundVisualY + 20m 以内）に収める。
+ * 入口のテラス（1 階の床）を、正面の壁の前の地面（と groundVisualY の大きい方）より上げる高さ (m)。
+ * 写真（Wikimedia Commons の正面 2 枚）では、大階段は道から 1 階分ほど上がり、上がりきったテラスは
+ * 建物の前の地面とほぼ同じ高さ（右手の植え込みの斜面がテラスの高さまで上がっている）。
+ * 階段の高さは「テラス − 階段の下端の地面」で決まり、斜面の下り分を階段が受け持つ
+ */
+const TERRACE_ABOVE_GROUND_M = 0.6;
+
+/** 段の高さの目安（0.15〜0.2m）。総高をこの範囲の段に割る */
+const STAIR_RISER_MAX_M = 0.2;
+const STAIR_RISER_MIN_M = 0.15;
+/** 段の数がこれ以下（総高 1.6m 以下）なら踊り場の無い 1 段構えにする */
+const SINGLE_FLIGHT_MAX_RISERS = 8;
+/** 1 段構えのときの踏み面の奥行き */
+const SINGLE_FLIGHT_TREAD_M = 0.4;
+/** 擁壁の段々の高さを決めたときの、1 つの段の高さ（写真から作った 1 回目の 2.4m）。擁壁はこれとの比で伸び縮みさせる */
+const WALL_REFERENCE_FLIGHT_HEIGHT_M = 2.4;
+
+/**
+ * 本体 3 階建ての階高・総高と、左右の塔の高さ。
+ * 写真では屋根の線が塔で一段上がり、右の塔は左より少し高い（左 +1.5m、右 +2.5m）。
+ * 地面が平らなとき、最高部（右の塔）は groundVisualY + 0.6 + 14.4 + 2.5 = groundVisualY + 17.5m。
  */
 const FLOOR_HEIGHT_M = 4.8;
 const BODY_HEIGHT_M = FLOOR_HEIGHT_M * 3;
-const TOWER_EXTRA_HEIGHT_M = 0.6;
-const TOWER_HEIGHT_M = BODY_HEIGHT_M + TOWER_EXTRA_HEIGHT_M;
-const FLOOR_BAND_HEIGHT_M = 0.3;
+const LEFT_TOWER_EXTRA_HEIGHT_M = 1.5;
+const RIGHT_TOWER_EXTRA_HEIGHT_M = 2.5;
 
-/** 正面構成（左右の塔状張り出し・1F カーテンウォールの後退） */
-const TOWER_WIDTH_M = 10.0;
-const TOWER_PROTRUSION_M = 2.5;
+/**
+ * 正面の割り付け。写真の正面は「左の塔：中央：右の塔」がおよそ 1：1.8：2 で、塔が正面の 6 割を占める。
+ * 正面の幅（約 67m）に対する比で決める（左 21%・右 40%・残りの 39% が中央）。
+ */
+const LEFT_TOWER_SPAN_RATIO = 0.21;
+const RIGHT_TOWER_SPAN_RATIO = 0.4;
+const TOWER_PROTRUSION_M = 4.0;
+/** 塔の箱を本体の中へ食い込ませる奥行き（左端の袖との間に隙間を作らない） */
+const TOWER_BACK_DEPTH_M = 4.5;
+
+/** 中央 1・2 階: 正面から 3m 引っ込んだ 2 層分の高さのガラスのカーテンウォール */
 const CURTAIN_RECESS_M = 3.0;
-const CURTAIN_HEIGHT_M = 4.5;
+const CURTAIN_HEIGHT_M = 8.0;
 const CURTAIN_MULLION_STEP_M = 2.5;
+const CURTAIN_TRANSOM_ROWS = 7;
 
-/** 上階（2F・3F）横長窓の帯 */
-const UPPER_WINDOW_HEIGHT_M = 1.4;
-const UPPER_WINDOW_FRAME_M = 0.2;
+/**
+ * 中央のカーテンウォールより上（テラスからの高さ）。写真の下から順に
+ * 白い梁（8.0〜8.5m）→ レンガの帯 → 白い水切り → 3 階の横長窓の帯（1 段だけ）→ 白い帯 → レンガのパラペット
+ */
+const BEAM_HEIGHT_M = 0.5;
+const UPPER_SILL_BOTTOM_M = 10.0;
+const UPPER_SILL_HEIGHT_M = 0.15;
+const UPPER_WINDOW_HEIGHT_M = 1.5;
+const UPPER_HEAD_HEIGHT_M = 0.4;
+/** 白い帯（梁・水切り・窓上の帯）が正面の面から出る量 */
+const TRIM_PROUD_M = 0.2;
+
+/** 中央で窓の帯とカーテンウォールを左右に分ける縦の柱（テラスからパラペットの少し下まで） */
 const CENTER_PIER_WIDTH_M = 1.8;
+const CENTER_PIER_HEIGHT_M = 13.0;
+const CENTER_PIER_PROUD_M = 0.3;
 
-/** 逆さ扇の折板コンクリート庇 */
-const CANOPY_ELEVATION_M = 3.6;
-const CANOPY_FRONT_WIDTH_M = 14.0;
-const CANOPY_BACK_WIDTH_M = 5.2;
-const CANOPY_PROTRUSION_M = 6.0;
+/**
+ * 逆さ扇の折板コンクリート庇。柱は無く、カーテンウォールから片持ちで出て、前へ行くほど高く開く。
+ * 写真では前端の幅が中央の引っ込みの幅の約 7 割で、中央の柱より右（入口のある右の区画）に寄る。
+ */
+const CANOPY_FRONT_WIDTH_RATIO = 0.7;
+/** 前端の幅に対する、根元の幅と張り出し（正面の面からの距離）の比（1 回目の 14m・5.2m・6m の比を保つ） */
+const CANOPY_BACK_WIDTH_RATIO = 5.2 / 14;
+const CANOPY_PROTRUSION_RATIO = 6.0 / 14;
+/** 中央の中心から右へずらす量（中央の幅に対する比） */
+const CANOPY_OFFSET_RATIO = 0.18;
+/** 根元（壁の取り付き）の高さと、前端がそこから上がる高さ */
+const CANOPY_BACK_ELEVATION_M = 2.9;
+const CANOPY_FRONT_RISE_M = 1.0;
 const CANOPY_FOLD_COUNT = 14;
 const CANOPY_THICKNESS_M = 0.14;
+/** ひだの深さなどを決めたときの前端の幅（大きさに比例して深くする基準） */
+const CANOPY_REFERENCE_FRONT_WIDTH_M = 14.0;
 
-/** 2 段構えの大階段 */
+/** 2 段構えの大階段（中央の引っ込みの正面に置く）。段の数と踊り場の高さは総高から決める */
 const STAIR_UPPER_WIDTH_M = 26.0;
 const STAIR_UPPER_DEPTH_M = 7.0;
 const STAIR_LANDING_DEPTH_M = 4.0;
 const STAIR_LOWER_WIDTH_M = 40.0;
 const STAIR_LOWER_DEPTH_M = 8.0;
-const STAIR_STEPS_PER_FLIGHT = 12;
+/** 輪郭の辺の上で地面を引く間隔（地形の格子は約 8.5m おき） */
+const OUTLINE_SAMPLE_STEP_M = 4.0;
+
+interface StairStep {
+  /** 段の上面の高さ */
+  topY: number;
+  /** 段の前端（道寄り）の、正面からの距離 w */
+  frontW: number;
+  depth: number;
+  width: number;
+}
+
+interface StairPlan {
+  steps: StairStep[];
+  /** 踊り場（1 段構え・段なしのときはテラスの高さの平らな床）の範囲と上面 */
+  landingStartW: number;
+  landingEndW: number;
+  landingWidth: number;
+  landingY: number;
+  /** 擁壁の段々を合わせる基準（2 段構えなら踊り場の高さと上の段の高さ。それ以外は テラスの高さと 0） */
+  wallBaseY: number;
+  wallUpperRise: number;
+}
+
+/**
+ * 階段の下端の地面 footY からテラス terraceY までを、0.15〜0.2m の段に割る。
+ * 段が 8 つを超えれば下の段・踊り場・上の段の 2 段構え、以下なら道寄りに段を寄せた 1 段構えにする
+ */
+function planGrandStairs(
+  footY: number,
+  terraceY: number,
+  w: { upperStart: number; upperEnd: number; landingEnd: number; lowerEnd: number },
+): StairPlan {
+  const rise = terraceY - footY;
+  const riserCount = rise >= STAIR_RISER_MIN_M ? Math.ceil(rise / STAIR_RISER_MAX_M - 1e-6) : 0;
+
+  if (riserCount > SINGLE_FLIGHT_MAX_RISERS) {
+    const riser = rise / riserCount;
+    // 踏み面の奥行きが上下でそろうよう、段の数を下の段・上の段の奥行きの比で分ける
+    const lowerShare = STAIR_LOWER_DEPTH_M / (STAIR_LOWER_DEPTH_M + STAIR_UPPER_DEPTH_M);
+    const lowerRisers = Math.min(
+      riserCount - 2,
+      Math.max(2, Math.round(riserCount * lowerShare)),
+    );
+    const upperRisers = riserCount - lowerRisers;
+    const landingY = footY + lowerRisers * riser;
+    const steps: StairStep[] = [];
+
+    const lowerTread = STAIR_LOWER_DEPTH_M / (lowerRisers - 1);
+    for (let i = 0; i < lowerRisers - 1; i++) {
+      steps.push({
+        topY: footY + (i + 1) * riser,
+        frontW: w.lowerEnd - i * lowerTread,
+        depth: lowerTread + 0.02,
+        width: STAIR_LOWER_WIDTH_M,
+      });
+    }
+    const upperTread = STAIR_UPPER_DEPTH_M / (upperRisers - 1);
+    for (let i = 0; i < upperRisers - 1; i++) {
+      steps.push({
+        topY: landingY + (i + 1) * riser,
+        frontW: w.upperEnd - i * upperTread,
+        depth: upperTread + 0.02,
+        width: STAIR_UPPER_WIDTH_M,
+      });
+    }
+    return {
+      steps,
+      landingStartW: w.upperEnd,
+      landingEndW: w.landingEnd,
+      landingWidth: STAIR_LOWER_WIDTH_M,
+      landingY,
+      wallBaseY: landingY,
+      wallUpperRise: terraceY - landingY,
+    };
+  }
+
+  const steps: StairStep[] = [];
+  if (riserCount > 0) {
+    const riser = rise / riserCount;
+    for (let i = 0; i < riserCount - 1; i++) {
+      steps.push({
+        topY: footY + (i + 1) * riser,
+        frontW: w.lowerEnd - i * SINGLE_FLIGHT_TREAD_M,
+        depth: SINGLE_FLIGHT_TREAD_M + 0.02,
+        width: STAIR_LOWER_WIDTH_M,
+      });
+    }
+  }
+  const stepsDepth = Math.max(0, riserCount - 1) * SINGLE_FLIGHT_TREAD_M;
+  return {
+    steps,
+    landingStartW: w.upperStart,
+    landingEndW: w.lowerEnd - stepsDepth,
+    landingWidth: STAIR_LOWER_WIDTH_M,
+    landingY: terraceY,
+    wallBaseY: terraceY,
+    wallUpperRise: 0,
+  };
+}
 
 interface FrontFrame {
   facingAngleRad: number;
@@ -96,15 +242,6 @@ interface FrontFrame {
   tx: number;
   tz: number;
   frontSpan: number;
-}
-
-interface BandSegment {
-  ax: number;
-  az: number;
-  bx: number;
-  bz: number;
-  nx: number;
-  nz: number;
 }
 
 function normalizePolygon(raw: readonly [number, number][]): [number, number][] {
@@ -301,95 +438,23 @@ function addLidsManually(
   return out;
 }
 
-function computePolygonSignedAreaXZ(polygon: readonly [number, number][]): number {
-  let area2 = 0;
-  const n = polygon.length;
-  for (let i = 0; i < n; i++) {
-    const a = polygon[i];
-    const b = polygon[(i + 1) % n];
-    if (!a || !b) continue;
-    area2 += a[0] * b[1] - b[0] * a[1];
-  }
-  return area2;
-}
-
-function buildPerimeterBandSegments(
-  clippedPoly: readonly [number, number][],
-  frame: FrontFrame,
-  halfSpan: number,
-  centerHalfW: number,
-): BandSegment[] {
-  const segments: BandSegment[] = [];
-  const signedArea = computePolygonSignedAreaXZ(clippedPoly);
-  const n = clippedPoly.length;
-
-  for (let i = 0; i < n; i++) {
-    const a = clippedPoly[i];
-    const b = clippedPoly[(i + 1) % n];
-    if (!a || !b) continue;
-
-    const wa = (a[0] - frame.originX) * frame.nx + (a[1] - frame.originZ) * frame.nz;
-    const wb = (b[0] - frame.originX) * frame.nx + (b[1] - frame.originZ) * frame.nz;
-    // クリップで生じた建物内部側の直線（w = -CURTAIN_RECESS）は見切り帯から除く
-    if (
-      Math.abs(wa + CURTAIN_RECESS_M) < 0.05 &&
-      Math.abs(wb + CURTAIN_RECESS_M) < 0.05
-    ) {
-      continue;
-    }
-
-    const dx = b[0] - a[0];
-    const dz = b[1] - a[1];
-    const len = Math.hypot(dx, dz);
-    if (len < 0.05) continue;
-
-    const nx = signedArea >= 0 ? dz / len : -dz / len;
-    const nz = signedArea >= 0 ? -dx / len : dx / len;
-    segments.push({ ax: a[0], az: a[1], bx: b[0], bz: b[1], nx, nz });
-  }
-
-  // 正面側（左右の塔状張り出し＋中央ファサード）の外周線分をワールド座標へ変換して追加
-  const localToWorld = (u: number, w: number): [number, number] => [
-    frame.originX + u * frame.tx + w * frame.nx,
-    frame.originZ + u * frame.tz + w * frame.nz,
-  ];
-  const localDirToWorld = (du: number, dw: number): [number, number] => [
-    du * frame.tx + dw * frame.nx,
-    du * frame.tz + dw * frame.nz,
-  ];
-
-  const frontLocalEdges: {
-    u0: number;
-    w0: number;
-    u1: number;
-    w1: number;
-    nu: number;
-    nw: number;
-  }[] = [
-    { u0: -halfSpan, w0: -CURTAIN_RECESS_M, u1: -halfSpan, w1: TOWER_PROTRUSION_M, nu: -1, nw: 0 },
-    { u0: -halfSpan, w0: TOWER_PROTRUSION_M, u1: -centerHalfW, w1: TOWER_PROTRUSION_M, nu: 0, nw: 1 },
-    { u0: -centerHalfW, w0: TOWER_PROTRUSION_M, u1: -centerHalfW, w1: 0, nu: 1, nw: 0 },
-    { u0: -centerHalfW, w0: 0, u1: centerHalfW, w1: 0, nu: 0, nw: 1 },
-    { u0: centerHalfW, w0: 0, u1: centerHalfW, w1: TOWER_PROTRUSION_M, nu: -1, nw: 0 },
-    { u0: centerHalfW, w0: TOWER_PROTRUSION_M, u1: halfSpan, w1: TOWER_PROTRUSION_M, nu: 0, nw: 1 },
-    { u0: halfSpan, w0: TOWER_PROTRUSION_M, u1: halfSpan, w1: -CURTAIN_RECESS_M, nu: 1, nw: 0 },
-  ];
-
-  for (const e of frontLocalEdges) {
-    const [ax, az] = localToWorld(e.u0, e.w0);
-    const [bx, bz] = localToWorld(e.u1, e.w1);
-    const [nx, nz] = localDirToWorld(e.nu, e.nw);
-    segments.push({ ax, az, bx, bz, nx, nz });
-  }
-
-  return segments;
+interface CanopySpec {
+  /** 根元（後端）の下面の高さ */
+  baseY: number;
+  frontWidth: number;
+  backWidth: number;
+  /** 後端（ローカル w = 0）から前端の中央までの張り出し */
+  protrusion: number;
+  /** 前端が後端より上がる高さ（前へ行くほど開く逆さ扇の傾き） */
+  frontRise: number;
 }
 
 /**
- * 扇を逆さにしたようなひだ（折板）付きコンクリート庇の立体ジオメトリ。
+ * 扇を逆さにしたような、ひだ（折板）付きコンクリート庇の立体ジオメトリ。
+ * 根元は狭く低く、前端は広く高い。ローカル原点は後端の中央（+Z が正面の外向き）。
  * 折り目ごとに頂点を独立させてフラット法線を立て、ギザギザの陰影をはっきり見せる。
  */
-function buildFoldedCanopyGeometry(baseY: number): THREE.BufferGeometry {
+function buildFoldedCanopyGeometry(spec: CanopySpec): THREE.BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
 
@@ -429,26 +494,28 @@ function buildFoldedCanopyGeometry(baseY: number): THREE.BufferGeometry {
   const backStations: Station[] = [];
   const frontStations: Station[] = [];
   const stripCount = CANOPY_FOLD_COUNT * 2;
-  const backAmplitude = 0.16;
-  const frontAmplitude = 0.56;
-  const frontLift = 0.16;
+  // ひだの深さと前端の反りは、庇の大きさに比例させる
+  const scale = spec.frontWidth / CANOPY_REFERENCE_FRONT_WIDTH_M;
+  const backAmplitude = 0.16 * scale;
+  const frontAmplitude = 0.56 * scale;
+  const frontCurve = 0.7 * scale;
 
   for (let i = 0; i <= stripCount; i++) {
     const s = (i / stripCount) * 2 - 1; // -1 .. +1
     const isPeak = i % 2 === 1;
 
-    const bYBot = baseY + (isPeak ? backAmplitude : 0);
+    const bYBot = spec.baseY + (isPeak ? backAmplitude : 0);
     backStations.push({
-      u: s * (CANOPY_BACK_WIDTH_M * 0.5),
+      u: s * (spec.backWidth * 0.5),
       w: 0,
       yBot: bYBot,
       yTop: bYBot + CANOPY_THICKNESS_M,
     });
 
-    const fYBot = baseY + frontLift + (isPeak ? frontAmplitude : 0);
+    const fYBot = spec.baseY + spec.frontRise + (isPeak ? frontAmplitude : 0);
     frontStations.push({
-      u: s * (CANOPY_FRONT_WIDTH_M * 0.5),
-      w: CANOPY_PROTRUSION_M - 0.7 * s * s,
+      u: s * (spec.frontWidth * 0.5),
+      w: spec.protrusion - frontCurve * s * s,
       yBot: fYBot,
       yTop: fYBot + CANOPY_THICKNESS_M,
     });
@@ -525,17 +592,85 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   group.name = 'hero-library';
 
   const gY = ctx.groundVisualY;
-  const plinthBottomY = gY - SKIRT_DEPTH_M;
-  const floor1Y = gY + PLINTH_HEIGHT_M;
-  const floor2Y = floor1Y + FLOOR_HEIGHT_M;
-  const floor3Y = floor1Y + FLOOR_HEIGHT_M * 2;
+  const sampleGround = ctx.sampleGroundVisualY;
 
   const polygon = normalizePolygon(ctx.building.polygon);
   const frame = computeFrontFrame(polygon, FRONT_FACING_ANGLE_RAD);
   const halfSpan = frame.frontSpan * 0.5;
-  const towerWidth = Math.min(TOWER_WIDTH_M, frame.frontSpan * 0.25);
-  const centerWidth = Math.max(8, frame.frontSpan - towerWidth * 2);
-  const centerHalfW = centerWidth * 0.5;
+
+  // 正面の割り付け（ローカル u: -halfSpan = 正面の左端、+halfSpan = 右端）
+  const leftTowerWidth = frame.frontSpan * LEFT_TOWER_SPAN_RATIO;
+  const rightTowerWidth = frame.frontSpan * RIGHT_TOWER_SPAN_RATIO;
+  const centerLeftU = -halfSpan + leftTowerWidth;
+  const centerRightU = halfSpan - rightTowerWidth;
+  const centerWidth = centerRightU - centerLeftU;
+  const centerU = (centerLeftU + centerRightU) * 0.5;
+  const pierHalfW = CENTER_PIER_WIDTH_M * 0.5;
+
+  // 大階段の割り付け（正面からの距離 w。テラスの前端 → 上の段 → 踊り場 → 下の段 → 道寄りの下端）
+  const upperFlightStartW = TOWER_PROTRUSION_M; // 入口テラス前端
+  const upperFlightEndW = upperFlightStartW + STAIR_UPPER_DEPTH_M;
+  const landingEndW = upperFlightEndW + STAIR_LANDING_DEPTH_M;
+  const lowerFlightEndW = landingEndW + STAIR_LOWER_DEPTH_M;
+  const upperHalfW = STAIR_UPPER_WIDTH_M * 0.5; // 13.0
+  const lowerHalfW = STAIR_LOWER_WIDTH_M * 0.5; // 20.0
+  const outerWallThickness = 2.0;
+  const innerCheekThickness = 1.6;
+
+  // --- 地面の高さ（正面のローカル座標 (u, w) の地点で引く） ---
+  const groundAt = (u: number, w: number): number =>
+    sampleGround(
+      frame.originX + u * frame.tx + w * frame.nx,
+      frame.originZ + u * frame.tz + w * frame.nz,
+    );
+
+  // 階段の下端: いちばん道寄りの段の前の線に沿って引いた地面のいちばん低い所。
+  // 横に傾いた斜面でも、どこにも段の前の段差（浮き）が出ない（高い側は段が地面に入る）
+  const footSampleCount = 9;
+  let stairFootY = Infinity;
+  for (let i = 0; i < footSampleCount; i++) {
+    const u = centerU - lowerHalfW + (lowerHalfW * 2 * i) / (footSampleCount - 1);
+    stairFootY = Math.min(stairFootY, groundAt(u, lowerFlightEndW));
+  }
+
+  // 入口のテラス: 正面の壁の前（中央の引っ込みの前、壁の面〜テラスの前端）の地面と groundVisualY の大きい方から上げる
+  let frontGroundY = -Infinity;
+  const frontSamplePoints: [number, number][] = [];
+  for (const u of [centerLeftU, centerU, centerRightU]) {
+    for (const w of [0, upperFlightStartW]) {
+      frontSamplePoints.push([u, w]);
+      frontGroundY = Math.max(frontGroundY, groundAt(u, w));
+    }
+  }
+  const floor1Y = Math.max(frontGroundY, gY) + TERRACE_ABOVE_GROUND_M;
+  const bodyTopY = floor1Y + BODY_HEIGHT_M;
+
+  // 底: 輪郭の各点（辺の上も OUTLINE_SAMPLE_STEP_M おき）と、テラス・階段・擁壁の範囲で引いた地面の
+  // いちばん低い所より FOOTING_BELOW_LOWEST_GROUND_M 下
+  let lowestGroundY = Math.min(stairFootY, frontGroundY);
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (!a || !b) continue;
+    const segments = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / OUTLINE_SAMPLE_STEP_M));
+    for (let s = 0; s < segments; s++) {
+      const t = s / segments;
+      lowestGroundY = Math.min(
+        lowestGroundY,
+        sampleGround(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t),
+      );
+    }
+  }
+  const stairOuterHalfW = lowerHalfW + outerWallThickness;
+  const stairGridN = 5;
+  for (let iu = 0; iu < stairGridN; iu++) {
+    for (let iw = 0; iw < stairGridN; iw++) {
+      const u = centerU - stairOuterHalfW + (stairOuterHalfW * 2 * iu) / (stairGridN - 1);
+      const w = -CURTAIN_RECESS_M + ((lowerFlightEndW + CURTAIN_RECESS_M) * iw) / (stairGridN - 1);
+      lowestGroundY = Math.min(lowestGroundY, groundAt(u, w));
+    }
+  }
+  const footBottomY = lowestGroundY - FOOTING_BELOW_LOWEST_GROUND_M;
 
   const clippedRaw = clipPolygonByNormal(
     polygon,
@@ -584,8 +719,8 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
     roughness: 0.86,
     metalness: 0.02,
   });
-  const plinthStoneMat = new THREE.MeshStandardMaterial({
-    color: COLORS.plinthStone,
+  const retainingStoneMat = new THREE.MeshStandardMaterial({
+    color: COLORS.retainingStone,
     roughness: 0.88,
     metalness: 0.02,
   });
@@ -598,20 +733,10 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   const unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
   const dummy = new THREE.Object3D();
 
-  // --- 1. 石積みの基壇（本体輪郭の背面〜側面＋正面テラス・塔下部） ---
-  const plinthTotalH = PLINTH_HEIGHT_M + SKIRT_DEPTH_M;
-  const plinthBackMesh = new THREE.Mesh(
-    createExtrudedPolygonGeometry(clippedPoly, plinthBottomY, plinthTotalH),
-    plinthStoneMat,
-  );
-  plinthBackMesh.name = 'library-plinth-body';
-  plinthBackMesh.castShadow = true;
-  plinthBackMesh.receiveShadow = true;
-  group.add(plinthBackMesh);
-
-  // --- 2. 本体（3 階建てレンガ外壁＋陸屋根。正面 1F の後退面までクリップして押し出し） ---
+  // --- 1. 本体（3 階建てのレンガ外壁＋陸屋根。正面 1 階の後退面までクリップして押し出し） ---
+  // 写真ではレンガがテラス・地面まで下りていて、石積みの基壇の帯は無い。外壁は足元までレンガにする
   const mainBodyMesh = new THREE.Mesh(
-    createExtrudedPolygonGeometry(clippedPoly, floor1Y, BODY_HEIGHT_M),
+    createExtrudedPolygonGeometry(clippedPoly, footBottomY, bodyTopY - footBottomY),
     [roofMat, brickMat],
   );
   mainBodyMesh.name = 'library-main-body';
@@ -619,37 +744,7 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   mainBodyMesh.receiveShadow = true;
   group.add(mainBodyMesh);
 
-  // --- 3. 各階床高さ（2F・3F）の白い見切りの帯を外周に回す ---
-  const bandSegments = buildPerimeterBandSegments(clippedPoly, frame, halfSpan, centerHalfW);
-  const bandYs = [floor2Y, floor3Y];
-  const bandInstanceCount = bandSegments.length * bandYs.length;
-  if (bandInstanceCount > 0) {
-    const bandMesh = new THREE.InstancedMesh(unitBoxGeo, trimMat, bandInstanceCount);
-    bandMesh.name = 'library-floor-bands';
-    bandMesh.castShadow = false;
-    bandMesh.receiveShadow = true;
-
-    let idx = 0;
-    for (const bandY of bandYs) {
-      for (const seg of bandSegments) {
-        const dx = seg.bx - seg.ax;
-        const dz = seg.bz - seg.az;
-        const len = Math.hypot(dx, dz);
-        const midX = (seg.ax + seg.bx) * 0.5 + seg.nx * 0.02;
-        const midZ = (seg.az + seg.bz) * 0.5 + seg.nz * 0.02;
-        dummy.position.set(midX, bandY, midZ);
-        dummy.rotation.set(0, Math.atan2(-dz, dx), 0);
-        dummy.scale.set(len + 0.14, FLOOR_BAND_HEIGHT_M, 0.14);
-        dummy.updateMatrix();
-        bandMesh.setMatrixAt(idx, dummy.matrix);
-        idx += 1;
-      }
-    }
-    bandMesh.instanceMatrix.needsUpdate = true;
-    bandMesh.computeBoundingBox();
-    bandMesh.computeBoundingSphere();
-    group.add(bandMesh);
-  }
+  // 床の高さの白い横線は写真の塔・袖に無いので回さない（白い線は中央の窓の帯まわりだけ。5. で作る）
 
   // --- 正面構成グループ（ローカル +X = 正面右、+Y = 上、+Z = 正面外向き） ---
   const frontGroup = new THREE.Group();
@@ -658,141 +753,133 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   frontGroup.rotation.y = frame.facingAngleRad;
   group.add(frontGroup);
 
-  // 正面側基壇（入口テラス＋左右の塔の下を支える石積み）
-  const frontPlinthDepth = CURTAIN_RECESS_M + TOWER_PROTRUSION_M;
-  const frontPlinthMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(frame.frontSpan, plinthTotalH, frontPlinthDepth),
-    plinthStoneMat,
+  // --- 2. 入口のテラス（大階段を上がりきった床。中央の引っ込みの前だけ。塔の下は塔のレンガ） ---
+  const terraceH = floor1Y - footBottomY;
+  const terraceDepth = CURTAIN_RECESS_M + TOWER_PROTRUSION_M;
+  const terraceMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(centerWidth, terraceH, terraceDepth),
+    stairStoneMat,
   );
-  frontPlinthMesh.name = 'library-plinth-front-terrace';
-  frontPlinthMesh.position.set(
-    0,
-    plinthBottomY + plinthTotalH * 0.5,
+  terraceMesh.name = 'library-entrance-terrace';
+  terraceMesh.position.set(
+    centerU,
+    footBottomY + terraceH * 0.5,
     (TOWER_PROTRUSION_M - CURTAIN_RECESS_M) * 0.5,
   );
-  frontPlinthMesh.castShadow = true;
-  frontPlinthMesh.receiveShadow = true;
-  frontGroup.add(frontPlinthMesh);
+  terraceMesh.castShadow = true;
+  terraceMesh.receiveShadow = true;
+  frontGroup.add(terraceMesh);
 
-  // --- 4. 左右両端の塔状の張り出し（正面から 2.5m 出る、幅 10m、窓無しレンガ壁） ---
-  const towerDepth = CURTAIN_RECESS_M + TOWER_PROTRUSION_M;
-  const towerCenterW = (TOWER_PROTRUSION_M - CURTAIN_RECESS_M) * 0.5;
-  const towerGeo = new THREE.BoxGeometry(towerWidth, TOWER_HEIGHT_M, towerDepth);
+  // --- 3. 左右の塔（正面から 4m 出る窓の無いレンガの箱。右の塔が広く、少し高い。足元まで地面に下ろす） ---
   const towerMats = [brickMat, brickMat, roofMat, brickMat, brickMat, brickMat];
-
-  for (const side of [-1, 1] as const) {
-    const tower = new THREE.Mesh(towerGeo, towerMats);
-    tower.name = side < 0 ? 'library-tower-left' : 'library-tower-right';
-    tower.position.set(
-      side * (halfSpan - towerWidth * 0.5),
-      floor1Y + TOWER_HEIGHT_M * 0.5,
-      towerCenterW,
+  const towerDepth = TOWER_BACK_DEPTH_M + TOWER_PROTRUSION_M;
+  const towerCenterW = (TOWER_PROTRUSION_M - TOWER_BACK_DEPTH_M) * 0.5;
+  const towerSpecs = [
+    {
+      name: 'library-tower-left',
+      width: leftTowerWidth,
+      centerU: -halfSpan + leftTowerWidth * 0.5,
+      topY: bodyTopY + LEFT_TOWER_EXTRA_HEIGHT_M,
+    },
+    {
+      name: 'library-tower-right',
+      width: rightTowerWidth,
+      centerU: halfSpan - rightTowerWidth * 0.5,
+      topY: bodyTopY + RIGHT_TOWER_EXTRA_HEIGHT_M,
+    },
+  ];
+  for (const spec of towerSpecs) {
+    const towerH = spec.topY - footBottomY;
+    const tower = new THREE.Mesh(
+      new THREE.BoxGeometry(spec.width, towerH, towerDepth),
+      towerMats,
     );
+    tower.name = spec.name;
+    tower.position.set(spec.centerU, footBottomY + towerH * 0.5, towerCenterW);
     tower.castShadow = true;
     tower.receiveShadow = true;
     frontGroup.add(tower);
   }
 
-  // --- 5. 中央の上の階（2F・3F のせり出し本体＋横長窓の帯 2 本） ---
-  const upperOverhangH = BODY_HEIGHT_M - FLOOR_HEIGHT_M;
+  // --- 4. 中央の上部（カーテンウォールの上の張り出し。下面は白い軒天） ---
+  const overhangBottomY = floor1Y + CURTAIN_HEIGHT_M;
+  const overhangH = bodyTopY - overhangBottomY;
   const overhangMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(centerWidth, upperOverhangH, CURTAIN_RECESS_M),
+    new THREE.BoxGeometry(centerWidth, overhangH, CURTAIN_RECESS_M),
     [brickMat, brickMat, roofMat, trimMat, brickMat, brickMat],
   );
   overhangMesh.name = 'library-upper-overhang';
-  overhangMesh.position.set(0, floor2Y + upperOverhangH * 0.5, -CURTAIN_RECESS_M * 0.5);
+  overhangMesh.position.set(centerU, overhangBottomY + overhangH * 0.5, -CURTAIN_RECESS_M * 0.5);
   overhangMesh.castShadow = true;
   overhangMesh.receiveShadow = true;
   frontGroup.add(overhangMesh);
 
-  // 1F カーテンウォール上端（4.5m）と 2F 床（4.8m）の間の軒天パネル
-  const soffitThickness = FLOOR_HEIGHT_M - CURTAIN_HEIGHT_M;
-  if (soffitThickness > 0.01) {
-    const soffitMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(centerWidth, soffitThickness, CURTAIN_RECESS_M),
-      trimMat,
-    );
-    soffitMesh.name = 'library-overhang-soffit';
-    soffitMesh.position.set(
-      0,
-      floor1Y + CURTAIN_HEIGHT_M + soffitThickness * 0.5,
-      -CURTAIN_RECESS_M * 0.5,
-    );
-    soffitMesh.castShadow = false;
-    soffitMesh.receiveShadow = true;
-    frontGroup.add(soffitMesh);
-  }
-
-  // 中央で横長窓の帯を 2 本に分ける縦の柱
+  // 中央の縦の柱（テラスからパラペットの少し下まで。窓の帯とカーテンウォールを左右に分ける）
+  const pierDepth = CURTAIN_RECESS_M + CENTER_PIER_PROUD_M;
   const centerPier = new THREE.Mesh(
-    new THREE.BoxGeometry(CENTER_PIER_WIDTH_M, upperOverhangH, 0.22),
+    new THREE.BoxGeometry(CENTER_PIER_WIDTH_M, CENTER_PIER_HEIGHT_M, pierDepth),
     brickMat,
   );
   centerPier.name = 'library-center-pier';
-  centerPier.position.set(0, floor2Y + upperOverhangH * 0.5, 0.11);
-  centerPier.castShadow = false;
+  centerPier.position.set(
+    centerU,
+    floor1Y + CENTER_PIER_HEIGHT_M * 0.5,
+    CENTER_PIER_PROUD_M - pierDepth * 0.5,
+  );
+  centerPier.castShadow = true;
   centerPier.receiveShadow = true;
   frontGroup.add(centerPier);
 
-  // 2F・3F の横長窓の帯（各階 左右 2 本）と白い枠
-  const baySideMargin = 0.8;
-  const bayWidth = Math.max(2, centerHalfW - CENTER_PIER_WIDTH_M * 0.5 - baySideMargin);
-  const glassWidth = Math.max(1.2, bayWidth - UPPER_WINDOW_FRAME_M * 2);
-  const windowCenterOffsetsY = [floor2Y + 2.55, floor3Y + 2.55];
-  const bayCenterOffsetsU = [
-    -(CENTER_PIER_WIDTH_M * 0.5 + bayWidth * 0.5),
-    CENTER_PIER_WIDTH_M * 0.5 + bayWidth * 0.5,
+  // --- 5. 3 階の横長窓の帯（1 段だけ、柱で左右 2 本）と白い帯（梁・水切り・窓上の帯） ---
+  const bays = [
+    { u0: centerLeftU, u1: centerU - pierHalfW },
+    { u0: centerU + pierHalfW, u1: centerRightU },
+  ];
+  const sillCenterY = floor1Y + UPPER_SILL_BOTTOM_M + UPPER_SILL_HEIGHT_M * 0.5;
+  const windowCenterY =
+    floor1Y + UPPER_SILL_BOTTOM_M + UPPER_SILL_HEIGHT_M + UPPER_WINDOW_HEIGHT_M * 0.5;
+  const headCenterY =
+    floor1Y +
+    UPPER_SILL_BOTTOM_M +
+    UPPER_SILL_HEIGHT_M +
+    UPPER_WINDOW_HEIGHT_M +
+    UPPER_HEAD_HEIGHT_M * 0.5;
+  const trimBands = [
+    { centerY: overhangBottomY + BEAM_HEIGHT_M * 0.5, height: BEAM_HEIGHT_M },
+    { centerY: sillCenterY, height: UPPER_SILL_HEIGHT_M },
+    { centerY: headCenterY, height: UPPER_HEAD_HEIGHT_M },
   ];
 
-  const windowGlassMesh = new THREE.InstancedMesh(
-    unitBoxGeo,
-    upperWindowGlassMat,
-    windowCenterOffsetsY.length * bayCenterOffsetsU.length,
-  );
+  const windowGlassMesh = new THREE.InstancedMesh(unitBoxGeo, upperWindowGlassMat, bays.length);
   windowGlassMesh.name = 'library-upper-windows-glass';
   windowGlassMesh.castShadow = false;
   windowGlassMesh.receiveShadow = false;
 
-  const windowFrameMesh = new THREE.InstancedMesh(
-    unitBoxGeo,
-    trimMat,
-    windowCenterOffsetsY.length * bayCenterOffsetsU.length * 4,
-  );
-  windowFrameMesh.name = 'library-upper-windows-frames';
-  windowFrameMesh.castShadow = false;
-  windowFrameMesh.receiveShadow = true;
+  const trimMesh = new THREE.InstancedMesh(unitBoxGeo, trimMat, bays.length * trimBands.length);
+  trimMesh.name = 'library-center-trim-bands';
+  trimMesh.castShadow = false;
+  trimMesh.receiveShadow = true;
 
   let glassIdx = 0;
-  let frameIdx = 0;
-  for (const wy of windowCenterOffsetsY) {
-    for (const bu of bayCenterOffsetsU) {
-      dummy.position.set(bu, wy, 0.08);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(glassWidth, UPPER_WINDOW_HEIGHT_M, 0.12);
-      dummy.updateMatrix();
-      windowGlassMesh.setMatrixAt(glassIdx, dummy.matrix);
-      glassIdx += 1;
+  let trimIdx = 0;
+  for (const bay of bays) {
+    const bayW = bay.u1 - bay.u0;
+    const bayU = (bay.u0 + bay.u1) * 0.5;
+    dummy.position.set(bayU, windowCenterY, 0.04);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(Math.max(0.5, bayW - 0.1), UPPER_WINDOW_HEIGHT_M, 0.12);
+    dummy.updateMatrix();
+    windowGlassMesh.setMatrixAt(glassIdx, dummy.matrix);
+    glassIdx += 1;
 
-      const halfH = UPPER_WINDOW_HEIGHT_M * 0.5 + UPPER_WINDOW_FRAME_M * 0.5;
-      // 上枠・下枠
-      for (const vy of [-halfH, halfH]) {
-        dummy.position.set(bu, wy + vy, 0.11);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.set(bayWidth, UPPER_WINDOW_FRAME_M, 0.22);
-        dummy.updateMatrix();
-        windowFrameMesh.setMatrixAt(frameIdx, dummy.matrix);
-        frameIdx += 1;
-      }
-      // 左枠・右枠
-      const halfBay = bayWidth * 0.5 - UPPER_WINDOW_FRAME_M * 0.5;
-      for (const vx of [-halfBay, halfBay]) {
-        dummy.position.set(bu + vx, wy, 0.1);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.set(UPPER_WINDOW_FRAME_M, UPPER_WINDOW_HEIGHT_M, 0.2);
-        dummy.updateMatrix();
-        windowFrameMesh.setMatrixAt(frameIdx, dummy.matrix);
-        frameIdx += 1;
-      }
+    for (const band of trimBands) {
+      // 正面の面（w = 0）の少し奥から TRIM_PROUD_M だけ前へ出す。柱（0.3m 出る）より手前には出さない
+      dummy.position.set(bayU, band.centerY, TRIM_PROUD_M * 0.5 - 0.1);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(bayW, band.height, TRIM_PROUD_M + 0.2);
+      dummy.updateMatrix();
+      trimMesh.setMatrixAt(trimIdx, dummy.matrix);
+      trimIdx += 1;
     }
   }
   windowGlassMesh.instanceMatrix.needsUpdate = true;
@@ -800,26 +887,30 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   windowGlassMesh.computeBoundingSphere();
   frontGroup.add(windowGlassMesh);
 
-  windowFrameMesh.instanceMatrix.needsUpdate = true;
-  windowFrameMesh.computeBoundingBox();
-  windowFrameMesh.computeBoundingSphere();
-  frontGroup.add(windowFrameMesh);
+  trimMesh.instanceMatrix.needsUpdate = true;
+  trimMesh.computeBoundingBox();
+  trimMesh.computeBoundingSphere();
+  frontGroup.add(trimMesh);
 
-  // --- 6. 中央 1 階: 正面から 3m 引っ込んだガラスのカーテンウォール＋格子の方立て ---
+  // --- 6. 中央 1・2 階: 正面から 3m 引っ込んだ 2 層分のガラスのカーテンウォール＋格子の方立て ---
   const curtainW = Math.max(6, centerWidth - 0.1);
   const curtainGlassMesh = new THREE.Mesh(
     new THREE.BoxGeometry(curtainW, CURTAIN_HEIGHT_M, 0.16),
     curtainGlassMat,
   );
   curtainGlassMesh.name = 'library-curtain-wall-glass';
-  curtainGlassMesh.position.set(0, floor1Y + CURTAIN_HEIGHT_M * 0.5, -CURTAIN_RECESS_M + 0.08);
+  curtainGlassMesh.position.set(
+    centerU,
+    floor1Y + CURTAIN_HEIGHT_M * 0.5,
+    -CURTAIN_RECESS_M + 0.08,
+  );
   curtainGlassMesh.castShadow = false;
   curtainGlassMesh.receiveShadow = true;
   frontGroup.add(curtainGlassMesh);
 
   const verticalMullionCount = Math.max(2, Math.floor(curtainW / CURTAIN_MULLION_STEP_M) + 1);
-  const transomHeights = [0.08, CURTAIN_HEIGHT_M * 0.5, CURTAIN_HEIGHT_M - 0.08];
-  const totalMullions = verticalMullionCount + transomHeights.length;
+  const transomCount = CURTAIN_TRANSOM_ROWS + 1;
+  const totalMullions = verticalMullionCount + transomCount;
   const mullionMesh = new THREE.InstancedMesh(unitBoxGeo, mullionMat, totalMullions);
   mullionMesh.name = 'library-curtain-wall-mullions';
   mullionMesh.castShadow = false;
@@ -829,7 +920,7 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   let mIdx = 0;
   for (let i = 0; i < verticalMullionCount; i++) {
     const t = verticalMullionCount > 1 ? i / (verticalMullionCount - 1) : 0.5;
-    const u = (t - 0.5) * (curtainW - 0.16);
+    const u = centerU + (t - 0.5) * (curtainW - 0.16);
     dummy.position.set(u, floor1Y + CURTAIN_HEIGHT_M * 0.5, mullionZ);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(0.12, CURTAIN_HEIGHT_M, 0.14);
@@ -837,8 +928,9 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
     mullionMesh.setMatrixAt(mIdx, dummy.matrix);
     mIdx += 1;
   }
-  for (const ty of transomHeights) {
-    dummy.position.set(0, floor1Y + ty, mullionZ);
+  for (let i = 0; i < transomCount; i++) {
+    const ty = 0.08 + (i / CURTAIN_TRANSOM_ROWS) * (CURTAIN_HEIGHT_M - 0.16);
+    dummy.position.set(centerU, floor1Y + ty, mullionZ);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(curtainW, 0.12, 0.12);
     dummy.updateMatrix();
@@ -850,186 +942,168 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   mullionMesh.computeBoundingSphere();
   frontGroup.add(mullionMesh);
 
-  // --- 7. 入口の庇（逆さ扇・折板の白いコンクリート庇＋片持ち接続部＋中央支持柱） ---
-  const canopyBaseY = floor1Y + CANOPY_ELEVATION_M;
-  const canopyMesh = new THREE.Mesh(buildFoldedCanopyGeometry(canopyBaseY), canopyMat);
+  // --- 7. 入口の庇（逆さ扇・折板の白いコンクリート庇。柱は無く、カーテンウォールから片持ち） ---
+  const canopyFrontWidth = centerWidth * CANOPY_FRONT_WIDTH_RATIO;
+  const canopyBackWidth = canopyFrontWidth * CANOPY_BACK_WIDTH_RATIO;
+  const canopyU = centerU + centerWidth * CANOPY_OFFSET_RATIO;
+  const canopyBaseY = floor1Y + CANOPY_BACK_ELEVATION_M;
+  const canopyMesh = new THREE.Mesh(
+    buildFoldedCanopyGeometry({
+      baseY: canopyBaseY,
+      frontWidth: canopyFrontWidth,
+      backWidth: canopyBackWidth,
+      protrusion: canopyFrontWidth * CANOPY_PROTRUSION_RATIO,
+      frontRise: CANOPY_FRONT_RISE_M,
+    }),
+    canopyMat,
+  );
   canopyMesh.name = 'library-entrance-canopy';
+  canopyMesh.position.set(canopyU, 0, 0);
   canopyMesh.castShadow = true;
   canopyMesh.receiveShadow = true;
   frontGroup.add(canopyMesh);
 
-  // 折板庇の根元を 1F 入口側へつなぐ梁状の接続スラブ
+  // 折板庇の根元をカーテンウォールへつなぐ片持ちの接続スラブ
   const canopyNeckDepth = CURTAIN_RECESS_M - 0.16;
   const canopyNeck = new THREE.Mesh(
-    new THREE.BoxGeometry(CANOPY_BACK_WIDTH_M, 0.34, canopyNeckDepth),
+    new THREE.BoxGeometry(canopyBackWidth, 0.34, canopyNeckDepth),
     canopyMat,
   );
   canopyNeck.name = 'library-entrance-canopy-neck';
-  canopyNeck.position.set(0, canopyBaseY + 0.17, -canopyNeckDepth * 0.5);
+  canopyNeck.position.set(canopyU, canopyBaseY + 0.17, -canopyNeckDepth * 0.5);
   canopyNeck.castShadow = false;
   canopyNeck.receiveShadow = true;
   frontGroup.add(canopyNeck);
 
-  // 入口の庇を中央で支える 1 本のコンクリート柱
-  const canopyColumnH = CANOPY_ELEVATION_M + 0.06;
-  const canopyColumn = new THREE.Mesh(
-    new THREE.BoxGeometry(0.9, canopyColumnH, 0.7),
-    canopyMat,
-  );
-  canopyColumn.name = 'library-entrance-canopy-column';
-  canopyColumn.position.set(0, floor1Y + canopyColumnH * 0.5, 0.25);
-  canopyColumn.castShadow = true;
-  canopyColumn.receiveShadow = true;
-  frontGroup.add(canopyColumn);
+  // --- 8. 大階段（InstancedMesh）＋踊り場。中央の引っ込みの正面に置く ---
+  // 下端は道寄りの段の前の地面、上端はテラス。総高から段の数と踊り場の高さを決める
+  const stairPlan = planGrandStairs(stairFootY, floor1Y, {
+    upperStart: upperFlightStartW,
+    upperEnd: upperFlightEndW,
+    landingEnd: landingEndW,
+    lowerEnd: lowerFlightEndW,
+  });
 
-  // --- 8. 2 段構えの大階段（InstancedMesh）＋踊り場 ---
-  const upperFlightStartW = TOWER_PROTRUSION_M; // 入口テラス前端
-  const upperFlightEndW = upperFlightStartW + STAIR_UPPER_DEPTH_M;
-  const landingEndW = upperFlightEndW + STAIR_LANDING_DEPTH_M;
-  const lowerFlightEndW = landingEndW + STAIR_LOWER_DEPTH_M;
-
-  const totalSteps = STAIR_STEPS_PER_FLIGHT * 2;
-  const stairsMesh = new THREE.InstancedMesh(unitBoxGeo, stairStoneMat, totalSteps);
-  stairsMesh.name = 'library-grand-stairs';
-  stairsMesh.castShadow = true;
-  stairsMesh.receiveShadow = true;
-
-  let stepIdx = 0;
-
-  // 下の段（幅 40m・奥行 8m・高さ 2.4m）
-  const lowerTread = STAIR_LOWER_DEPTH_M / STAIR_STEPS_PER_FLIGHT;
-  const lowerRiser = STAIR_LOWER_HEIGHT_M / (STAIR_STEPS_PER_FLIGHT + 1);
-  for (let i = 0; i < STAIR_STEPS_PER_FLIGHT; i++) {
-    const stepTopY = gY + (i + 1) * lowerRiser;
-    const stepH = stepTopY - plinthBottomY;
-    const frontW = lowerFlightEndW - i * lowerTread;
-    const depth = lowerTread + 0.02;
-    dummy.position.set(0, plinthBottomY + stepH * 0.5, frontW - depth * 0.5);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(STAIR_LOWER_WIDTH_M, stepH, depth);
-    dummy.updateMatrix();
-    stairsMesh.setMatrixAt(stepIdx, dummy.matrix);
-    stepIdx += 1;
+  if (stairPlan.steps.length > 0) {
+    const stairsMesh = new THREE.InstancedMesh(
+      unitBoxGeo,
+      stairStoneMat,
+      stairPlan.steps.length,
+    );
+    stairsMesh.name = 'library-grand-stairs';
+    stairsMesh.castShadow = true;
+    stairsMesh.receiveShadow = true;
+    stairPlan.steps.forEach((step, stepIdx) => {
+      // 段は底まで埋めた箱にする（斜面の低い側でも段の下にすき間ができない）
+      const stepH = step.topY - footBottomY;
+      dummy.position.set(centerU, footBottomY + stepH * 0.5, step.frontW - step.depth * 0.5);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(step.width, stepH, step.depth);
+      dummy.updateMatrix();
+      stairsMesh.setMatrixAt(stepIdx, dummy.matrix);
+    });
+    stairsMesh.instanceMatrix.needsUpdate = true;
+    stairsMesh.computeBoundingBox();
+    stairsMesh.computeBoundingSphere();
+    frontGroup.add(stairsMesh);
   }
 
-  // 上の段（幅 26m・奥行 7m・高さ 2.4m）
-  const upperTread = STAIR_UPPER_DEPTH_M / STAIR_STEPS_PER_FLIGHT;
-  const upperRiser = STAIR_UPPER_HEIGHT_M / (STAIR_STEPS_PER_FLIGHT + 1);
-  for (let i = 0; i < STAIR_STEPS_PER_FLIGHT; i++) {
-    const stepTopY = gY + STAIR_LOWER_HEIGHT_M + (i + 1) * upperRiser;
-    const stepH = stepTopY - plinthBottomY;
-    const frontW = upperFlightEndW - i * upperTread;
-    const depth = upperTread + 0.02;
-    dummy.position.set(0, plinthBottomY + stepH * 0.5, frontW - depth * 0.5);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(STAIR_UPPER_WIDTH_M, stepH, depth);
-    dummy.updateMatrix();
-    stairsMesh.setMatrixAt(stepIdx, dummy.matrix);
-    stepIdx += 1;
-  }
-
-  stairsMesh.instanceMatrix.needsUpdate = true;
-  stairsMesh.computeBoundingBox();
-  stairsMesh.computeBoundingSphere();
-  frontGroup.add(stairsMesh);
-
-  // 踊り場（幅 40m・奥行 4m・高さ 2.4m）
-  const landingH = STAIR_LOWER_HEIGHT_M + SKIRT_DEPTH_M;
+  // 踊り場（2 段構えのとき。1 段構え・段なしのときはテラスの高さの平らな床）
+  const landingH = stairPlan.landingY - footBottomY;
+  const landingDepth = Math.max(0.1, stairPlan.landingEndW - stairPlan.landingStartW);
   const landingMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(STAIR_LOWER_WIDTH_M, landingH, STAIR_LANDING_DEPTH_M + 0.04),
+    new THREE.BoxGeometry(stairPlan.landingWidth, landingH, landingDepth + 0.04),
     stairStoneMat,
   );
   landingMesh.name = 'library-stair-landing';
   landingMesh.position.set(
-    0,
-    plinthBottomY + landingH * 0.5,
-    (upperFlightEndW + landingEndW) * 0.5,
+    centerU,
+    footBottomY + landingH * 0.5,
+    stairPlan.landingStartW + landingDepth * 0.5,
   );
   landingMesh.castShadow = true;
   landingMesh.receiveShadow = true;
   frontGroup.add(landingMesh);
 
-  // --- 9. 階段の左右: 石積みの擁壁（高さ 2.4〜4.8m の段々の壁） ---
+  // --- 9. 階段の左右: 石積みの擁壁（段々の壁。石積みはここだけ） ---
+  // 高さは 1 回目（下段 2.4m・上段 2.4m）の割り付けを、踊り場の高さと上の段の高さに合わせて伸び縮みさせる。
+  // levelAboveLanding = 0 が踊り場の高さ、2.4 がテラスの高さ
   interface WallSpec {
     uMin: number;
     uMax: number;
     wMin: number;
     wMax: number;
-    topOffsetFromGround: number;
+    levelAboveLanding: number;
   }
 
-  const upperHalfW = STAIR_UPPER_WIDTH_M * 0.5; // 13.0
-  const lowerHalfW = STAIR_LOWER_WIDTH_M * 0.5; // 20.0
-  const outerWallThickness = 2.0;
-  const innerCheekThickness = 1.6;
   const upperMidW = (upperFlightStartW + upperFlightEndW) * 0.5;
   const lowerMidW = (landingEndW + lowerFlightEndW) * 0.5;
 
   const oneSideWalls: WallSpec[] = [
-    // 上段脇の内側袖壁（4.8m -> 3.8m）
+    // 上段脇の内側袖壁（テラスの高さ -> 踊り場 + 1.4）
     {
       uMin: upperHalfW,
       uMax: upperHalfW + innerCheekThickness,
       wMin: upperFlightStartW,
       wMax: upperMidW,
-      topOffsetFromGround: 4.8,
+      levelAboveLanding: 2.4,
     },
     {
       uMin: upperHalfW,
       uMax: upperHalfW + innerCheekThickness,
       wMin: upperMidW,
       wMax: upperFlightEndW,
-      topOffsetFromGround: 3.8,
+      levelAboveLanding: 1.4,
     },
-    // 上段と外側擁壁をつなぐ段状テラス擁壁（高さ 3.4m）
+    // 上段と外側擁壁をつなぐ段状テラス擁壁（踊り場 + 1.0）
     {
       uMin: upperHalfW + innerCheekThickness,
       uMax: lowerHalfW,
       wMin: upperFlightStartW,
       wMax: upperFlightEndW,
-      topOffsetFromGround: 3.4,
+      levelAboveLanding: 1.0,
     },
-    // 外側の段々擁壁（奥 4.8m -> 4.0m -> 踊り場脇 3.4m -> 下段奥 2.9m -> 下段前 2.4m）
+    // 外側の段々擁壁（奥 テラス -> 踊り場 + 1.6 -> 踊り場脇 + 1.0 -> 下段奥 + 0.5 -> 下段前 踊り場の高さ）
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: upperFlightStartW,
       wMax: upperMidW,
-      topOffsetFromGround: 4.8,
+      levelAboveLanding: 2.4,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: upperMidW,
       wMax: upperFlightEndW,
-      topOffsetFromGround: 4.0,
+      levelAboveLanding: 1.6,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: upperFlightEndW,
       wMax: landingEndW,
-      topOffsetFromGround: 3.4,
+      levelAboveLanding: 1.0,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: landingEndW,
       wMax: lowerMidW,
-      topOffsetFromGround: 2.9,
+      levelAboveLanding: 0.5,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: lowerMidW,
       wMax: lowerFlightEndW,
-      topOffsetFromGround: 2.4,
+      levelAboveLanding: 0,
     },
   ];
 
   const retainingWallsMesh = new THREE.InstancedMesh(
     unitBoxGeo,
-    plinthStoneMat,
+    retainingStoneMat,
     oneSideWalls.length * 2,
   );
   retainingWallsMesh.name = 'library-retaining-walls';
@@ -1041,11 +1115,13 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
     for (const w of oneSideWalls) {
       const width = w.uMax - w.uMin;
       const depth = w.wMax - w.wMin;
-      const topY = gY + w.topOffsetFromGround;
-      const height = topY - plinthBottomY;
-      const centerU = side * ((w.uMin + w.uMax) * 0.5);
-      const centerW = (w.wMin + w.wMax) * 0.5;
-      dummy.position.set(centerU, plinthBottomY + height * 0.5, centerW);
+      const topY =
+        stairPlan.wallBaseY +
+        (w.levelAboveLanding / WALL_REFERENCE_FLIGHT_HEIGHT_M) * stairPlan.wallUpperRise;
+      const height = topY - footBottomY;
+      const wallU = centerU + side * ((w.uMin + w.uMax) * 0.5);
+      const wallW = (w.wMin + w.wMax) * 0.5;
+      dummy.position.set(wallU, footBottomY + height * 0.5, wallW);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.set(width, height, depth);
       dummy.updateMatrix();

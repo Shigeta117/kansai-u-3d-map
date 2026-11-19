@@ -13,6 +13,12 @@ export interface HeroBuildContext {
   building: BuildingFeature;
   /** 建物の地面の表示上の高さ（重心の標高から計算した値） */
   groundVisualY: number;
+  /**
+   * 任意の地点 (x, z) の地面の表示上の高さ（地形の標高を強調率つきで換算した値）。
+   * 斜面の上で階段や足元が浮かない・埋まらないように、置く地点ごとに引く。
+   * 地形が無いとき（書き出しなど）は常に groundVisualY を返す
+   */
+  sampleGroundVisualY: (x: number, z: number) => number;
 }
 
 export interface HeroBuildResult {

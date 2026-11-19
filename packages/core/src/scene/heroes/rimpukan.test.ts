@@ -50,11 +50,32 @@ function createRimpukanFeature(): BuildingFeature {
   };
 }
 
+/** InstancedMesh の各インスタンスの、底面が y = 0 の単位箱（x・z は ±0.5、y は 0〜1）の 8 隅をワールド座標で返す */
+function stepCorners(mesh: THREE.InstancedMesh): THREE.Vector3[][] {
+  const out: THREE.Vector3[][] = [];
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < mesh.count; i++) {
+    mesh.getMatrixAt(i, m);
+    m.premultiply(mesh.matrixWorld);
+    const corners: THREE.Vector3[] = [];
+    for (const sx of [-0.5, 0.5]) {
+      for (const sy of [0, 1]) {
+        for (const sz of [-0.5, 0.5]) {
+          corners.push(new THREE.Vector3(sx, sy, sz).applyMatrix4(m));
+        }
+      }
+    }
+    out.push(corners);
+  }
+  return out;
+}
+
 describe('buildRimpukan', () => {
   const groundVisualY = 12.5;
   const result = buildRimpukan({
     building: createRimpukanFeature(),
     groundVisualY,
+    sampleGroundVisualY: () => groundVisualY,
   });
 
   it('produces at least one mesh and stays well within the mesh budget', () => {
@@ -113,7 +134,8 @@ describe('buildRimpukan', () => {
     expect(box.max.x).toBeLessThanOrEqual(205);
     expect(box.min.z).toBeGreaterThanOrEqual(-50);
     expect(box.max.z).toBeLessThanOrEqual(45);
-    expect(box.min.y).toBeGreaterThanOrEqual(groundVisualY);
+    // 平らな地面では、1 階・柱・大階段の底は地面より 0.5m 下
+    expect(box.min.y).toBeCloseTo(groundVisualY - 0.5, 5);
     expect(box.max.y).toBeLessThanOrEqual(groundVisualY + 24);
   });
 
@@ -155,10 +177,80 @@ describe('buildRimpukan', () => {
       expect(roundCols.count).toBeLessThanOrEqual(2);
     }
     if (steps instanceof THREE.InstancedMesh) {
-      expect(steps.count).toBe(24);
+      // 2 階の床（4.2m）を 0.2m 以下の段に割る: 21 段の高さ → 踏み面 20
+      expect(steps.count).toBe(20);
     }
     if (poles instanceof THREE.InstancedMesh) {
       expect(poles.count).toBe(6);
     }
+  });
+
+  it('runs the grand staircase west-northwest, square to the main street, from the x≈99 edge', () => {
+    result.group.updateMatrixWorld(true);
+    const steps = result.group.getObjectByName('rimpukan-stairs-steps');
+    if (!(steps instanceof THREE.InstancedMesh)) throw new Error('steps missing');
+    const corners = stepCorners(steps);
+    const tops = corners.map((c) => Math.max(...c.map((p) => p.y)));
+    const top = corners[tops.indexOf(Math.max(...tops))];
+    const foot = corners[tops.indexOf(Math.min(...tops))];
+    if (!top || !foot) throw new Error('steps empty');
+    const centerXZ = (c: THREE.Vector3[]): [number, number] => [
+      c.reduce((s, p) => s + p.x, 0) / c.length,
+      c.reduce((s, p) => s + p.z, 0) / c.length,
+    ];
+    const [tx, tz] = centerXZ(top);
+    const [fx, fz] = centerXZ(foot);
+    const len = Math.hypot(fx - tx, fz - tz);
+    // 上の段から下の段へ向かう向きが (-0.98, -0.19)（道の向き (-0.19, 0.98) に直角）
+    expect((fx - tx) / len).toBeCloseTo(-0.98, 1);
+    expect((fz - tz) / len).toBeCloseTo(-0.19, 1);
+    // 下端の段は、ドラムの先端の辺 (99, 16)-(99, 24) の中央 (99, 20) から約 6.3m 先（道の東の縁）にある
+    const dirLen = Math.hypot(0.98, 0.19);
+    const footFrontX = 99 + (-0.98 / dirLen) * 6.3;
+    const footFrontZ = 20 + (-0.19 / dirLen) * 6.3;
+    const footFrontDist = Math.min(
+      ...foot.map((p) => Math.hypot(p.x - footFrontX, p.z - footFrontZ)),
+    );
+    expect(footFrontDist).toBeLessThan(9.2); // 段の隅（横 8.2m）までの距離
+    expect(Math.hypot(fx - footFrontX, fz - footFrontZ)).toBeLessThan(0.5);
+  });
+
+  describe('on ground that rises to the east', () => {
+    const ground = (x: number, z: number): number => groundVisualY + 0.08 * (x - 99) + 0.02 * z;
+    const sloped = buildRimpukan({
+      building: createRimpukanFeature(),
+      groundVisualY,
+      sampleGroundVisualY: ground,
+    });
+    sloped.group.updateMatrixWorld(true);
+
+    it('starts the lowest step on the ground and buries every step bottom', () => {
+      const steps = sloped.group.getObjectByName('rimpukan-stairs-steps');
+      if (!(steps instanceof THREE.InstancedMesh)) throw new Error('steps missing');
+      const corners = stepCorners(steps);
+      const tops = corners.map((c) => Math.max(...c.map((p) => p.y)));
+      for (const c of corners) {
+        const bottom = Math.min(...c.map((p) => p.y));
+        for (const p of c) {
+          expect(bottom).toBeLessThan(ground(p.x, p.z));
+        }
+      }
+      const foot = corners[tops.indexOf(Math.min(...tops))];
+      if (!foot) throw new Error('steps empty');
+      const footTop = Math.max(...foot.map((p) => p.y));
+      const minGroundUnderFoot = Math.min(...foot.map((p) => ground(p.x, p.z)));
+      expect(footTop - minGroundUnderFoot).toBeGreaterThan(0);
+      expect(footTop - minGroundUnderFoot).toBeLessThanOrEqual(0.201);
+    });
+
+    it('drops the 1F glass and columns below the lowest ground under the outline', () => {
+      let lowest = Infinity;
+      for (const [x, z] of RIMPUKAN_POLYGON) lowest = Math.min(lowest, ground(x, z));
+      for (const name of ['rimpukan-floor1-glass', 'rimpukan-columns-square']) {
+        const obj = sloped.group.getObjectByName(name);
+        if (!obj) throw new Error(`${name} missing`);
+        expect(new THREE.Box3().setFromObject(obj).min.y).toBeLessThanOrEqual(lowest - 0.5 + 1e-6);
+      }
+    });
   });
 });
