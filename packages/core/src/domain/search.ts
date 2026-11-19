@@ -51,6 +51,22 @@ export function normalizeSearchText(input: string): string {
     .trim();
 }
 
+export function expandRoomRange(
+  prefix: string,
+  start: number,
+  end: number,
+  padWidth = 0,
+): string[] {
+  const out: string[] = [];
+  const lo = Math.min(start, end);
+  const hi = Math.max(start, end);
+  for (let n = lo; n <= hi; n++) {
+    const numStr = padWidth > 0 ? String(n).padStart(padWidth, '0') : String(n);
+    out.push(`${prefix}${numStr}`);
+  }
+  return out;
+}
+
 export function isSearchableBuilding(b: BuildingFeature): boolean {
   if (b.category === 'surrounding') return false;
   return Boolean(b.landmarkId || b.name.trim().length > 0);
@@ -103,21 +119,16 @@ export function scoreBuildingMatch(
   }
 
   for (const tag of building.facilityTags) {
-    const tagLabel = normalizeSearchText(FACILITY_TAG_LABELS[tag]);
-    if (tagLabel.includes(normalizedQuery) || tag.includes(normalizedQuery)) {
-      score += 22;
+    const label = normalizeSearchText(FACILITY_TAG_LABELS[tag] ?? '');
+    if (label.includes(normalizedQuery)) {
+      score += 20;
       break;
     }
   }
 
-  if (normalizeSearchText(building.description).includes(normalizedQuery)) {
-    score += 10;
+  if (score > 0 && building.landmarkId) {
+    score += Math.max(1, 10 - building.labelPriority);
   }
-
-  if (score === 0) return 0;
-
-  if (building.landmarkId) score += 12;
-  score += Math.max(0, 10 - building.labelPriority);
 
   return score;
 }
@@ -128,24 +139,20 @@ export function searchBuildings(
   categoryFilter: BuildingCategory | 'all' = 'all',
 ): BuildingFeature[] {
   const normalized = normalizeSearchText(query);
-  const scored: { building: BuildingFeature; score: number }[] = [];
 
-  for (const b of buildings) {
-    if (!isSearchableBuilding(b)) continue;
-    if (categoryFilter !== 'all' && b.category !== categoryFilter) continue;
+  const candidates = buildings.filter((b) => {
+    if (!isSearchableBuilding(b)) return false;
+    if (categoryFilter !== 'all' && b.category !== categoryFilter) return false;
+    return true;
+  });
 
-    const score = scoreBuildingMatch(b, normalized);
-    if (score > 0) {
-      scored.push({ building: b, score });
-    }
-  }
+  const scored = candidates
+    .map((b) => ({ building: b, score: scoreBuildingMatch(b, normalized) }))
+    .filter((entry) => entry.score > 0);
 
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    if (a.building.labelPriority !== b.building.labelPriority) {
-      return a.building.labelPriority - b.building.labelPriority;
-    }
-    return a.building.name.localeCompare(b.building.name, 'ja');
+    return a.building.labelPriority - b.building.labelPriority;
   });
 
   return scored.map((s) => s.building);
@@ -190,38 +197,77 @@ export function searchLocationItems(
       if (!b) continue;
       if (categoryFilter !== 'all' && b.category !== categoryFilter) continue;
 
+      const planWingNorm = normalizeSearchText(plan.wingLabel ?? '');
+
       for (const room of plan.rooms) {
         const code = normalizeSearchText(room.code);
         const rName = normalizeSearchText(room.name);
         const rNote = normalizeSearchText(room.note ?? '');
+        const rWing = normalizeSearchText(room.wing ?? '');
         const floorLabel = room.floor < 0 ? `b${Math.abs(room.floor)}f` : `${room.floor}f`;
 
         let roomScore = 0;
-        if (code === normalized || rName === normalized) {
-          roomScore = 135;
-        } else if (code.startsWith(normalized) || rName.startsWith(normalized)) {
-          roomScore = 95;
-        } else if (
-          code.includes(normalized) ||
-          rName.includes(normalized) ||
-          rNote.includes(normalized) ||
-          floorLabel === normalized
-        ) {
-          roomScore = 62;
+        let matchedSpecificCode: string | undefined;
+
+        if (room.searchableCodes && room.searchableCodes.length > 0) {
+          const exactCode = room.searchableCodes.find(
+            (c) => normalizeSearchText(c) === normalized,
+          );
+          if (exactCode) {
+            roomScore = 142;
+            matchedSpecificCode = exactCode;
+          } else {
+            const prefixCode = room.searchableCodes.find((c) =>
+              normalizeSearchText(c).startsWith(normalized),
+            );
+            if (prefixCode && normalized.length >= 2) {
+              roomScore = 94;
+              matchedSpecificCode = prefixCode;
+            }
+          }
+        }
+
+        if (roomScore === 0) {
+          if (code === normalized || rName === normalized) {
+            roomScore = 136;
+          } else if (code.startsWith(normalized) || rName.startsWith(normalized)) {
+            roomScore = 96;
+          } else if (
+            code.includes(normalized) ||
+            rName.includes(normalized) ||
+            rNote.includes(normalized) ||
+            rWing.includes(normalized) ||
+            planWingNorm.includes(normalized) ||
+            floorLabel === normalized
+          ) {
+            roomScore = 64;
+          }
         }
 
         if (roomScore > 0) {
           const floorText = room.floor < 0 ? `B${Math.abs(room.floor)}F` : `${room.floor}F`;
+          const baseTitle = room.name.includes(room.code)
+            ? room.name
+            : `${room.code} ${room.name}`.trim();
+          const title =
+            matchedSpecificCode && matchedSpecificCode !== room.code
+              ? `${matchedSpecificCode}（${baseTitle}）`
+              : baseTitle;
+          const subtitle = room.wing
+            ? `${b.shortName}（${room.wing}）・${floorText}`
+            : `${b.shortName} ・ ${floorText}`;
+
           items.push({
             item: {
               key: `room:${b.id}:${room.id}`,
               kind: 'room',
               buildingId: b.id,
-              title: `${room.code} ${room.name}`.trim(),
-              subtitle: `${b.shortName} ・ ${floorText}`,
+              title,
+              subtitle,
               category: b.category,
               floor: room.floor,
-              roomCode: room.code,
+              wing: room.wing,
+              roomCode: matchedSpecificCode ?? room.code,
               groundY: b.groundY,
               walkNodeId: b.walkNodeId,
               accessibleWalkNodeId: b.accessibleWalkNodeId,
@@ -236,4 +282,3 @@ export function searchLocationItems(
   items.sort((a, b) => b.score - a.score);
   return items.map((x) => x.item);
 }
-

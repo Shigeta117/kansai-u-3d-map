@@ -46,6 +46,8 @@ export interface RoomEntry {
   name: string;
   floor: number;
   kind: RoomKind;
+  wing?: string;
+  searchableCodes?: string[];
   capacity?: number;
   accessible?: boolean;
   powerOutlets?: boolean;
@@ -63,6 +65,11 @@ export interface FloorMeta {
 
 export interface BuildingFloorPlan {
   buildingId: string;
+  wingLabel?: string;
+  numberingRule?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  sourceUpdatedAt?: string;
   summaryNote?: string;
   floors: FloorMeta[];
   entrances: BuildingEntrance[];
@@ -78,9 +85,9 @@ export interface LocationSearchItem {
   subtitle: string;
   category: BuildingCategory;
   floor?: number;
+  wing?: string;
   roomCode?: string;
   groundY: number;
   walkNodeId: string | null;
   accessibleWalkNodeId: string | null;
 }
-

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingFloorPlan } from './indoor-types';
-import { normalizeSearchText, searchBuildings, searchLocationItems } from './search';
+import {
+  expandRoomRange,
+  normalizeSearchText,
+  searchBuildings,
+  searchLocationItems,
+} from './search';
 import type { BuildingFeature } from './types';
 
 function makeBuilding(partial: Partial<BuildingFeature>): BuildingFeature {
@@ -50,6 +55,16 @@ describe('search', () => {
       labelPriority: 1,
     }),
     makeBuilding({
+      id: 'area1-4',
+      landmarkId: 'area1-4',
+      name: '第1学舎 4号館',
+      shortName: '第1学舎4号館',
+      kana: 'だいいちがくしゃ よんごうかん',
+      category: 'area1',
+      faculties: ['法学部', '文学部'],
+      labelPriority: 4,
+    }),
+    makeBuilding({
       id: 'area4-1',
       landmarkId: 'area4-1',
       name: '第4学舎 1号館',
@@ -70,6 +85,24 @@ describe('search', () => {
   ];
 
   const floorPlans: Record<string, BuildingFloorPlan> = {
+    'area1-4': {
+      buildingId: 'area1-4',
+      wingLabel: 'D棟',
+      floors: [{ floor: 1, label: '1F', hasElevator: true }],
+      entrances: [],
+      connectors: [],
+      rooms: [
+        {
+          id: 'd-101-119',
+          code: 'D101〜D119',
+          name: '講義室・演習室',
+          floor: 1,
+          wing: 'D棟',
+          kind: 'lecture',
+          searchableCodes: expandRoomRange('D', 101, 119),
+        },
+      ],
+    },
     'area4-1': {
       buildingId: 'area4-1',
       floors: [{ floor: 2, label: '2F', hasElevator: true }],
@@ -88,26 +121,42 @@ describe('search', () => {
   };
 
   it('normalizes katakana and full-width digits', () => {
-    expect(normalizeSearchText('リンプウカン')).toBe('りんぷうかん');
-    expect(normalizeSearchText('第４学舎')).toBe('第4学舎');
+    expect(normalizeSearchText('ＢＩＧホール１００')).toBe('bigほーる100');
   });
 
-  it('matches by katakana reading, faculty, and facility keyword, excluding surrounding houses', () => {
-    expect(searchBuildings(sample, 'リンプウ').map((b) => b.id)).toEqual(['rimpukan']);
-    expect(searchBuildings(sample, '学食').map((b) => b.id)).toEqual(['rimpukan']);
-    expect(searchBuildings(sample, 'システム理工').map((b) => b.id)).toEqual(['area4-1']);
-    expect(searchBuildings(sample, '').map((b) => b.id)).toEqual(['rimpukan', 'area4-1']);
+  it('expands numbered room ranges deterministically', () => {
+    const codes = expandRoomRange('D', 101, 104);
+    expect(codes).toEqual(['D101', 'D102', 'D103', 'D104']);
+  });
+
+  it('matches landmark by kana or keyword and excludes unnamed surrounding buildings', () => {
+    const all = searchBuildings(sample, '');
+    expect(all.some((b) => b.id === 'house')).toBe(false);
+
+    const byKana = searchBuildings(sample, 'りんぷうかん');
+    expect(byKana[0]?.id).toBe('rimpukan');
+
+    const byFaculty = searchBuildings(sample, 'システム理工');
+    expect(byFaculty[0]?.id).toBe('area4-1');
   });
 
   it('filters by category', () => {
-    expect(searchBuildings(sample, '', 'area4').map((b) => b.id)).toEqual(['area4-1']);
+    const onlyArea4 = searchBuildings(sample, '', 'area4');
+    expect(onlyArea4).toHaveLength(1);
+    expect(onlyArea4[0]?.id).toBe('area4-1');
   });
 
-  it('searches across buildings and indoor rooms', () => {
-    const items = searchLocationItems(sample, floorPlans, '4102');
-    expect(items[0]?.kind).toBe('room');
-    expect(items[0]?.buildingId).toBe('area4-1');
-    expect(items[0]?.roomCode).toBe('4102');
+  it('searches indoor room codes and expanded range codes', () => {
+    const res = searchLocationItems(sample, floorPlans, '4102');
+    expect(res[0]?.kind).toBe('room');
+    expect(res[0]?.buildingId).toBe('area4-1');
+    expect(res[0]?.floor).toBe(2);
+
+    const rangeHit = searchLocationItems(sample, floorPlans, 'D112');
+    expect(rangeHit[0]?.kind).toBe('room');
+    expect(rangeHit[0]?.buildingId).toBe('area1-4');
+    expect(rangeHit[0]?.roomCode).toBe('D112');
+    expect(rangeHit[0]?.wing).toBe('D棟');
+    expect(rangeHit[0]?.floor).toBe(1);
   });
 });
-

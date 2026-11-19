@@ -61,7 +61,7 @@ export function SearchBar({
             setQuery(e.target.value);
             setOpen(true);
           }}
-          placeholder="建物・学部・教室名で検索（例: 凜風館 / A401 / BIGホール）"
+          placeholder="建物・教室番号・オフィス検索（例: D112 / 2205 / 法文オフィス / 凜風館）"
           aria-label="建物や教室を検索"
           className="w-full bg-transparent text-[13px] font-medium text-[#1D2430] placeholder:text-[#7D8591] focus:outline-none"
         />

@@ -70,10 +70,10 @@ export function CreditsModal({ open, meta, onClose }: CreditsModalProps) {
 
           <section className="rounded-xl border border-[#E3DDD1] bg-[#F4EFE5] p-3">
             <h3 className="font-bold text-[#1B365D]">
-              3. Project PLATEAU 調査・UIモーション規約
+              3. 教室番号・オフィス一覧（関西大学 KAN-CAN!）＆ UIモーション
             </h3>
             <p className="mt-1">
-              G空間情報センター CKAN API で吹田市の 3D都市モデル公開状況を確認したところ未公開のため、GSI DEM5A ＋ OSM ＋ キャンパス造形（および MIT License の transitions.style モーショントークン）を組み合わせて構築しています。
+              各学舎の号館・棟コード（A〜F棟 / 1xxx〜4xxx番台）・教室番号・各オフィス所在地は、関西大学教務ガイド「KAN-CAN! 千里山キャンパス 学舎・教室（一覧）」（2026.10.5 更新）の公開情報に基づき構造化しています（詳細フロア平面図は保留）。UIモーションは transitions.style（MIT License）に準拠しています。
             </p>
           </section>
 
@@ -109,9 +109,9 @@ export function CreditsModal({ open, meta, onClose }: CreditsModalProps) {
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-[#666F7B]">サンプル館内情報</dt>
+                  <dt className="text-[#666F7B]">KAN-CAN! 教室収録</dt>
                   <dd className="font-semibold">
-                    {indoorStats.buildingCount}棟・{indoorStats.roomCount}枠
+                    {indoorStats.buildingCount}棟・{indoorStats.searchableCodeCount}室/施設
                   </dd>
                 </div>
               </dl>

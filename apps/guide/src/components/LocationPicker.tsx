@@ -239,7 +239,7 @@ export function LocationPicker({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="建物名・教室名（例: 3201 / BIGホール / 正門）"
+                placeholder="建物・教室番号・オフィス（例: D112 / 2205 / 経商オフィス）"
                 className="w-full bg-transparent text-[12px] font-medium text-[#1D2430] placeholder:text-[#8A929E] focus:outline-none"
               />
               {query.length > 0 && (
@@ -382,12 +382,19 @@ export function LocationPicker({
                                   >
                                     {b.name}
                                   </span>
-                                  {b.accessibleWalkNodeId && (
-                                    <Sparkles
-                                      className="h-3 w-3 shrink-0 text-[#1F7A8C]"
-                                      aria-label="段差フリー接続"
-                                    />
-                                  )}
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    {plan?.wingLabel && (
+                                      <span className="rounded bg-[#F1ECE1] px-1.5 py-0.5 text-[9.5px] font-semibold text-[#5C4938]">
+                                        {plan.wingLabel.split('（')[0]}
+                                      </span>
+                                    )}
+                                    {b.accessibleWalkNodeId && (
+                                      <Sparkles
+                                        className="h-3 w-3 shrink-0 text-[#1F7A8C]"
+                                        aria-label="段差フリー接続"
+                                      />
+                                    )}
+                                  </div>
                                 </button>
                                 {topRooms.length > 0 && (
                                   <div className="flex flex-wrap gap-1 px-2 pb-1.5">
