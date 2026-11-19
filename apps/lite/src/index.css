@@ -19,10 +19,15 @@
     margin: 0;
     padding: 0;
     overflow: hidden;
+    overscroll-behavior: none;
     font-family: 'Noto Sans JP', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: #efece4;
     color: #1d2430;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  canvas {
+    touch-action: none;
   }
 }
 
@@ -103,6 +108,14 @@
   .t-pill {
     animation-duration: 0.01ms !important;
     transform: none !important;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }
 

@@ -1,7 +1,65 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import { computeVisualY } from '../domain/projection';
 import type { BuildingFeature, CampusConfig, RouteResult } from '../domain/types';
+
+export interface CameraPose {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
+export function parseCameraParam(raw: string | null): CameraPose | undefined {
+  if (!raw) return undefined;
+  const parts = raw.split(',');
+  if (parts.length !== 6) return undefined;
+
+  const values: number[] = [];
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (trimmed.length === 0) return undefined;
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) return undefined;
+    values.push(n);
+  }
+
+  const [px, py, pz, tx, ty, tz] = values;
+  if (
+    px === undefined ||
+    py === undefined ||
+    pz === undefined ||
+    tx === undefined ||
+    ty === undefined ||
+    tz === undefined
+  ) {
+    return undefined;
+  }
+
+  if (Math.hypot(px - tx, py - ty, pz - tz) < 0.1) {
+    return undefined;
+  }
+
+  return {
+    position: [px, py, pz],
+    target: [tx, ty, tz],
+  };
+}
+
+export function formatCameraParam(
+  position: readonly [number, number, number],
+  target: readonly [number, number, number],
+): string {
+  const fmt = (v: number): string => (Math.abs(v) < 0.05 ? 0 : v).toFixed(1);
+  return `cam=${[...position, ...target].map(fmt).join(',')}`;
+}
+
+interface SphericalFlight {
+  startRadius: number;
+  endRadius: number;
+  startPhi: number;
+  endPhi: number;
+  startTheta: number;
+  deltaTheta: number;
+}
 
 interface FlightState {
   startPos: THREE.Vector3;
@@ -10,6 +68,7 @@ interface FlightState {
   endTarget: THREE.Vector3;
   startTimeMs: number;
   durationMs: number;
+  spherical?: SphericalFlight;
 }
 
 function easeInOutCubic(t: number): number {
@@ -18,8 +77,10 @@ function easeInOutCubic(t: number): number {
 
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
-  readonly controls: OrbitControls;
+  readonly controls: MapControls;
   private readonly bounds: CampusConfig['bounds'];
+  private readonly tempSpherical = new THREE.Spherical();
+  private readonly tempOffset = new THREE.Vector3();
   private flight: FlightState | null = null;
   private reducedMotion = false;
 
@@ -29,6 +90,7 @@ export class CameraRig {
     config: CampusConfig,
     initialPresetId?: string,
     reducedMotion = false,
+    initialCamera?: CameraPose,
   ) {
     this.bounds = config.bounds;
     this.reducedMotion = reducedMotion;
@@ -37,35 +99,42 @@ export class CameraRig {
     const initial =
       config.cameraPresets.find((p) => p.id === initialPresetId) ??
       config.cameraPresets[0];
-    if (initial) {
+    if (initialCamera) {
+      this.camera.position.set(...initialCamera.position);
+    } else if (initial) {
       this.camera.position.set(...initial.position);
     } else {
       this.camera.position.set(-430, 420, 540);
     }
 
-    this.controls = new OrbitControls(this.camera, domElement);
+    this.controls = new MapControls(this.camera, domElement);
     this.controls.enableDamping = !reducedMotion;
-    this.controls.dampingFactor = 0.08;
+    this.controls.dampingFactor = 0.16;
     this.controls.rotateSpeed = 0.72;
-    this.controls.panSpeed = 0.85;
+    this.controls.panSpeed = 1.0;
     this.controls.zoomSpeed = 0.9;
-    this.controls.minDistance = 95;
+    this.controls.minDistance = 35;
     this.controls.maxDistance = 1180;
-    this.controls.minPolarAngle = 0.18;
+    this.controls.minPolarAngle = 0.05;
     this.controls.maxPolarAngle = 1.28;
     this.controls.screenSpacePanning = false;
+    this.controls.zoomToCursor = true;
 
-    if (initial) {
+    if (initialCamera) {
+      this.controls.target.set(...initialCamera.target);
+    } else if (initial) {
       this.controls.target.set(...initial.target);
     } else {
       this.controls.target.set(25, 38, 25);
     }
     this.controls.update();
 
-    this.controls.addEventListener('start', () => {
-      this.flight = null;
-    });
+    this.controls.addEventListener('start', this.handleControlStart);
   }
+
+  private handleControlStart = (): void => {
+    this.flight = null;
+  };
 
   setReducedMotion(reduced: boolean): void {
     this.reducedMotion = reduced;
@@ -97,14 +166,73 @@ export class CameraRig {
       return;
     }
 
+    const startPos = this.camera.position.clone();
+    const endPos = new THREE.Vector3(...position);
+    const startTarget = this.controls.target.clone();
+    const endTarget = new THREE.Vector3(...target);
+
+    let spherical: SphericalFlight | undefined;
+    if (startTarget.distanceToSquared(endTarget) < 1e-6) {
+      const startOffset = startPos.clone().sub(startTarget);
+      const endOffset = endPos.clone().sub(endTarget);
+      if (startOffset.lengthSq() > 1e-4 && endOffset.lengthSq() > 1e-4) {
+        const startSph = new THREE.Spherical().setFromVector3(startOffset);
+        const endSph = new THREE.Spherical().setFromVector3(endOffset);
+        let deltaTheta = endSph.theta - startSph.theta;
+        while (deltaTheta > Math.PI) deltaTheta -= Math.PI * 2;
+        while (deltaTheta < -Math.PI) deltaTheta += Math.PI * 2;
+        spherical = {
+          startRadius: startSph.radius,
+          endRadius: endSph.radius,
+          startPhi: startSph.phi,
+          endPhi: endSph.phi,
+          startTheta: startSph.theta,
+          deltaTheta,
+        };
+      }
+    }
+
     this.flight = {
-      startPos: this.camera.position.clone(),
-      endPos: new THREE.Vector3(...position),
-      startTarget: this.controls.target.clone(),
-      endTarget: new THREE.Vector3(...target),
+      startPos,
+      endPos,
+      startTarget,
+      endTarget,
       startTimeMs: performance.now(),
       durationMs,
+      spherical,
     };
+  }
+
+  resetNorth(): void {
+    this.flight = null;
+    const offset = this.tempOffset.subVectors(
+      this.camera.position,
+      this.controls.target,
+    );
+    const sph = this.tempSpherical.setFromVector3(offset);
+    if (Math.abs(sph.theta) < 1e-4) {
+      return;
+    }
+    sph.theta = 0;
+    sph.phi = Math.max(
+      this.controls.minPolarAngle,
+      Math.min(this.controls.maxPolarAngle, sph.phi),
+    );
+    sph.makeSafe();
+    offset.setFromSpherical(sph);
+
+    const target = this.controls.target;
+    this.flyTo(
+      [target.x + offset.x, target.y + offset.y, target.z + offset.z],
+      [target.x, target.y, target.z],
+      400,
+    );
+  }
+
+  getCameraParam(): string {
+    const p = this.camera.position;
+    const t = this.controls.target;
+    return formatCameraParam([p.x, p.y, p.z], [t.x, t.y, t.z]);
   }
 
   focusBuilding(
@@ -172,22 +300,37 @@ export class CameraRig {
     );
   }
 
-  update(nowMs: number): void {
+  update(nowMs: number): boolean {
+    let didFly = false;
     if (this.flight) {
+      didFly = true;
       const elapsed = nowMs - this.flight.startTimeMs;
-      const t = Math.min(1, elapsed / this.flight.durationMs);
+      const t = Math.min(1, Math.max(0, elapsed / this.flight.durationMs));
       const eased = easeInOutCubic(t);
-      this.camera.position.lerpVectors(
-        this.flight.startPos,
-        this.flight.endPos,
-        eased,
-      );
-      this.controls.target.lerpVectors(
-        this.flight.startTarget,
-        this.flight.endTarget,
-        eased,
-      );
+      if (this.flight.spherical) {
+        const s = this.flight.spherical;
+        const radius = s.startRadius + (s.endRadius - s.startRadius) * eased;
+        const phi = s.startPhi + (s.endPhi - s.startPhi) * eased;
+        const theta = s.startTheta + s.deltaTheta * eased;
+        this.tempSpherical.set(radius, phi, theta);
+        this.tempOffset.setFromSpherical(this.tempSpherical);
+        this.controls.target.copy(this.flight.endTarget);
+        this.camera.position.copy(this.flight.endTarget).add(this.tempOffset);
+      } else {
+        this.camera.position.lerpVectors(
+          this.flight.startPos,
+          this.flight.endPos,
+          eased,
+        );
+        this.controls.target.lerpVectors(
+          this.flight.startTarget,
+          this.flight.endTarget,
+          eased,
+        );
+      }
       if (t >= 1) {
+        this.camera.position.copy(this.flight.endPos);
+        this.controls.target.copy(this.flight.endTarget);
         this.flight = null;
       }
     }
@@ -203,9 +346,11 @@ export class CameraRig {
     this.controls.target.y = Math.max(-5, Math.min(140, this.controls.target.y));
 
     this.controls.update();
+    return didFly;
   }
 
   dispose(): void {
+    this.controls.removeEventListener('start', this.handleControlStart);
     this.controls.dispose();
   }
 }

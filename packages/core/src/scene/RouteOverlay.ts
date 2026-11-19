@@ -116,6 +116,10 @@ export class RouteOverlay {
     this.pinGroup.add(head);
   }
 
+  hasActiveRoute(): boolean {
+    return this.curve !== null && this.pulseSpheres.length > 0;
+  }
+
   update(elapsedSec: number, reducedMotion = false): void {
     if (!this.curve || this.pulseSpheres.length === 0) return;
     if (reducedMotion) {

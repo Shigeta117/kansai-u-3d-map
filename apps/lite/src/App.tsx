@@ -6,16 +6,26 @@ import {
   getCampusConfig,
   getCategoryLabel,
   loadCampusDataset,
+  parseCameraParam,
   type BuildingFeature,
+  type CameraPose,
   type CampusDataset,
   type CampusDatasetMeta,
   type LightingTheme,
   type ProjectedLabel,
 } from '@kansai-u-3d/core';
 
+type KumWindow = Window & {
+  __kum?: {
+    getCameraParam: () => string;
+  };
+};
+
 interface LiteUrlParams {
   embed: boolean;
+  hideUi: boolean;
   initialPresetId: string;
+  initialCamera?: CameraPose;
   initialTheme: LightingTheme;
   initialCampusOnly: boolean;
 }
@@ -24,6 +34,7 @@ function parseUrlParams(defaultPresetId: string): LiteUrlParams {
   if (typeof window === 'undefined') {
     return {
       embed: false,
+      hideUi: false,
       initialPresetId: defaultPresetId,
       initialTheme: 'day',
       initialCampusOnly: false,
@@ -31,12 +42,16 @@ function parseUrlParams(defaultPresetId: string): LiteUrlParams {
   }
   const params = new URLSearchParams(window.location.search);
   const embed = params.get('embed') === '1' || params.get('embed') === 'true';
+  const hideUi = params.get('ui') === '0';
   const preset = params.get('preset') || defaultPresetId;
+  const initialCamera = parseCameraParam(params.get('cam'));
   const theme: LightingTheme = params.get('theme') === 'golden' ? 'golden' : 'day';
   const initialCampusOnly = params.get('scope') === 'campus';
   return {
     embed,
+    hideUi,
     initialPresetId: preset,
+    initialCamera,
     initialTheme: theme,
     initialCampusOnly,
   };
@@ -301,11 +316,21 @@ export function App() {
         campusOnly,
         initialTheme: lighting,
         initialPresetId: activePresetId,
+        initialCamera: urlParams.initialCamera,
       },
     );
     sceneRef.current = scene;
 
+    if (import.meta.env.DEV) {
+      (window as KumWindow).__kum = {
+        getCameraParam: () => scene.getCameraParam(),
+      };
+    }
+
     return () => {
+      if (import.meta.env.DEV) {
+        delete (window as KumWindow).__kum;
+      }
       scene.dispose();
       sceneRef.current = null;
     };
@@ -359,7 +384,7 @@ export function App() {
       ) : (
         <div
           ref={containerRef}
-          className="h-full w-full cursor-grab active:cursor-grabbing"
+          className="h-full w-full touch-none cursor-grab active:cursor-grabbing"
         />
       )}
 
@@ -372,191 +397,195 @@ export function App() {
         </div>
       )}
 
-      {/* Lightweight Projected Labels */}
-      {showLabels && visibleLabels.length > 0 && (
-        <div className="pointer-events-none fixed inset-0 z-10 overflow-hidden">
-          {visibleLabels.map((lbl) => {
-            const isSel = lbl.id === selectedId;
-            const dotColor =
-              CATEGORY_OPTIONS.find((c) => c.id === lbl.category)?.color ?? '#1B365D';
-            return (
-              <button
-                key={lbl.id}
-                type="button"
-                onClick={() => handleSelectBuilding(lbl.id)}
-                style={{
-                  transform: `translate3d(${lbl.screenX.toFixed(1)}px, ${lbl.screenY.toFixed(1)}px, 0) translate(-50%, -100%)`,
-                }}
-                className={`pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-bold shadow-sm transition-colors duration-150 ${
-                  isSel
-                    ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
-                    : 'border-[#DDD6C8] bg-[#FAF7F2]/90 text-[#1D2430] hover:bg-white'
-                }`}
-              >
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: isSel ? '#FFFFFF' : dotColor }}
-                />
-                <span className="whitespace-nowrap">{lbl.shortName}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Minimal Top Bar */}
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex items-center justify-between gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
-        {!urlParams.embed ? (
-          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-3 py-1.5 shadow-sm backdrop-blur-md">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1B365D] text-[11px] font-bold text-white">
-              関大
+      {!urlParams.hideUi && (
+        <>
+          {/* Lightweight Projected Labels */}
+          {showLabels && visibleLabels.length > 0 && (
+            <div className="pointer-events-none fixed inset-0 z-10 overflow-hidden">
+              {visibleLabels.map((lbl) => {
+                const isSel = lbl.id === selectedId;
+                const dotColor =
+                  CATEGORY_OPTIONS.find((c) => c.id === lbl.category)?.color ?? '#1B365D';
+                return (
+                  <button
+                    key={lbl.id}
+                    type="button"
+                    onClick={() => handleSelectBuilding(lbl.id)}
+                    style={{
+                      transform: `translate3d(${lbl.screenX.toFixed(1)}px, ${lbl.screenY.toFixed(1)}px, 0) translate(-50%, -100%)`,
+                    }}
+                    className={`pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-bold shadow-sm transition-colors duration-150 ${
+                      isSel
+                        ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
+                        : 'border-[#DDD6C8] bg-[#FAF7F2]/90 text-[#1D2430] hover:bg-white'
+                    }`}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ backgroundColor: isSel ? '#FFFFFF' : dotColor }}
+                    />
+                    <span className="whitespace-nowrap">{lbl.shortName}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <h1 className="text-[13px] font-bold leading-tight text-[#1D2430]">
-                千里山キャンパス 3Dビューア（簡易版）
-              </h1>
-              <p className="hidden text-[10px] text-[#666F7B] sm:block">
-                軽量埋込 &amp; GLB / OBJ 3Dアセット確認モデル
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="pointer-events-auto rounded-full border border-[#DDD6C8] bg-[#FAF7F2]/90 px-2.5 py-1 text-[10.5px] font-bold text-[#1B365D] shadow-xs backdrop-blur-md">
-            関大 千里山 3D
-          </div>
-        )}
-
-        <div className="pointer-events-auto flex items-center gap-1.5">
-          {!urlParams.embed && (
-            <button
-              type="button"
-              onClick={() => setCampusOnly((prev) => !prev)}
-              aria-pressed={campusOnly}
-              className={`t-interactive flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
-                campusOnly
-                  ? 'border-[#1B365D] bg-[#1B365D] text-white'
-                  : 'border-[#DDD6C8] bg-[#FAF7F2]/94 text-[#333B47] hover:bg-[#EFE9DC]'
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              <span>{campusOnly ? 'キャンパスのみ' : '周辺含む'}</span>
-            </button>
           )}
 
-          <button
-            type="button"
-            onClick={() =>
-              setLighting((prev) => (prev === 'day' ? 'golden' : 'day'))
-            }
-            aria-label="照明モード切替"
-            className={`t-interactive flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
-              lighting === 'golden'
-                ? 'border-[#D98245] bg-[#FCEBD9] text-[#8E4313]'
-                : 'border-[#DDD6C8] bg-[#FAF7F2]/94 text-[#333B47] hover:bg-[#EFE9DC]'
-            }`}
-          >
-            {lighting === 'day' ? (
-              <Sun className="h-3.5 w-3.5 text-[#D4882A]" />
+          {/* Minimal Top Bar */}
+          <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex items-center justify-between gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
+            {!urlParams.embed ? (
+              <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-3 py-1.5 shadow-sm backdrop-blur-md">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1B365D] text-[11px] font-bold text-white">
+                  関大
+                </div>
+                <div>
+                  <h1 className="text-[13px] font-bold leading-tight text-[#1D2430]">
+                    千里山キャンパス 3Dビューア（簡易版）
+                  </h1>
+                  <p className="hidden text-[10px] text-[#666F7B] sm:block">
+                    軽量埋込 &amp; GLB / OBJ 3Dアセット確認モデル
+                  </p>
+                </div>
+              </div>
             ) : (
-              <Moon className="h-3.5 w-3.5 text-[#A85224]" />
+              <div className="pointer-events-auto rounded-full border border-[#DDD6C8] bg-[#FAF7F2]/90 px-2.5 py-1 text-[10.5px] font-bold text-[#1B365D] shadow-xs backdrop-blur-md">
+                関大 千里山 3D
+              </div>
             )}
-            <span className="hidden sm:inline">{lighting === 'day' ? '昼' : '夕方'}</span>
-          </button>
 
-          <button
-            type="button"
-            onClick={() => setShowLabels((prev) => !prev)}
-            aria-pressed={showLabels}
-            aria-label="ピン表示切替"
-            className={`t-interactive flex h-8 items-center gap-1 rounded-xl border px-2 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
-              showLabels
-                ? 'border-[#1B365D] bg-[#1B365D] text-white'
-                : 'border-[#DDD6C8] bg-[#FAF7F2]/94 text-[#4B5360] hover:bg-[#EFE9DC]'
-            }`}
-          >
-            <Tag className="h-3.5 w-3.5" />
-          </button>
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              {!urlParams.embed && (
+                <button
+                  type="button"
+                  onClick={() => setCampusOnly((prev) => !prev)}
+                  aria-pressed={campusOnly}
+                  className={`t-interactive flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
+                    campusOnly
+                      ? 'border-[#1B365D] bg-[#1B365D] text-white'
+                      : 'border-[#DDD6C8] bg-[#FAF7F2]/94 text-[#333B47] hover:bg-[#EFE9DC]'
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>{campusOnly ? 'キャンパスのみ' : '周辺含む'}</span>
+                </button>
+              )}
 
-          {!urlParams.embed && (
-            <button
-              type="button"
-              onClick={() => setSpecOpen(true)}
-              className="t-interactive flex h-8 items-center gap-1 rounded-xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-2.5 text-[11px] font-semibold text-[#1B365D] shadow-sm backdrop-blur-md hover:bg-[#EFE9DC]"
-            >
-              <Package className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">3Dアセット・出典</span>
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Compact Selected Building Pill */}
-      {selectedBuilding && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-16 z-20 flex justify-center px-3 sm:bottom-18">
-          <div className="t-pill pointer-events-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/96 px-3.5 py-2 shadow-xl backdrop-blur-md">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[10.5px] font-semibold text-[#5F6875]">
-                <span>{getCategoryLabel(selectedBuilding.category)}</span>
-                <span className="tabular-nums">・標高 {selectedBuilding.groundY.toFixed(1)}m</span>
-              </div>
-              <div className="truncate text-[13px] font-bold text-[#1D2430]">
-                {selectedBuilding.name}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => sceneRef.current?.focusBuilding(selectedBuilding)}
-              aria-label="この建物を注視"
-              className="t-interactive rounded-lg border border-[#DDD6C8] bg-white p-1.5 text-[#1B365D] hover:bg-[#EFE9DC]"
-            >
-              <Compass className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedId(null)}
-              aria-label="選択を解除"
-              className="t-interactive rounded-lg p-1 text-[#5F6875] hover:bg-[#EAE3D6]"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom Camera Presets */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4">
-        <div
-          className="no-scrollbar pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 p-1.5 shadow-lg backdrop-blur-md"
-          aria-label="視点プリセット"
-        >
-          {config.cameraPresets.map((p) => {
-            const active = p.id === activePresetId;
-            return (
               <button
-                key={p.id}
                 type="button"
-                onClick={() => {
-                  setActivePresetId(p.id);
-                  sceneRef.current?.flyToPreset(p.id);
-                }}
-                className={`t-interactive shrink-0 rounded-xl px-2.5 py-1 text-[11px] font-semibold ${
-                  active
-                    ? 'bg-[#1B365D] text-white shadow-xs'
-                    : 'text-[#3D4552] hover:bg-[#EAE3D6]'
+                onClick={() =>
+                  setLighting((prev) => (prev === 'day' ? 'golden' : 'day'))
+                }
+                aria-label="照明モード切替"
+                className={`t-interactive flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
+                  lighting === 'golden'
+                    ? 'border-[#D98245] bg-[#FCEBD9] text-[#8E4313]'
+                    : 'border-[#DDD6C8] bg-[#FAF7F2]/94 text-[#333B47] hover:bg-[#EFE9DC]'
                 }`}
               >
-                {p.label}
+                {lighting === 'day' ? (
+                  <Sun className="h-3.5 w-3.5 text-[#D4882A]" />
+                ) : (
+                  <Moon className="h-3.5 w-3.5 text-[#A85224]" />
+                )}
+                <span className="hidden sm:inline">{lighting === 'day' ? '昼' : '夕方'}</span>
               </button>
-            );
-          })}
-        </div>
-      </div>
 
-      <AssetSpecModal
-        open={specOpen}
-        meta={dataset?.meta ?? null}
-        onClose={() => setSpecOpen(false)}
-      />
+              <button
+                type="button"
+                onClick={() => setShowLabels((prev) => !prev)}
+                aria-pressed={showLabels}
+                aria-label="ピン表示切替"
+                className={`t-interactive flex h-8 items-center gap-1 rounded-xl border px-2 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
+                  showLabels
+                    ? 'border-[#1B365D] bg-[#1B365D] text-white'
+                    : 'border-[#DDD6C8] bg-[#FAF7F2]/94 text-[#4B5360] hover:bg-[#EFE9DC]'
+                }`}
+              >
+                <Tag className="h-3.5 w-3.5" />
+              </button>
+
+              {!urlParams.embed && (
+                <button
+                  type="button"
+                  onClick={() => setSpecOpen(true)}
+                  className="t-interactive flex h-8 items-center gap-1 rounded-xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-2.5 text-[11px] font-semibold text-[#1B365D] shadow-sm backdrop-blur-md hover:bg-[#EFE9DC]"
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">3Dアセット・出典</span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* Compact Selected Building Pill */}
+          {selectedBuilding && (
+            <div className="pointer-events-none fixed inset-x-0 bottom-16 z-20 flex justify-center px-3 sm:bottom-18">
+              <div className="t-pill pointer-events-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/96 px-3.5 py-2 shadow-xl backdrop-blur-md">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-[10.5px] font-semibold text-[#5F6875]">
+                    <span>{getCategoryLabel(selectedBuilding.category)}</span>
+                    <span className="tabular-nums">・標高 {selectedBuilding.groundY.toFixed(1)}m</span>
+                  </div>
+                  <div className="truncate text-[13px] font-bold text-[#1D2430]">
+                    {selectedBuilding.name}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => sceneRef.current?.focusBuilding(selectedBuilding)}
+                  aria-label="この建物を注視"
+                  className="t-interactive rounded-lg border border-[#DDD6C8] bg-white p-1.5 text-[#1B365D] hover:bg-[#EFE9DC]"
+                >
+                  <Compass className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  aria-label="選択を解除"
+                  className="t-interactive rounded-lg p-1 text-[#5F6875] hover:bg-[#EAE3D6]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Camera Presets */}
+          <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4">
+            <div
+              className="no-scrollbar pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 p-1.5 shadow-lg backdrop-blur-md"
+              aria-label="視点プリセット"
+            >
+              {config.cameraPresets.map((p) => {
+                const active = p.id === activePresetId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setActivePresetId(p.id);
+                      sceneRef.current?.flyToPreset(p.id);
+                    }}
+                    className={`t-interactive shrink-0 rounded-xl px-2.5 py-1 text-[11px] font-semibold ${
+                      active
+                        ? 'bg-[#1B365D] text-white shadow-xs'
+                        : 'text-[#3D4552] hover:bg-[#EAE3D6]'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <AssetSpecModal
+            open={specOpen}
+            meta={dataset?.meta ?? null}
+            onClose={() => setSpecOpen(false)}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -10,10 +10,15 @@
     margin: 0;
     padding: 0;
     overflow: hidden;
+    overscroll-behavior: none;
     font-family: 'Noto Sans JP', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: #efece4;
     color: #1d2430;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  canvas {
+    touch-action: none;
   }
 }
 
@@ -27,5 +32,13 @@
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 

@@ -1,4 +1,4 @@
-import { Info, Moon, Route as RouteIcon, Sun, Tag } from 'lucide-react';
+import { Compass, Info, Moon, Route as RouteIcon, Sun, Tag } from 'lucide-react';
 import type { CameraPreset, LightingTheme } from '@kansai-u-3d/core';
 
 interface TopActionButtonsProps {
@@ -8,6 +8,7 @@ interface TopActionButtonsProps {
   onToggleLighting: () => void;
   onToggleLabels: () => void;
   onToggleRoute: () => void;
+  onResetNorth: () => void;
   onOpenCredits: () => void;
 }
 
@@ -18,6 +19,7 @@ export function TopActionButtons({
   onToggleLighting,
   onToggleLabels,
   onToggleRoute,
+  onResetNorth,
   onOpenCredits,
 }: TopActionButtonsProps) {
   return (
@@ -70,6 +72,16 @@ export function TopActionButtons({
       >
         <Tag className="h-3.5 w-3.5" />
         <span className="hidden lg:inline">ピン</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onResetNorth}
+        aria-label="北を上にする"
+        title="北を上にする"
+        className="t-interactive flex h-9 w-9 items-center justify-center rounded-xl border border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#4B5360] shadow-sm backdrop-blur-md hover:bg-[#EFE9DC] hover:text-[#1B365D]"
+      >
+        <Compass className="h-4 w-4" />
       </button>
 
       <button

@@ -6,7 +6,8 @@ import { mergeSimpleGeometries } from './TerrainBuilder';
 
 export interface TransportBuildResult {
   group: THREE.Group;
-  update: (elapsedSec: number) => void;
+  cars: THREE.Object3D[];
+  update: (elapsedSec: number) => boolean;
 }
 
 function buildRailStrip(
@@ -190,10 +191,11 @@ export function buildTransportGroup(
     }
   };
 
-  positionTrainAt(Math.min(0.92, Math.max(0.08, stationStopT)));
+  let lastT = Math.min(0.92, Math.max(0.08, stationStopT));
+  positionTrainAt(lastT);
 
-  const update = (elapsedSec: number) => {
-    if (!primaryCurve || cars.length === 0) return;
+  const update = (elapsedSec: number): boolean => {
+    if (!primaryCurve || cars.length === 0) return false;
     const cycle = 26;
     const phase = (elapsedSec % cycle) / cycle;
     const stopStart = 0.32;
@@ -210,9 +212,14 @@ export function buildTransportGroup(
       const eased = local * local * (3 - 2 * local);
       t = stationStopT + eased * (0.92 - stationStopT);
     }
+    if (Math.abs(t - lastT) < 1e-6) {
+      return false;
+    }
+    lastT = t;
     positionTrainAt(t);
+    return true;
   };
 
-  return { group, update };
+  return { group, cars, update };
 }
 

@@ -4,8 +4,10 @@ import {
   findRoute,
   getCampusConfig,
   loadCampusDataset,
+  parseCameraParam,
   type BuildingCategory,
   type BuildingFeature,
+  type CameraPose,
   type CampusDataset,
   type LightingTheme,
   type LocationSearchItem,
@@ -23,8 +25,25 @@ import { SearchBar } from './components/SearchBar';
 import { PresetStrip, TopActionButtons } from './components/ViewControls';
 import { SENRIYAMA_FLOOR_PLANS } from './data/indoor/senriyama-indoor';
 
+interface GuideUrlParams {
+  initialCamera?: CameraPose;
+  hideUi: boolean;
+}
+
+function parseGuideUrlParams(): GuideUrlParams {
+  if (typeof window === 'undefined') {
+    return { hideUi: false };
+  }
+  const params = new URLSearchParams(window.location.search);
+  return {
+    initialCamera: parseCameraParam(params.get('cam')),
+    hideUi: params.get('ui') === '0',
+  };
+}
+
 export function App() {
   const config = useMemo(() => getCampusConfig('senriyama'), []);
+  const urlParams = useMemo(() => parseGuideUrlParams(), []);
   const sceneRef = useRef<CampusScene | null>(null);
 
   const [dataset, setDataset] = useState<CampusDataset | null>(null);
@@ -230,6 +249,7 @@ export function App() {
           activeCategory={activeCategory}
           activeRoute={activeRoute}
           lighting={lighting}
+          initialCamera={urlParams.initialCamera}
           onSelectBuilding={handleSelectBuilding}
           onLabelsUpdate={setLabels}
           sceneRef={sceneRef}
@@ -243,133 +263,138 @@ export function App() {
         </div>
       )}
 
-      {dataset && (
-        <LandmarkLabelsOverlay
-          labels={labels}
-          visible={showLabels}
-          selectedId={selectedId}
-          routeEndpointIds={
-            routeOpen ? [originSelection.buildingId, destSelection.buildingId] : []
-          }
-          viewportWidth={viewport.width}
-          viewportHeight={viewport.height}
-          hasLeftCard={routeOpen}
-          hasRightCard={Boolean(selectedBuilding)}
-          onSelect={handleSelectBuilding}
-        />
-      )}
-
-      {/* Top HUD */}
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-30 flex flex-col gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
-        <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-3 py-1.5 shadow-sm backdrop-blur-md">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1B365D] text-[13px] font-bold text-[#FAF7F2]">
-              関大
-            </div>
-            <div>
-              <h1 className="text-[13.5px] font-bold leading-tight text-[#1D2430]">
-                {config.name} 3D
-              </h1>
-              <p className="hidden text-[10px] font-medium text-[#666F7B] sm:block">
-                {config.subtitle}
-              </p>
-            </div>
-          </div>
-
+      {!urlParams.hideUi && (
+        <>
           {dataset && (
-            <div className="order-3 w-full sm:order-2 sm:w-auto sm:min-w-[290px] sm:flex-1 sm:max-w-md">
-              <SearchBar
-                buildings={dataset.buildings}
-                floorPlans={SENRIYAMA_FLOOR_PLANS}
+            <LandmarkLabelsOverlay
+              labels={labels}
+              visible={showLabels}
+              selectedId={selectedId}
+              routeEndpointIds={
+                routeOpen ? [originSelection.buildingId, destSelection.buildingId] : []
+              }
+              viewportWidth={viewport.width}
+              viewportHeight={viewport.height}
+              hasLeftCard={routeOpen}
+              hasRightCard={Boolean(selectedBuilding)}
+              onSelect={handleSelectBuilding}
+            />
+          )}
+
+          {/* Top HUD */}
+          <header className="pointer-events-none fixed inset-x-0 top-0 z-30 flex flex-col gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
+            <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-3 py-1.5 shadow-sm backdrop-blur-md">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1B365D] text-[13px] font-bold text-[#FAF7F2]">
+                  関大
+                </div>
+                <div>
+                  <h1 className="text-[13.5px] font-bold leading-tight text-[#1D2430]">
+                    {config.name} 3D
+                  </h1>
+                  <p className="hidden text-[10px] font-medium text-[#666F7B] sm:block">
+                    {config.subtitle}
+                  </p>
+                </div>
+              </div>
+
+              {dataset && (
+                <div className="order-3 w-full sm:order-2 sm:w-auto sm:min-w-[290px] sm:flex-1 sm:max-w-md">
+                  <SearchBar
+                    buildings={dataset.buildings}
+                    floorPlans={SENRIYAMA_FLOOR_PLANS}
+                    activeCategory={activeCategory}
+                    onSelectLocation={handleSelectSearchLocation}
+                  />
+                </div>
+              )}
+
+              <div className="order-2 sm:order-3">
+                <TopActionButtons
+                  lighting={lighting}
+                  showLabels={showLabels}
+                  routeOpen={routeOpen}
+                  onToggleLighting={() =>
+                    setLighting((prev) => (prev === 'day' ? 'golden' : 'day'))
+                  }
+                  onToggleLabels={() => setShowLabels((prev) => !prev)}
+                  onToggleRoute={() => {
+                    setRouteOpen((prev) => !prev);
+                    setPickingTarget(null);
+                  }}
+                  onResetNorth={() => sceneRef.current?.resetNorth()}
+                  onOpenCredits={() => setCreditsOpen(true)}
+                />
+              </div>
+            </div>
+
+            <div className="pointer-events-auto">
+              <CategoryChips
                 activeCategory={activeCategory}
-                onSelectLocation={handleSelectSearchLocation}
+                onChange={(cat) => setActiveCategory(cat)}
               />
+            </div>
+          </header>
+
+          {/* Bottom Camera Presets */}
+          {!selectedBuilding && !routeOpen && (
+            <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-5">
+              <div className="pointer-events-auto max-w-full">
+                <PresetStrip
+                  presets={config.cameraPresets}
+                  activePresetId={activePresetId}
+                  onSelectPreset={handleSelectPreset}
+                />
+              </div>
             </div>
           )}
 
-          <div className="order-2 sm:order-3">
-            <TopActionButtons
-              lighting={lighting}
-              showLabels={showLabels}
-              routeOpen={routeOpen}
-              onToggleLighting={() =>
-                setLighting((prev) => (prev === 'day' ? 'golden' : 'day'))
-              }
-              onToggleLabels={() => setShowLabels((prev) => !prev)}
-              onToggleRoute={() => {
-                setRouteOpen((prev) => !prev);
+          {dataset && (
+            <RoutePanel
+              open={routeOpen}
+              buildings={dataset.buildings}
+              floorPlans={SENRIYAMA_FLOOR_PLANS}
+              originSelection={originSelection}
+              destSelection={destSelection}
+              mode={routeMode}
+              pickingTarget={pickingTarget}
+              route={activeRoute}
+              onChangeOrigin={setOriginSelection}
+              onChangeDest={setDestSelection}
+              onSwap={handleSwapRouteEndpoints}
+              onChangeMode={setRouteMode}
+              onStartMapPick={(target) => setPickingTarget(target)}
+              onCancelMapPick={() => setPickingTarget(null)}
+              onClose={() => {
+                setRouteOpen(false);
                 setPickingTarget(null);
               }}
-              onOpenCredits={() => setCreditsOpen(true)}
             />
-          </div>
-        </div>
+          )}
 
-        <div className="pointer-events-auto">
-          <CategoryChips
-            activeCategory={activeCategory}
-            onChange={(cat) => setActiveCategory(cat)}
+          {dataset && (
+            <BuildingSheet
+              building={selectedBuilding}
+              floorPlan={
+                selectedBuilding ? SENRIYAMA_FLOOR_PLANS[selectedBuilding.id] : undefined
+              }
+              initialFloor={initialSheetFloor}
+              allBuildings={dataset.buildings}
+              onClose={() => setSelectedId(null)}
+              onFocusBuilding={(b) => sceneRef.current?.focusBuilding(b)}
+              onNavigateTo={handleNavigateTo}
+              onSetAsOrigin={handleSetAsOrigin}
+              onJumpToBuildingId={handleJumpToBuilding}
+            />
+          )}
+
+          <CreditsModal
+            open={creditsOpen}
+            meta={dataset?.meta ?? null}
+            onClose={() => setCreditsOpen(false)}
           />
-        </div>
-      </header>
-
-      {/* Bottom Camera Presets */}
-      {!selectedBuilding && !routeOpen && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-5">
-          <div className="pointer-events-auto max-w-full">
-            <PresetStrip
-              presets={config.cameraPresets}
-              activePresetId={activePresetId}
-              onSelectPreset={handleSelectPreset}
-            />
-          </div>
-        </div>
+        </>
       )}
-
-      {dataset && (
-        <RoutePanel
-          open={routeOpen}
-          buildings={dataset.buildings}
-          floorPlans={SENRIYAMA_FLOOR_PLANS}
-          originSelection={originSelection}
-          destSelection={destSelection}
-          mode={routeMode}
-          pickingTarget={pickingTarget}
-          route={activeRoute}
-          onChangeOrigin={setOriginSelection}
-          onChangeDest={setDestSelection}
-          onSwap={handleSwapRouteEndpoints}
-          onChangeMode={setRouteMode}
-          onStartMapPick={(target) => setPickingTarget(target)}
-          onCancelMapPick={() => setPickingTarget(null)}
-          onClose={() => {
-            setRouteOpen(false);
-            setPickingTarget(null);
-          }}
-        />
-      )}
-
-      {dataset && (
-        <BuildingSheet
-          building={selectedBuilding}
-          floorPlan={
-            selectedBuilding ? SENRIYAMA_FLOOR_PLANS[selectedBuilding.id] : undefined
-          }
-          initialFloor={initialSheetFloor}
-          allBuildings={dataset.buildings}
-          onClose={() => setSelectedId(null)}
-          onFocusBuilding={(b) => sceneRef.current?.focusBuilding(b)}
-          onNavigateTo={handleNavigateTo}
-          onSetAsOrigin={handleSetAsOrigin}
-          onJumpToBuildingId={handleJumpToBuilding}
-        />
-      )}
-
-      <CreditsModal
-        open={creditsOpen}
-        meta={dataset?.meta ?? null}
-        onClose={() => setCreditsOpen(false)}
-      />
     </div>
   );
 }
