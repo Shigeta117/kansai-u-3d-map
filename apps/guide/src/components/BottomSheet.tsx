@@ -322,37 +322,50 @@ export function BottomSheet({
     };
   }, [isSheet, contentRef, beginDrag, activateDrag, moveDrag, endDrag]);
 
-  // つまみと見出し: Pointer Events（指・マウス・ペン）。touch-action: none で常にシートの移動
+  // つまみと見出し: Pointer Events（指・マウス・ペン）。touch-action: none で常にシートの移動。
+  // 押した後の動きは window で受ける（マウスは最初の数 px でつまみの外へ出るので、要素のリスナーだと取りこぼす。
+  // setPointerCapture を押した瞬間に掛けると、つまみ・閉じるボタンのクリックの宛先が変わるので使わない）
+  const stopPointerTrackingRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopPointerTrackingRef.current?.(), []);
+
   const handleGrabPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // 新しい押し始め。前のドラッグの直後でも、このタップのクリックは捨てない
     suppressClickUntilRef.current = 0;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    beginDrag('pointer', e.pointerId, e.clientY, e.timeStamp);
-  };
+    if (!beginDrag('pointer', e.pointerId, e.clientY, e.timeStamp)) return;
+    const pointerId = e.pointerId;
 
-  const handleGrabPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.source !== 'pointer' || drag.id !== e.pointerId) return;
-    if (!drag.active) {
-      if (Math.abs(e.clientY - drag.startY) < DRAG_SLOP_PX) return;
-      activateDrag();
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        // 取れなくても指の下の要素にイベントは届く
+    const onMove = (ev: PointerEvent) => {
+      const drag = dragRef.current;
+      if (ev.pointerId !== pointerId || !drag || drag.source !== 'pointer') return;
+      if (!drag.active) {
+        if (Math.abs(ev.clientY - drag.startY) < DRAG_SLOP_PX) return;
+        activateDrag();
       }
-    }
-    moveDrag(e.clientY, e.timeStamp);
-  };
-
-  const handleGrabPointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.source !== 'pointer' || drag.id !== e.pointerId) return;
-    if (!drag.active) {
-      dragRef.current = null;
-      return;
-    }
-    endDrag(e.timeStamp, e.type === 'pointercancel');
+      moveDrag(ev.clientY, ev.timeStamp);
+    };
+    const onEnd = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      stop();
+      const drag = dragRef.current;
+      if (!drag || drag.source !== 'pointer') return;
+      if (!drag.active) {
+        dragRef.current = null;
+        return;
+      }
+      endDrag(ev.timeStamp, ev.type === 'pointercancel');
+    };
+    const stop = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      stopPointerTrackingRef.current = null;
+    };
+    stopPointerTrackingRef.current?.();
+    stopPointerTrackingRef.current = stop;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
   };
 
   const handleGrabClickCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -425,9 +438,6 @@ export function BottomSheet({
         ref={grabRef}
         className="shrink-0 touch-none select-none"
         onPointerDown={handleGrabPointerDown}
-        onPointerMove={handleGrabPointerMove}
-        onPointerUp={handleGrabPointerEnd}
-        onPointerCancel={handleGrabPointerEnd}
         onClickCapture={handleGrabClickCapture}
         onClick={handleGrabClick}
       >
