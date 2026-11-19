@@ -90,13 +90,46 @@ function createTaperedReedTubeGeometry(
   return geo;
 }
 
+/** 地面に置く物の足元を、置く範囲のいちばん低い地面からさらに下ろす深さ (m)。斜面の低い側で浮かせない */
+const FOOT_SINK_M = 0.3;
+/** 通路の舗装を地面から浮かせる高さ (m)。道（0.14m）より低く、地形の面とちらつかない値 */
+const PAVING_LIFT_M = 0.1;
+/** 通路の舗装を地面に沿わせるときの格子の間隔 (m) */
+const PAVING_CELL_M = 2.0;
+
+interface GroundStats {
+  /** 中心の地面の高さ */
+  center: number;
+  /** 範囲（四隅・辺の中点・中心）で引いた地面のいちばん低い所・高い所 */
+  min: number;
+  max: number;
+}
+
 /**
  * 関西大学 千里山キャンパス 正門（秀麗橋・門標・旗竿・モニュメント時計・通路舗装）。
  * 独立した門柱・門扉は作らず、新関西大学会館の北棟・南棟 3 階を結ぶ石張り連絡橋「秀麗橋」と
  * 周辺のシンボル構成をワールド座標で組む。
+ * 秀麗橋は北棟・南棟の 3 階に合わせて groundVisualY を基準にし、門標・旗竿・樹木・植え込み・時計の花壇・
+ * 舗装は、それぞれの地点の地面の高さに置く（斜面で浮かない・埋まらない）。
  */
 export const buildMainGate: HeroBuilder = (ctx) => {
   const y0 = ctx.groundVisualY;
+  const groundAt = ctx.sampleGroundVisualY;
+  /** (cx, cz) を中心に ±halfX・±halfZ の範囲で地面の高さを引く */
+  const groundStats = (cx: number, cz: number, halfX: number, halfZ: number): GroundStats => {
+    const center = groundAt(cx, cz);
+    let min = center;
+    let max = center;
+    for (const sx of [-1, 0, 1]) {
+      for (const sz of [-1, 0, 1]) {
+        if (sx === 0 && sz === 0) continue;
+        const y = groundAt(cx + sx * halfX, cz + sz * halfZ);
+        min = Math.min(min, y);
+        max = Math.max(max, y);
+      }
+    }
+    return { center, min, max };
+  };
   const group = new THREE.Group();
   group.name = "hero-main-gate";
 
@@ -306,16 +339,21 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   const signBackThickness = signThicknessX - recessDepth; // 1.32m
   const signWestFaceX = signCenterX - signThicknessX * 0.5; // -142.7
   const signFrameCenterX = signWestFaceX + recessDepth * 0.5; // -142.66
+  // 門標の地面は中心の高さ。底は範囲のいちばん低い地面より下まで伸ばす
+  const signGround = groundStats(signCenterX, signCenterZ, signThicknessX * 0.5, signLengthZ * 0.5);
+  const signGroundY = signGround.center;
+  const signBottomY = signGround.min - FOOT_SINK_M;
+  const signTopY = signGroundY + signHeightY;
 
   // 門標の主石塊
   const signBody = new THREE.Mesh(
-    new THREE.BoxGeometry(signBackThickness, signHeightY, signLengthZ),
+    new THREE.BoxGeometry(signBackThickness, signTopY - signBottomY, signLengthZ),
     monumentStoneMat,
   );
   signBody.name = "monument-sign-body";
   signBody.position.set(
     signWestFaceX + recessDepth + signBackThickness * 0.5,
-    y0 + signHeightY * 0.5,
+    (signBottomY + signTopY) * 0.5,
     signCenterZ,
   );
   signBody.castShadow = true;
@@ -329,14 +367,15 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   const recessSideMargin = 0.7;
   const recessOpeningZ = signLengthZ - recessSideMargin * 2; // 7.6m
 
+  const signBottomBarTopY = signGroundY + recessBottomH;
   const signBottomBar = new THREE.Mesh(
-    new THREE.BoxGeometry(recessDepth, recessBottomH, signLengthZ),
+    new THREE.BoxGeometry(recessDepth, signBottomBarTopY - signBottomY, signLengthZ),
     monumentStoneMat,
   );
   signBottomBar.name = "monument-sign-frame-bottom";
   signBottomBar.position.set(
     signFrameCenterX,
-    y0 + recessBottomH * 0.5,
+    (signBottomY + signBottomBarTopY) * 0.5,
     signCenterZ,
   );
   signBottomBar.receiveShadow = true;
@@ -350,7 +389,7 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   signTopBar.name = "monument-sign-frame-top";
   signTopBar.position.set(
     signFrameCenterX,
-    y0 + recessTopH + topBarH * 0.5,
+    signGroundY + recessTopH + topBarH * 0.5,
     signCenterZ,
   );
   signTopBar.receiveShadow = true;
@@ -361,7 +400,7 @@ export const buildMainGate: HeroBuilder = (ctx) => {
     recessOpeningH,
     recessSideMargin,
   );
-  const recessMidY = y0 + (recessBottomH + recessTopH) * 0.5;
+  const recessMidY = signGroundY + (recessBottomH + recessTopH) * 0.5;
   const sideBarOffsetZ = (signLengthZ - recessSideMargin) * 0.5;
 
   const signNorthBar = new THREE.Mesh(sideBarGeo, monumentStoneMat);
@@ -400,12 +439,16 @@ export const buildMainGate: HeroBuilder = (ctx) => {
 
   // 門標足元の植え込み（高さ 0.8m、#5E8C4E）
   const signHedgeHeight = 0.8;
+  const signHedgeX = -142.3;
+  const hedgeGround = groundStats(signHedgeX, signCenterZ, 1.2, 5.0);
+  const hedgeBottomY = hedgeGround.min - FOOT_SINK_M;
+  const hedgeTopY = hedgeGround.center + signHedgeHeight;
   const signHedge = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, signHedgeHeight, 10.0),
+    new THREE.BoxGeometry(2.4, hedgeTopY - hedgeBottomY, 10.0),
     foliageMat,
   );
   signHedge.name = "monument-sign-hedge";
-  signHedge.position.set(-142.3, y0 + signHedgeHeight * 0.5, signCenterZ);
+  signHedge.position.set(signHedgeX, (hedgeBottomY + hedgeTopY) * 0.5, signCenterZ);
   signHedge.castShadow = false;
   signHedge.receiveShadow = true;
   group.add(signHedge);
@@ -413,11 +456,13 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   // ---------------------------------------------------------------------------
   // 4. 旗竿 3 本（門標の後ろ、x -139、z 106・109・112、明るい灰色・太さ 0.35m・高さ 15m）
   // ---------------------------------------------------------------------------
+  // 地面から 15m。根元は地面より FOOT_SINK_M 下から立てる
   const flagpoleHeight = 15.0;
+  const flagpoleX = -139;
   const flagpoleGeo = new THREE.CylinderGeometry(
     0.175,
     0.175,
-    flagpoleHeight,
+    flagpoleHeight + FOOT_SINK_M,
     10,
   );
   const flagpoleZs = [106, 109, 112];
@@ -426,7 +471,12 @@ export const buildMainGate: HeroBuilder = (ctx) => {
     if (zPos === undefined) continue;
     const pole = new THREE.Mesh(flagpoleGeo, flagpoleMat);
     pole.name = `flagpole-${i + 1}`;
-    pole.position.set(-139, y0 + flagpoleHeight * 0.5, zPos);
+    const poleGroundY = groundAt(flagpoleX, zPos);
+    pole.position.set(
+      flagpoleX,
+      poleGroundY - FOOT_SINK_M + (flagpoleHeight + FOOT_SINK_M) * 0.5,
+      zPos,
+    );
     pole.castShadow = false;
     pole.receiveShadow = true;
     group.add(pole);
@@ -437,21 +487,23 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   // ---------------------------------------------------------------------------
   const clockX = -95;
   const clockZ = 121;
-  const pavingTopY = y0 + 0.05;
 
   // 5A. 四角い花壇（4.5m 角、高さ 0.7m、縁 #B8B2A6、中は #D46A7E と #5E8C4E をまだらに）
+  // 中心の地面から 0.7m（範囲の高い側でも 0.3m は出す）。底は範囲のいちばん低い地面より下まで
   const planterSize = 4.5;
-  const planterTopY = y0 + 0.7;
+  const planterGround = groundStats(clockX, clockZ, planterSize * 0.5, planterSize * 0.5);
+  const planterTopY = Math.max(planterGround.center + 0.7, planterGround.max + 0.3);
+  const planterBottomY = planterGround.min - FOOT_SINK_M;
   const planterRimThickness = 0.35;
   const planterRimLipH = 0.1;
-  const planterBaseH = planterTopY - planterRimLipH - pavingTopY; // 0.55m
+  const planterBaseH = planterTopY - planterRimLipH - planterBottomY;
 
   const planterBase = new THREE.Mesh(
     new THREE.BoxGeometry(planterSize, planterBaseH, planterSize),
     planterRimMat,
   );
   planterBase.name = "clock-planter-base";
-  planterBase.position.set(clockX, pavingTopY + planterBaseH * 0.5, clockZ);
+  planterBase.position.set(clockX, planterBottomY + planterBaseH * 0.5, clockZ);
   planterBase.castShadow = true;
   planterBase.receiveShadow = true;
   group.add(planterBase);
@@ -581,7 +633,7 @@ export const buildMainGate: HeroBuilder = (ctx) => {
   }
 
   // 5B. ステンレス管 18 本を根元で束ねて葦の葉のように広げた背の高い塔（高さ約 20m）
-  const towerBaseY = y0 + 0.65;
+  const towerBaseY = planterTopY - 0.05;
   const towerScaleY = 1.18; // 塔の高さ約 17m → 約 20m（写真メモ: 3 階建てを超える）
   const reedSpecs: ReedTubeSpec[] = [];
 
@@ -694,8 +746,8 @@ export const buildMainGate: HeroBuilder = (ctx) => {
     group.add(tube);
   }
 
-  // 5C. 上部の白い時計の円盤 3 面（高さ 16.5m、直径 1.4m、#F5F5F2、縁 #D9DEE2、針なし）
-  const clockDialY = y0 + 16.5;
+  // 5C. 上部の白い時計の円盤 3 面（花壇の足元から 16.5m、直径 1.4m、#F5F5F2、縁 #D9DEE2、針なし）
+  const clockDialY = planterTopY - 0.7 + 16.5;
   const clockDialOffsetR = 0.88;
   const clockBezelGeo = new THREE.CylinderGeometry(0.78, 0.78, 0.2, 20);
   const clockFaceGeo = new THREE.CylinderGeometry(0.7, 0.7, 0.04, 20);
@@ -751,11 +803,14 @@ export const buildMainGate: HeroBuilder = (ctx) => {
     const [tx, tz, crown, trunkH] = spec;
     const tree = new THREE.Group();
     tree.name = `main-gate-tree-${i + 1}`;
+    // 幹の根元はその地点の地面（FOOT_SINK_M だけ地面に入れる）、樹冠は地面からの高さで組む
+    const treeGroundY = groundAt(tx, tz);
+    const trunkLen = trunkH + 2 + FOOT_SINK_M;
     const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.4, 0.6, trunkH + 2, 7),
+      new THREE.CylinderGeometry(0.4, 0.6, trunkLen, 7),
       trunkMat,
     );
-    trunk.position.set(tx, y0 + (trunkH + 2) * 0.5, tz);
+    trunk.position.set(tx, treeGroundY - FOOT_SINK_M + trunkLen * 0.5, tz);
     trunk.castShadow = true;
     tree.add(trunk);
     // 樹冠: 大きな塊（下）→ 中 → 上の 3 つを少しずつずらして重ねる
@@ -772,7 +827,7 @@ export const buildMainGate: HeroBuilder = (ctx) => {
       blob.scale.set(rad, rad * 0.85, rad);
       blob.position.set(
         tx + ox,
-        y0 + trunkH + rad * 0.85 + crown * oyRatio * 0.6,
+        treeGroundY + trunkH + rad * 0.85 + crown * oyRatio * 0.6,
         tz + oz,
       );
       blob.castShadow = true;
@@ -803,35 +858,53 @@ export const buildMainGate: HeroBuilder = (ctx) => {
     const spec = moundSpecs[i];
     if (!spec) continue;
     const [mx, mz, mr, mh] = spec;
+    // 半球の縁を範囲のいちばん低い地面に合わせ（下り側で縁が浮かない）、頂は中心の地面から mh の高さにする。
+    // 上り側の縁は地面に入る
+    const moundGround = groundStats(mx, mz, mr * Math.SQRT1_2, mr * Math.SQRT1_2);
+    let moundRimMinY = moundGround.min;
+    for (const [dx, dz] of [[mr, 0], [-mr, 0], [0, mr], [0, -mr]] as const) {
+      moundRimMinY = Math.min(moundRimMinY, groundAt(mx + dx, mz + dz));
+    }
+    const moundBaseY = moundRimMinY - 0.05;
+    const moundTopY = moundGround.center + mh;
     const mound = new THREE.Mesh(moundGeo, treeCanopyMat);
     mound.name = `main-gate-mound-${i + 1}`;
-    mound.scale.set(mr, mh, mr);
-    mound.position.set(mx, y0, mz);
+    mound.scale.set(mr, moundTopY - moundBaseY, mr);
+    mound.position.set(mx, moundBaseY, mz);
     mound.castShadow = false;
     mound.receiveShadow = true;
     group.add(mound);
   }
 
   // ---------------------------------------------------------------------------
-  // 6. 通路の舗装（橋の下から東の広場まで、幅 14m、#D8D2C6、地面から 0.05m 上）
+  // 6. 通路の舗装（橋の下から東の広場まで、幅 14m、#D8D2C6）
+  //    東へ約 4m 上る坂なので、平らな板ではなく地面に沿わせた面にする（地面から PAVING_LIFT_M 上）
   // ---------------------------------------------------------------------------
   const pavingXStart = -130;
   const pavingXEnd = -88;
   const pavingLengthX = pavingXEnd - pavingXStart; // 42m
   const pavingWidthZ = 14.0;
   const pavingCenterZ = 123.0;
-  const pavingThickness = 0.05;
 
-  const paving = new THREE.Mesh(
-    new THREE.BoxGeometry(pavingLengthX, pavingThickness, pavingWidthZ),
-    pavingMat,
+  const pavingGeo = new THREE.PlaneGeometry(
+    pavingLengthX,
+    pavingWidthZ,
+    Math.max(1, Math.round(pavingLengthX / PAVING_CELL_M)),
+    Math.max(1, Math.round(pavingWidthZ / PAVING_CELL_M)),
   );
+  pavingGeo.rotateX(-Math.PI / 2);
+  pavingGeo.translate((pavingXStart + pavingXEnd) * 0.5, 0, pavingCenterZ);
+  const pavingPos = pavingGeo.getAttribute("position");
+  for (let i = 0; i < pavingPos.count; i++) {
+    pavingPos.setY(i, groundAt(pavingPos.getX(i), pavingPos.getZ(i)) + PAVING_LIFT_M);
+  }
+  pavingPos.needsUpdate = true;
+  pavingGeo.computeVertexNormals();
+  pavingGeo.computeBoundingBox();
+  pavingGeo.computeBoundingSphere();
+
+  const paving = new THREE.Mesh(pavingGeo, pavingMat);
   paving.name = "main-gate-paving";
-  paving.position.set(
-    (pavingXStart + pavingXEnd) * 0.5,
-    y0 + pavingThickness * 0.5,
-    pavingCenterZ,
-  );
   paving.castShadow = false;
   paving.receiveShadow = true;
   group.add(paving);

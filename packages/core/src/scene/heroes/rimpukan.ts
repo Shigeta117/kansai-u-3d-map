@@ -19,9 +19,36 @@ const PLAQUE_FRAME_HEX = '#CFC5B0';
 const PLAQUE_INNER_HEX = '#B9A983';
 const WINDOW_HEX = '#3E4A52';
 
-// Approximate outward facing direction of the west drum front (WSW toward Main Street)
-const FRONT_DIR_RAW_X = -0.92;
-const FRONT_DIR_RAW_Z = 0.4;
+/**
+ * 正面（ドラムの先端と大階段）の外向きの方向。ドラムの先端の前を南北に走るメインストリート
+ * （OSM の道の中心線: (94.5, -2.2) → (85.3, 45.0)、向き およそ (-0.19, 0, 0.98)）に直角な、
+ * ほぼ真西・少し北寄りの向き。大階段は道に直角に下りる
+ */
+const FRONT_DIR_RAW_X = -0.98;
+const FRONT_DIR_RAW_Z = -0.19;
+
+/**
+ * 大階段を出すドラムの先端の辺の目安（OSM の輪郭の x≈99・z 16〜24 の辺の中央）。
+ * この点にいちばん近い辺の中点を正面の基準にする。正面の向きに最も出た点の集め方だと、
+ * 輪郭の座標が少し違うだけで隣の辺（z 9〜16）に移ってしまうため、辺を名指しする
+ */
+const FRONT_EDGE_HINT_X = 98.7;
+const FRONT_EDGE_HINT_Z = 20.1;
+/** 目安の点から辺までがこれより遠ければ（別の輪郭）、正面の中心の線が当たる辺を使う */
+const FRONT_EDGE_HINT_MAX_DIST_M = 5.0;
+
+/**
+ * 大階段の下端（道寄りの段の前）の、ドラムの先端の辺からの距離 (m)。
+ * メインストリートの東の縁（中心線から幅 4.2m の半分）が、x≈99 の辺の中央から正面の向きに約 6.3m 先にある。
+ * 下端を道の縁に合わせ、階段が道の上にかぶらず、道とすき間なくつながるようにする
+ */
+const STAIR_FOOT_DISTANCE_M = 6.3;
+
+/** 段の高さの目安（0.15〜0.2m）。2 階の床までの総高をこの範囲の段に割る */
+const STAIR_RISER_MAX_M = 0.2;
+
+/** 1 階・柱・大階段の底を、輪郭と階段まわりで引いた地面のいちばん低い所からさらに下ろす深さ (m) */
+const FOOTING_BELOW_LOWEST_GROUND_M = 0.5;
 
 type Point2D = [number, number];
 
@@ -40,6 +67,9 @@ interface WallHit {
   localZ: number;
   nx: number;
   nz: number;
+  /** 当たった辺の中点 */
+  edgeMidX: number;
+  edgeMidZ: number;
 }
 
 function signedAreaXZ(ring: Point2D[]): number {
@@ -473,10 +503,37 @@ function sampleFrontWallAt(
         localZ,
         nx,
         nz,
+        edgeMidX: (a[0] + b[0]) * 0.5,
+        edgeMidZ: (a[1] + b[1]) * 0.5,
       };
     }
   }
 
+  return best;
+}
+
+/** (x, z) にいちばん近い辺の中点と、その辺までの距離 */
+function findNearestEdgeMid(
+  ringCW: Point2D[],
+  x: number,
+  z: number,
+): { midX: number; midZ: number; dist: number } | null {
+  let best: { midX: number; midZ: number; dist: number } | null = null;
+  const n = ringCW.length;
+  for (let i = 0; i < n; i++) {
+    const a = ringCW[i];
+    const b = ringCW[(i + 1) % n];
+    if (!a || !b) continue;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const len2 = dx * dx + dz * dz;
+    if (len2 < 1e-8) continue;
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / len2));
+    const dist = Math.hypot(a[0] + dx * t - x, a[1] + dz * t - z);
+    if (!best || dist < best.dist) {
+      best = { midX: (a[0] + b[0]) * 0.5, midZ: (a[1] + b[1]) * 0.5, dist };
+    }
+  }
   return best;
 }
 
@@ -696,14 +753,77 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   const probeAnchorX = frontCenterLx * fz + maxProj * fx;
   const probeAnchorZ = frontCenterLx * -fx + maxProj * fz;
   const centerRimHit = sampleFrontWallAt(ringCW, probeAnchorX, probeAnchorZ, fx, fz, 0);
-  const anchorX = centerRimHit ? centerRimHit.worldX : probeAnchorX;
-  const anchorZ = centerRimHit ? centerRimHit.worldZ : probeAnchorZ;
+  // ドラムの先端の辺（x≈99・z 16〜24）の中点を正面の基準にする。大階段・入口・校章の枠はこの点から
+  // 正面の向きに出す。目安の点の近くに辺が無い輪郭では、正面の中心の線が当たる辺の中点を使う
+  const hintedEdge = findNearestEdgeMid(ringCW, FRONT_EDGE_HINT_X, FRONT_EDGE_HINT_Z);
+  const useHint = hintedEdge !== null && hintedEdge.dist <= FRONT_EDGE_HINT_MAX_DIST_M;
+  const anchorX = useHint
+    ? hintedEdge.midX
+    : centerRimHit
+      ? centerRimHit.edgeMidX
+      : probeAnchorX;
+  const anchorZ = useHint
+    ? hintedEdge.midZ
+    : centerRimHit
+      ? centerRimHit.edgeMidZ
+      : probeAnchorZ;
 
   const toFrontLocal = (x: number, z: number): [number, number] => {
     const dx = x - anchorX;
     const dz = z - anchorZ;
     return [dx * fz + dz * -fx, dx * fx + dz * fz];
   };
+  const frontLocalToWorld = (lx: number, lz: number): [number, number] => [
+    anchorX + lx * fz + lz * fx,
+    anchorZ - lx * fx + lz * fz,
+  ];
+
+  // --- 地面の高さ ---
+  // 大階段の割り付け（正面のローカル z: 0 = ドラムの先端の辺、+ = 道の側）
+  const stairWidth = 18.0;
+  const stairBackZ = -3.0; // tucked into curved drum to close side gaps
+  const landingFrontZ = 1.0;
+  const stairFrontZ = STAIR_FOOT_DISTANCE_M;
+  const sampleGround = ctx.sampleGroundVisualY;
+  const groundAtFront = (lx: number, lz: number): number => {
+    const [wx, wz] = frontLocalToWorld(lx, lz);
+    return sampleGround(wx, wz);
+  };
+
+  // 階段の下端: 道寄りの段の前の線に沿って引いた地面のいちばん低い所（どこにも段の前の段差が出ない）
+  let stairFootY = Infinity;
+  const footSampleCount = 7;
+  for (let i = 0; i < footSampleCount; i++) {
+    const lx = -stairWidth * 0.5 + (stairWidth * i) / (footSampleCount - 1);
+    stairFootY = Math.min(stairFootY, groundAtFront(lx, stairFrontZ));
+  }
+
+  // 底: 輪郭の各点（辺の上も 4m おき）と階段の範囲で引いた地面のいちばん低い所より 0.5m 下
+  let lowestGroundY = stairFootY;
+  for (let i = 0; i < ringCW.length; i++) {
+    const a = ringCW[i];
+    const b = ringCW[(i + 1) % ringCW.length];
+    if (!a || !b) continue;
+    const segments = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4.0));
+    for (let s = 0; s < segments; s++) {
+      const t = s / segments;
+      lowestGroundY = Math.min(
+        lowestGroundY,
+        sampleGround(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t),
+      );
+    }
+  }
+  for (let iu = 0; iu < 4; iu++) {
+    for (let iw = 0; iw < 4; iw++) {
+      const lx = -stairWidth * 0.5 + (stairWidth * iu) / 3;
+      const lz = stairBackZ + ((stairFrontZ - stairBackZ) * iw) / 3;
+      lowestGroundY = Math.min(lowestGroundY, groundAtFront(lx, lz));
+    }
+  }
+  const bottomY = lowestGroundY - FOOTING_BELOW_LOWEST_GROUND_M;
+  /** 1 階の柱などを、底から 2 階の床（軒裏）まで伸ばすときの縦の倍率 */
+  const floor1Top = groundVisualY + floor1H;
+  const floor1StretchY = (floor1Top - bottomY) / floor1H;
 
   // --- 1. Main 2F-4F body (4.2m - 15.2m) with vertical stripes ---
   const perim = ringPerimeter(ringCW);
@@ -730,14 +850,8 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   soffitMesh.receiveShadow = true;
   group.add(soffitMesh);
 
-  // --- 2. 1F recessed dark glass volume (0 - 4.2m) ---
-  const glassWallGeo = buildSideWallGeometry(
-    ring1F,
-    groundVisualY,
-    groundVisualY + floor1H,
-    4.0,
-    4.0,
-  );
+  // --- 2. 1F recessed dark glass volume (0 - 4.2m)。底は斜面のいちばん低い地面より下まで ---
+  const glassWallGeo = buildSideWallGeometry(ring1F, bottomY, floor1Top, 4.0, 4.0);
   const glassMesh = new THREE.Mesh(glassWallGeo, glassMat);
   glassMesh.name = 'rimpukan-floor1-glass';
   glassMesh.castShadow = true;
@@ -779,9 +893,9 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
     for (let i = 0; i < roundCols.length; i++) {
       const c = roundCols[i];
       if (!c) continue;
-      dummy.position.set(c.x, groundVisualY, c.z);
+      dummy.position.set(c.x, bottomY, c.z);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1, 1, 1);
+      dummy.scale.set(1, floor1StretchY, 1);
       dummy.updateMatrix();
       roundColInst.setMatrixAt(i, dummy.matrix);
     }
@@ -812,9 +926,9 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
     for (let i = 0; i < squareCols.length; i++) {
       const c = squareCols[i];
       if (!c) continue;
-      dummy.position.set(c.x, groundVisualY, c.z);
+      dummy.position.set(c.x, bottomY, c.z);
       dummy.rotation.set(0, Math.atan2(c.nx, c.nz), 0);
-      dummy.scale.set(1, 1, 1);
+      dummy.scale.set(1, floor1StretchY, 1);
       dummy.updateMatrix();
       squareColInst.setMatrixAt(i, dummy.matrix);
     }
@@ -1067,19 +1181,23 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   // --- 7. West front grand staircase, entrances, and 8. 3F square plaque ---
   const frontGroup = new THREE.Group();
   frontGroup.name = 'rimpukan-front-group';
-  frontGroup.position.set(anchorX, groundVisualY, anchorZ);
-  // Maps local +Z -> (fx, 0, fz) outward WSW, local +X -> (fz, 0, -fx) SSE
+  // 高さはワールドの値で組む（group の y は 0）
+  frontGroup.position.set(anchorX, 0, anchorZ);
+  // Maps local +Z -> (fx, 0, fz) outward (W, slightly N), local +X -> (fz, 0, -fx) (S, slightly W)
   frontGroup.rotation.y = Math.atan2(fx, fz);
 
-  const stairWidth = 18.0;
+  // 上端は 2 階の床、下端は道寄りの段の前の地面。総高を 0.2m 以下の段に割る
+  const landingTopY = floor1Top;
+  const footY = Math.min(stairFootY, landingTopY - 0.4);
+  const stairRise = landingTopY - footY;
+  const riserCount = Math.max(2, Math.ceil(stairRise / STAIR_RISER_MAX_M - 1e-6));
+  const riser = stairRise / riserCount;
+
   const wingThick = 0.8;
-  const stairBackZ = -3.0; // tucked into curved drum to close side gaps
-  const landingFrontZ = 2.0;
-  const stairFrontZ = 9.6; // ~12m depth from front curve; stays well within x >= 85
   const landingDepth = landingFrontZ - stairBackZ;
   const landingCenterZ = (stairBackZ + landingFrontZ) * 0.5;
   const landingDeckThickness = 1.2;
-  const landingUndersideY = floor1H - landingDeckThickness;
+  const landingUndersideY = landingTopY - landingDeckThickness;
 
   // 2F top landing bridge spanning between the two 0.8m wing walls (no coplanar overlap)
   const innerStairWidth = stairWidth - wingThick * 2; // 16.4m
@@ -1092,16 +1210,18 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   frontGroup.add(landingMesh);
 
   // One solid full-width mass under the landing (photo: a single unbroken staircase, no central gap)
-  const supportGeo = new THREE.BoxGeometry(innerStairWidth, landingUndersideY, landingDepth);
-  supportGeo.translate(0, landingUndersideY * 0.5, 0);
+  const supportH = landingUndersideY - bottomY;
+  const supportGeo = new THREE.BoxGeometry(innerStairWidth, supportH, landingDepth);
+  supportGeo.translate(0, supportH * 0.5, 0);
   const supportMesh = new THREE.Mesh(supportGeo, stairMat);
   supportMesh.name = 'rimpukan-stairs-support';
-  supportMesh.position.set(0, 0, landingCenterZ);
+  supportMesh.position.set(0, bottomY, landingCenterZ);
   supportMesh.receiveShadow = true;
   frontGroup.add(supportMesh);
 
-  // 12 crisp full-width steps, continuous from the bottom step to the landing
-  const stepCount = 12;
+  // Crisp full-width steps, continuous from the bottom step (on the street edge) to the landing.
+  // 段は底まで埋めた箱にする（斜面の低い側でも段の下にすき間ができない）
+  const stepCount = riserCount - 1;
   const runTotal = stairFrontZ - landingFrontZ;
   const stepRun = runTotal / stepCount;
 
@@ -1112,15 +1232,15 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   stepInst.receiveShadow = true;
 
   for (let i = 0; i < stepCount; i++) {
-    const stepTop = floor1H * ((stepCount - i) / (stepCount + 1));
+    const stepTop = landingTopY - (i + 1) * riser;
     const zBack = landingFrontZ + i * stepRun;
     const zFront = landingFrontZ + (i + 1) * stepRun;
     const zCenter = (zFront + zBack) * 0.5;
     const depth = zFront - zBack;
 
-    dummy.position.set(0, 0, zCenter);
+    dummy.position.set(0, bottomY, zCenter);
     dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(innerStairWidth, stepTop, depth);
+    dummy.scale.set(innerStairWidth, stepTop - bottomY, depth);
     dummy.updateMatrix();
     stepInst.setMatrixAt(i, dummy.matrix);
   }
@@ -1131,11 +1251,11 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
 
   // Triangular wing walls flanking both outer sides of the staircase (0.8m thick)
   const wingShape = new THREE.Shape();
-  wingShape.moveTo(stairBackZ, 0);
-  wingShape.lineTo(stairFrontZ, 0);
-  wingShape.lineTo(stairFrontZ, 0.35);
-  wingShape.lineTo(landingFrontZ, floor1H + 0.35);
-  wingShape.lineTo(stairBackZ, floor1H + 0.35);
+  wingShape.moveTo(stairBackZ, bottomY);
+  wingShape.lineTo(stairFrontZ, bottomY);
+  wingShape.lineTo(stairFrontZ, footY + 0.35);
+  wingShape.lineTo(landingFrontZ, landingTopY + 0.35);
+  wingShape.lineTo(stairBackZ, landingTopY + 0.35);
   wingShape.closePath();
 
   const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
@@ -1163,10 +1283,17 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
 
   // Brown entrance box jutting out of the upper-middle of the staircase (photo: dark opening
   // sits in its front face, just above the step it stands on; no glass box on the wall above)
+  // 箱の前面は、2 階の床から約 1.3m 下の段の踏み面の上に立つ（1 回目の 4.2m の段で 2.9m の段）
   const entranceBoxW = 4.6;
-  const entranceBoxFrontZ = 4.5;
+  const entranceStepIdx = Math.min(
+    stepCount - 1,
+    Math.max(0, Math.round(1.3 / riser) - 1),
+  );
+  const entranceTreadTopY = landingTopY - (entranceStepIdx + 1) * riser;
+  const entranceBoxFrontZ = landingFrontZ + (entranceStepIdx + 0.5) * stepRun;
   const entranceBoxBackZ = -1.0;
-  const entranceBoxH = 5.2; // top ~1m above the landing deck
+  const entranceBoxTopY = landingTopY + 1.0; // top ~1m above the landing deck
+  const entranceBoxH = entranceBoxTopY - bottomY;
   const entranceBoxGeo = new THREE.BoxGeometry(
     entranceBoxW,
     entranceBoxH,
@@ -1175,15 +1302,15 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   entranceBoxGeo.translate(0, entranceBoxH * 0.5, 0);
   const entranceBoxMesh = new THREE.Mesh(entranceBoxGeo, stairMat);
   entranceBoxMesh.name = 'rimpukan-entrance-box';
-  entranceBoxMesh.position.set(0, 0, (entranceBoxFrontZ + entranceBoxBackZ) * 0.5);
+  entranceBoxMesh.position.set(0, bottomY, (entranceBoxFrontZ + entranceBoxBackZ) * 0.5);
   entranceBoxMesh.castShadow = true;
   entranceBoxMesh.receiveShadow = true;
   frontGroup.add(entranceBoxMesh);
 
-  // Small dark opening on the box front (floor level = step tread at that depth, ~2.9m)
+  // Small dark opening on the box front (floor level = step tread at that depth)
   const openingW = 3.0;
-  const openingBottomY = 3.0;
-  const openingTopY = 4.7;
+  const openingBottomY = entranceTreadTopY + 0.1;
+  const openingTopY = openingBottomY + 1.7;
   const openingGeo = new THREE.PlaneGeometry(openingW, openingTopY - openingBottomY);
   const openingMesh = new THREE.Mesh(openingGeo, openingMat);
   openingMesh.name = 'rimpukan-entrance-opening';
@@ -1191,32 +1318,36 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   frontGroup.add(openingMesh);
 
   // --- 8. Plain square 3F plaque (3.5m x 3.5m, no emblem) ---
-  const hitLeft = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, -1.2);
-  const hitCenter = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, 0);
-  const hitRight = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, 1.2);
-  const wallFrontZ = Math.max(
-    hitLeft ? hitLeft.localZ : 0,
-    hitCenter ? hitCenter.localZ : 0,
-    hitRight ? hitRight.localZ : 0,
-  );
+  // 枠は正面の中心が当たる壁（ドラムの先端の辺）に沿わせる。辺は道に直角な向きから少し振れているので、
+  // 正面の向きではなく辺の外向き法線に向ける（枠の片側が壁から浮かない）
+  const plaqueHit = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, 0);
   const plaqueSize = 3.5; // photo: ~1/3 of the brown wall band height
   const plaqueY = 10.6; // upper half of the brown wall band
   const plaqueFrameDepth = 0.72;
-  const plaqueFrameFrontZ = wallFrontZ + 0.13;
+  const plaqueFrameFrontZ = 0.13;
+
+  const plaqueGroup = new THREE.Group();
+  plaqueGroup.name = 'rimpukan-plaque';
+  plaqueGroup.position.set(
+    plaqueHit ? plaqueHit.worldX : anchorX,
+    groundVisualY + plaqueY,
+    plaqueHit ? plaqueHit.worldZ : anchorZ,
+  );
+  plaqueGroup.rotation.y = plaqueHit ? Math.atan2(plaqueHit.nx, plaqueHit.nz) : Math.atan2(fx, fz);
 
   const plaqueFrameGeo = new THREE.BoxGeometry(plaqueSize, plaqueSize, plaqueFrameDepth);
   const plaqueFrameMesh = new THREE.Mesh(plaqueFrameGeo, plaqueFrameMat);
   plaqueFrameMesh.name = 'rimpukan-plaque-frame';
-  plaqueFrameMesh.position.set(0, plaqueY, plaqueFrameFrontZ - plaqueFrameDepth * 0.5);
-  frontGroup.add(plaqueFrameMesh);
+  plaqueFrameMesh.position.set(0, 0, plaqueFrameFrontZ - plaqueFrameDepth * 0.5);
+  plaqueGroup.add(plaqueFrameMesh);
 
   const plaqueInnerGeo = new THREE.BoxGeometry(plaqueSize * 0.82, plaqueSize * 0.82, 0.03);
   const plaqueInnerMesh = new THREE.Mesh(plaqueInnerGeo, plaqueInnerMat);
   plaqueInnerMesh.name = 'rimpukan-plaque-inner';
-  plaqueInnerMesh.position.set(0, plaqueY, plaqueFrameFrontZ + 0.015);
-  frontGroup.add(plaqueInnerMesh);
+  plaqueInnerMesh.position.set(0, 0, plaqueFrameFrontZ + 0.015);
+  plaqueGroup.add(plaqueInnerMesh);
 
-  group.add(frontGroup);
+  group.add(frontGroup, plaqueGroup);
 
   // --- 9. Small vertical windows on the west front wall (4 windows, 0.9m x 1.8m) ---
   const windowSpecs: [number, number][] = [

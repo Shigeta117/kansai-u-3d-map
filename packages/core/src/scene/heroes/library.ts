@@ -41,18 +41,34 @@ const COLORS = {
   roof: '#8F8A84',
 } as const;
 
-/** 斜面でも足元が浮かないように地面の下へ伸ばす根入れ深さ (m) */
-const SKIRT_DEPTH_M = 2.5;
+/**
+ * 本体・塔・テラス・擁壁・段の底を、輪郭と階段まわりで引いた地面のいちばん低い所からさらに下ろす深さ (m)。
+ * どこから見ても足元が浮かないようにする
+ */
+const FOOTING_BELOW_LOWEST_GROUND_M = 0.5;
 
-/** 大階段の高さ（下段 2.4m + 上段 2.4m）。上がりきった所がテラス（1 階の床）になる */
-const STAIR_LOWER_HEIGHT_M = 2.4;
-const STAIR_UPPER_HEIGHT_M = 2.4;
-const TERRACE_HEIGHT_M = STAIR_LOWER_HEIGHT_M + STAIR_UPPER_HEIGHT_M;
+/**
+ * 入口のテラス（1 階の床）を、正面の壁の前の地面（と groundVisualY の大きい方）より上げる高さ (m)。
+ * 写真（Wikimedia Commons の正面 2 枚）では、大階段は道から 1 階分ほど上がり、上がりきったテラスは
+ * 建物の前の地面とほぼ同じ高さ（右手の植え込みの斜面がテラスの高さまで上がっている）。
+ * 階段の高さは「テラス − 階段の下端の地面」で決まり、斜面の下り分を階段が受け持つ
+ */
+const TERRACE_ABOVE_GROUND_M = 0.6;
+
+/** 段の高さの目安（0.15〜0.2m）。総高をこの範囲の段に割る */
+const STAIR_RISER_MAX_M = 0.2;
+const STAIR_RISER_MIN_M = 0.15;
+/** 段の数がこれ以下（総高 1.6m 以下）なら踊り場の無い 1 段構えにする */
+const SINGLE_FLIGHT_MAX_RISERS = 8;
+/** 1 段構えのときの踏み面の奥行き */
+const SINGLE_FLIGHT_TREAD_M = 0.4;
+/** 擁壁の段々の高さを決めたときの、1 つの段の高さ（写真から作った 1 回目の 2.4m）。擁壁はこれとの比で伸び縮みさせる */
+const WALL_REFERENCE_FLIGHT_HEIGHT_M = 2.4;
 
 /**
  * 本体 3 階建ての階高・総高と、左右の塔の高さ。
  * 写真では屋根の線が塔で一段上がり、右の塔は左より少し高い（左 +1.5m、右 +2.5m）。
- * 最高部（右の塔）は groundVisualY + 4.8 + 14.4 + 2.5 = groundVisualY + 21.7m。
+ * 地面が平らなとき、最高部（右の塔）は groundVisualY + 0.6 + 14.4 + 2.5 = groundVisualY + 17.5m。
  */
 const FLOOR_HEIGHT_M = 4.8;
 const BODY_HEIGHT_M = FLOOR_HEIGHT_M * 3;
@@ -110,13 +126,112 @@ const CANOPY_THICKNESS_M = 0.14;
 /** ひだの深さなどを決めたときの前端の幅（大きさに比例して深くする基準） */
 const CANOPY_REFERENCE_FRONT_WIDTH_M = 14.0;
 
-/** 2 段構えの大階段（中央の引っ込みの正面に置く） */
+/** 2 段構えの大階段（中央の引っ込みの正面に置く）。段の数と踊り場の高さは総高から決める */
 const STAIR_UPPER_WIDTH_M = 26.0;
 const STAIR_UPPER_DEPTH_M = 7.0;
 const STAIR_LANDING_DEPTH_M = 4.0;
 const STAIR_LOWER_WIDTH_M = 40.0;
 const STAIR_LOWER_DEPTH_M = 8.0;
-const STAIR_STEPS_PER_FLIGHT = 12;
+/** 輪郭の辺の上で地面を引く間隔（地形の格子は約 8.5m おき） */
+const OUTLINE_SAMPLE_STEP_M = 4.0;
+
+interface StairStep {
+  /** 段の上面の高さ */
+  topY: number;
+  /** 段の前端（道寄り）の、正面からの距離 w */
+  frontW: number;
+  depth: number;
+  width: number;
+}
+
+interface StairPlan {
+  steps: StairStep[];
+  /** 踊り場（1 段構え・段なしのときはテラスの高さの平らな床）の範囲と上面 */
+  landingStartW: number;
+  landingEndW: number;
+  landingWidth: number;
+  landingY: number;
+  /** 擁壁の段々を合わせる基準（2 段構えなら踊り場の高さと上の段の高さ。それ以外は テラスの高さと 0） */
+  wallBaseY: number;
+  wallUpperRise: number;
+}
+
+/**
+ * 階段の下端の地面 footY からテラス terraceY までを、0.15〜0.2m の段に割る。
+ * 段が 8 つを超えれば下の段・踊り場・上の段の 2 段構え、以下なら道寄りに段を寄せた 1 段構えにする
+ */
+function planGrandStairs(
+  footY: number,
+  terraceY: number,
+  w: { upperStart: number; upperEnd: number; landingEnd: number; lowerEnd: number },
+): StairPlan {
+  const rise = terraceY - footY;
+  const riserCount = rise >= STAIR_RISER_MIN_M ? Math.ceil(rise / STAIR_RISER_MAX_M - 1e-6) : 0;
+
+  if (riserCount > SINGLE_FLIGHT_MAX_RISERS) {
+    const riser = rise / riserCount;
+    // 踏み面の奥行きが上下でそろうよう、段の数を下の段・上の段の奥行きの比で分ける
+    const lowerShare = STAIR_LOWER_DEPTH_M / (STAIR_LOWER_DEPTH_M + STAIR_UPPER_DEPTH_M);
+    const lowerRisers = Math.min(
+      riserCount - 2,
+      Math.max(2, Math.round(riserCount * lowerShare)),
+    );
+    const upperRisers = riserCount - lowerRisers;
+    const landingY = footY + lowerRisers * riser;
+    const steps: StairStep[] = [];
+
+    const lowerTread = STAIR_LOWER_DEPTH_M / (lowerRisers - 1);
+    for (let i = 0; i < lowerRisers - 1; i++) {
+      steps.push({
+        topY: footY + (i + 1) * riser,
+        frontW: w.lowerEnd - i * lowerTread,
+        depth: lowerTread + 0.02,
+        width: STAIR_LOWER_WIDTH_M,
+      });
+    }
+    const upperTread = STAIR_UPPER_DEPTH_M / (upperRisers - 1);
+    for (let i = 0; i < upperRisers - 1; i++) {
+      steps.push({
+        topY: landingY + (i + 1) * riser,
+        frontW: w.upperEnd - i * upperTread,
+        depth: upperTread + 0.02,
+        width: STAIR_UPPER_WIDTH_M,
+      });
+    }
+    return {
+      steps,
+      landingStartW: w.upperEnd,
+      landingEndW: w.landingEnd,
+      landingWidth: STAIR_LOWER_WIDTH_M,
+      landingY,
+      wallBaseY: landingY,
+      wallUpperRise: terraceY - landingY,
+    };
+  }
+
+  const steps: StairStep[] = [];
+  if (riserCount > 0) {
+    const riser = rise / riserCount;
+    for (let i = 0; i < riserCount - 1; i++) {
+      steps.push({
+        topY: footY + (i + 1) * riser,
+        frontW: w.lowerEnd - i * SINGLE_FLIGHT_TREAD_M,
+        depth: SINGLE_FLIGHT_TREAD_M + 0.02,
+        width: STAIR_LOWER_WIDTH_M,
+      });
+    }
+  }
+  const stepsDepth = Math.max(0, riserCount - 1) * SINGLE_FLIGHT_TREAD_M;
+  return {
+    steps,
+    landingStartW: w.upperStart,
+    landingEndW: w.lowerEnd - stepsDepth,
+    landingWidth: STAIR_LOWER_WIDTH_M,
+    landingY: terraceY,
+    wallBaseY: terraceY,
+    wallUpperRise: 0,
+  };
+}
 
 interface FrontFrame {
   facingAngleRad: number;
@@ -477,9 +592,7 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   group.name = 'hero-library';
 
   const gY = ctx.groundVisualY;
-  const footBottomY = gY - SKIRT_DEPTH_M;
-  const floor1Y = gY + TERRACE_HEIGHT_M;
-  const bodyTopY = floor1Y + BODY_HEIGHT_M;
+  const sampleGround = ctx.sampleGroundVisualY;
 
   const polygon = normalizePolygon(ctx.building.polygon);
   const frame = computeFrontFrame(polygon, FRONT_FACING_ANGLE_RAD);
@@ -493,6 +606,71 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   const centerWidth = centerRightU - centerLeftU;
   const centerU = (centerLeftU + centerRightU) * 0.5;
   const pierHalfW = CENTER_PIER_WIDTH_M * 0.5;
+
+  // 大階段の割り付け（正面からの距離 w。テラスの前端 → 上の段 → 踊り場 → 下の段 → 道寄りの下端）
+  const upperFlightStartW = TOWER_PROTRUSION_M; // 入口テラス前端
+  const upperFlightEndW = upperFlightStartW + STAIR_UPPER_DEPTH_M;
+  const landingEndW = upperFlightEndW + STAIR_LANDING_DEPTH_M;
+  const lowerFlightEndW = landingEndW + STAIR_LOWER_DEPTH_M;
+  const upperHalfW = STAIR_UPPER_WIDTH_M * 0.5; // 13.0
+  const lowerHalfW = STAIR_LOWER_WIDTH_M * 0.5; // 20.0
+  const outerWallThickness = 2.0;
+  const innerCheekThickness = 1.6;
+
+  // --- 地面の高さ（正面のローカル座標 (u, w) の地点で引く） ---
+  const groundAt = (u: number, w: number): number =>
+    sampleGround(
+      frame.originX + u * frame.tx + w * frame.nx,
+      frame.originZ + u * frame.tz + w * frame.nz,
+    );
+
+  // 階段の下端: いちばん道寄りの段の前の線に沿って引いた地面のいちばん低い所。
+  // 横に傾いた斜面でも、どこにも段の前の段差（浮き）が出ない（高い側は段が地面に入る）
+  const footSampleCount = 9;
+  let stairFootY = Infinity;
+  for (let i = 0; i < footSampleCount; i++) {
+    const u = centerU - lowerHalfW + (lowerHalfW * 2 * i) / (footSampleCount - 1);
+    stairFootY = Math.min(stairFootY, groundAt(u, lowerFlightEndW));
+  }
+
+  // 入口のテラス: 正面の壁の前（中央の引っ込みの前、壁の面〜テラスの前端）の地面と groundVisualY の大きい方から上げる
+  let frontGroundY = -Infinity;
+  const frontSamplePoints: [number, number][] = [];
+  for (const u of [centerLeftU, centerU, centerRightU]) {
+    for (const w of [0, upperFlightStartW]) {
+      frontSamplePoints.push([u, w]);
+      frontGroundY = Math.max(frontGroundY, groundAt(u, w));
+    }
+  }
+  const floor1Y = Math.max(frontGroundY, gY) + TERRACE_ABOVE_GROUND_M;
+  const bodyTopY = floor1Y + BODY_HEIGHT_M;
+
+  // 底: 輪郭の各点（辺の上も OUTLINE_SAMPLE_STEP_M おき）と、テラス・階段・擁壁の範囲で引いた地面の
+  // いちばん低い所より FOOTING_BELOW_LOWEST_GROUND_M 下
+  let lowestGroundY = Math.min(stairFootY, frontGroundY);
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (!a || !b) continue;
+    const segments = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / OUTLINE_SAMPLE_STEP_M));
+    for (let s = 0; s < segments; s++) {
+      const t = s / segments;
+      lowestGroundY = Math.min(
+        lowestGroundY,
+        sampleGround(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t),
+      );
+    }
+  }
+  const stairOuterHalfW = lowerHalfW + outerWallThickness;
+  const stairGridN = 5;
+  for (let iu = 0; iu < stairGridN; iu++) {
+    for (let iw = 0; iw < stairGridN; iw++) {
+      const u = centerU - stairOuterHalfW + (stairOuterHalfW * 2 * iu) / (stairGridN - 1);
+      const w = -CURTAIN_RECESS_M + ((lowerFlightEndW + CURTAIN_RECESS_M) * iw) / (stairGridN - 1);
+      lowestGroundY = Math.min(lowestGroundY, groundAt(u, w));
+    }
+  }
+  const footBottomY = lowestGroundY - FOOTING_BELOW_LOWEST_GROUND_M;
 
   const clippedRaw = clipPolygonByNormal(
     polygon,
@@ -797,148 +975,129 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
   canopyNeck.receiveShadow = true;
   frontGroup.add(canopyNeck);
 
-  // --- 8. 2 段構えの大階段（InstancedMesh）＋踊り場。中央の引っ込みの正面に置く ---
-  const upperFlightStartW = TOWER_PROTRUSION_M; // 入口テラス前端
-  const upperFlightEndW = upperFlightStartW + STAIR_UPPER_DEPTH_M;
-  const landingEndW = upperFlightEndW + STAIR_LANDING_DEPTH_M;
-  const lowerFlightEndW = landingEndW + STAIR_LOWER_DEPTH_M;
+  // --- 8. 大階段（InstancedMesh）＋踊り場。中央の引っ込みの正面に置く ---
+  // 下端は道寄りの段の前の地面、上端はテラス。総高から段の数と踊り場の高さを決める
+  const stairPlan = planGrandStairs(stairFootY, floor1Y, {
+    upperStart: upperFlightStartW,
+    upperEnd: upperFlightEndW,
+    landingEnd: landingEndW,
+    lowerEnd: lowerFlightEndW,
+  });
 
-  const totalSteps = STAIR_STEPS_PER_FLIGHT * 2;
-  const stairsMesh = new THREE.InstancedMesh(unitBoxGeo, stairStoneMat, totalSteps);
-  stairsMesh.name = 'library-grand-stairs';
-  stairsMesh.castShadow = true;
-  stairsMesh.receiveShadow = true;
-
-  let stepIdx = 0;
-
-  // 下の段（幅 40m・奥行 8m・高さ 2.4m）
-  const lowerTread = STAIR_LOWER_DEPTH_M / STAIR_STEPS_PER_FLIGHT;
-  const lowerRiser = STAIR_LOWER_HEIGHT_M / (STAIR_STEPS_PER_FLIGHT + 1);
-  for (let i = 0; i < STAIR_STEPS_PER_FLIGHT; i++) {
-    const stepTopY = gY + (i + 1) * lowerRiser;
-    const stepH = stepTopY - footBottomY;
-    const frontW = lowerFlightEndW - i * lowerTread;
-    const depth = lowerTread + 0.02;
-    dummy.position.set(centerU, footBottomY + stepH * 0.5, frontW - depth * 0.5);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(STAIR_LOWER_WIDTH_M, stepH, depth);
-    dummy.updateMatrix();
-    stairsMesh.setMatrixAt(stepIdx, dummy.matrix);
-    stepIdx += 1;
+  if (stairPlan.steps.length > 0) {
+    const stairsMesh = new THREE.InstancedMesh(
+      unitBoxGeo,
+      stairStoneMat,
+      stairPlan.steps.length,
+    );
+    stairsMesh.name = 'library-grand-stairs';
+    stairsMesh.castShadow = true;
+    stairsMesh.receiveShadow = true;
+    stairPlan.steps.forEach((step, stepIdx) => {
+      // 段は底まで埋めた箱にする（斜面の低い側でも段の下にすき間ができない）
+      const stepH = step.topY - footBottomY;
+      dummy.position.set(centerU, footBottomY + stepH * 0.5, step.frontW - step.depth * 0.5);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(step.width, stepH, step.depth);
+      dummy.updateMatrix();
+      stairsMesh.setMatrixAt(stepIdx, dummy.matrix);
+    });
+    stairsMesh.instanceMatrix.needsUpdate = true;
+    stairsMesh.computeBoundingBox();
+    stairsMesh.computeBoundingSphere();
+    frontGroup.add(stairsMesh);
   }
 
-  // 上の段（幅 26m・奥行 7m・高さ 2.4m）
-  const upperTread = STAIR_UPPER_DEPTH_M / STAIR_STEPS_PER_FLIGHT;
-  const upperRiser = STAIR_UPPER_HEIGHT_M / (STAIR_STEPS_PER_FLIGHT + 1);
-  for (let i = 0; i < STAIR_STEPS_PER_FLIGHT; i++) {
-    const stepTopY = gY + STAIR_LOWER_HEIGHT_M + (i + 1) * upperRiser;
-    const stepH = stepTopY - footBottomY;
-    const frontW = upperFlightEndW - i * upperTread;
-    const depth = upperTread + 0.02;
-    dummy.position.set(centerU, footBottomY + stepH * 0.5, frontW - depth * 0.5);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(STAIR_UPPER_WIDTH_M, stepH, depth);
-    dummy.updateMatrix();
-    stairsMesh.setMatrixAt(stepIdx, dummy.matrix);
-    stepIdx += 1;
-  }
-
-  stairsMesh.instanceMatrix.needsUpdate = true;
-  stairsMesh.computeBoundingBox();
-  stairsMesh.computeBoundingSphere();
-  frontGroup.add(stairsMesh);
-
-  // 踊り場（幅 40m・奥行 4m・高さ 2.4m）
-  const landingH = STAIR_LOWER_HEIGHT_M + SKIRT_DEPTH_M;
+  // 踊り場（2 段構えのとき。1 段構え・段なしのときはテラスの高さの平らな床）
+  const landingH = stairPlan.landingY - footBottomY;
+  const landingDepth = Math.max(0.1, stairPlan.landingEndW - stairPlan.landingStartW);
   const landingMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(STAIR_LOWER_WIDTH_M, landingH, STAIR_LANDING_DEPTH_M + 0.04),
+    new THREE.BoxGeometry(stairPlan.landingWidth, landingH, landingDepth + 0.04),
     stairStoneMat,
   );
   landingMesh.name = 'library-stair-landing';
   landingMesh.position.set(
     centerU,
     footBottomY + landingH * 0.5,
-    (upperFlightEndW + landingEndW) * 0.5,
+    stairPlan.landingStartW + landingDepth * 0.5,
   );
   landingMesh.castShadow = true;
   landingMesh.receiveShadow = true;
   frontGroup.add(landingMesh);
 
-  // --- 9. 階段の左右: 石積みの擁壁（高さ 2.4〜4.8m の段々の壁。石積みはここだけ） ---
+  // --- 9. 階段の左右: 石積みの擁壁（段々の壁。石積みはここだけ） ---
+  // 高さは 1 回目（下段 2.4m・上段 2.4m）の割り付けを、踊り場の高さと上の段の高さに合わせて伸び縮みさせる。
+  // levelAboveLanding = 0 が踊り場の高さ、2.4 がテラスの高さ
   interface WallSpec {
     uMin: number;
     uMax: number;
     wMin: number;
     wMax: number;
-    topOffsetFromGround: number;
+    levelAboveLanding: number;
   }
 
-  const upperHalfW = STAIR_UPPER_WIDTH_M * 0.5; // 13.0
-  const lowerHalfW = STAIR_LOWER_WIDTH_M * 0.5; // 20.0
-  const outerWallThickness = 2.0;
-  const innerCheekThickness = 1.6;
   const upperMidW = (upperFlightStartW + upperFlightEndW) * 0.5;
   const lowerMidW = (landingEndW + lowerFlightEndW) * 0.5;
 
   const oneSideWalls: WallSpec[] = [
-    // 上段脇の内側袖壁（4.8m -> 3.8m）
+    // 上段脇の内側袖壁（テラスの高さ -> 踊り場 + 1.4）
     {
       uMin: upperHalfW,
       uMax: upperHalfW + innerCheekThickness,
       wMin: upperFlightStartW,
       wMax: upperMidW,
-      topOffsetFromGround: 4.8,
+      levelAboveLanding: 2.4,
     },
     {
       uMin: upperHalfW,
       uMax: upperHalfW + innerCheekThickness,
       wMin: upperMidW,
       wMax: upperFlightEndW,
-      topOffsetFromGround: 3.8,
+      levelAboveLanding: 1.4,
     },
-    // 上段と外側擁壁をつなぐ段状テラス擁壁（高さ 3.4m）
+    // 上段と外側擁壁をつなぐ段状テラス擁壁（踊り場 + 1.0）
     {
       uMin: upperHalfW + innerCheekThickness,
       uMax: lowerHalfW,
       wMin: upperFlightStartW,
       wMax: upperFlightEndW,
-      topOffsetFromGround: 3.4,
+      levelAboveLanding: 1.0,
     },
-    // 外側の段々擁壁（奥 4.8m -> 4.0m -> 踊り場脇 3.4m -> 下段奥 2.9m -> 下段前 2.4m）
+    // 外側の段々擁壁（奥 テラス -> 踊り場 + 1.6 -> 踊り場脇 + 1.0 -> 下段奥 + 0.5 -> 下段前 踊り場の高さ）
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: upperFlightStartW,
       wMax: upperMidW,
-      topOffsetFromGround: 4.8,
+      levelAboveLanding: 2.4,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: upperMidW,
       wMax: upperFlightEndW,
-      topOffsetFromGround: 4.0,
+      levelAboveLanding: 1.6,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: upperFlightEndW,
       wMax: landingEndW,
-      topOffsetFromGround: 3.4,
+      levelAboveLanding: 1.0,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: landingEndW,
       wMax: lowerMidW,
-      topOffsetFromGround: 2.9,
+      levelAboveLanding: 0.5,
     },
     {
       uMin: lowerHalfW,
       uMax: lowerHalfW + outerWallThickness,
       wMin: lowerMidW,
       wMax: lowerFlightEndW,
-      topOffsetFromGround: 2.4,
+      levelAboveLanding: 0,
     },
   ];
 
@@ -956,7 +1115,9 @@ export const buildLibrary: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResul
     for (const w of oneSideWalls) {
       const width = w.uMax - w.uMin;
       const depth = w.wMax - w.wMin;
-      const topY = gY + w.topOffsetFromGround;
+      const topY =
+        stairPlan.wallBaseY +
+        (w.levelAboveLanding / WALL_REFERENCE_FLIGHT_HEIGHT_M) * stairPlan.wallUpperRise;
       const height = topY - footBottomY;
       const wallU = centerU + side * ((w.uMin + w.uMax) * 0.5);
       const wallW = (w.wMin + w.wMax) * 0.5;

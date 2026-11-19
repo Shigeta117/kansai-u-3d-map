@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { computeVisualY } from '../domain/projection';
+import { computeVisualY, sampleElevation } from '../domain/projection';
 import type {
   BuildingCategory,
   BuildingFeature,
   CampusConfig,
   DioramaConfig,
+  TerrainGrid,
 } from '../domain/types';
 import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
@@ -161,7 +162,7 @@ export function buildBuildingsGroup(
   buildings: BuildingFeature[],
   minElevation: number,
   config: CampusConfig,
-  options: { forExport?: boolean; campusOnly?: boolean } = {},
+  options: { forExport?: boolean; campusOnly?: boolean; terrain?: TerrainGrid } = {},
 ): BuildingsBuildResult {
   const root = new THREE.Group();
   root.name = 'campus-buildings-root';
@@ -205,7 +206,13 @@ export function buildBuildingsGroup(
     const heroBuilder = options.forExport ? undefined : HERO_BUILDERS[b.id];
     if (heroBuilder) {
       const groundVisualY = computeVisualY(b.groundY, minElevation, exag);
-      const hero = heroBuilder({ building: b, groundVisualY });
+      // 地形があれば任意の地点の地面の高さを引けるようにする（無ければ重心の高さで代用）
+      const terrain = options.terrain;
+      const sampleGroundVisualY = terrain
+        ? (x: number, z: number): number =>
+            computeVisualY(sampleElevation(terrain, x, z), minElevation, exag)
+        : (): number => groundVisualY;
+      const hero = heroBuilder({ building: b, groundVisualY, sampleGroundVisualY });
       hero.group.name = `building-${b.id}`;
       hero.group.userData = { buildingId: b.id };
       hero.group.traverse((obj) => {

@@ -148,7 +148,7 @@ export class CampusScene {
       dataset.buildings,
       dataset.terrain.minElevation,
       config,
-      { campusOnly: options.campusOnly },
+      { campusOnly: options.campusOnly, terrain: dataset.terrain },
     );
     this.scene.add(buildingsResult.root);
     this.campusRecords = buildingsResult.campusRecords;
