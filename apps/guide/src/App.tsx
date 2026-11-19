@@ -30,11 +30,13 @@ interface GuideUrlParams {
   hideUi: boolean;
   freeCamera: boolean;
   roofColorMode: RoofColorMode;
+  /** 描画の重さ（描画命令・三角形）を DOM に出す（URL の stats=1） */
+  renderStats: boolean;
 }
 
 function parseGuideUrlParams(): GuideUrlParams {
   if (typeof window === 'undefined') {
-    return { hideUi: false, freeCamera: false, roofColorMode: 'aerial' };
+    return { hideUi: false, freeCamera: false, roofColorMode: 'aerial', renderStats: false };
   }
   const params = new URLSearchParams(window.location.search);
   return {
@@ -42,6 +44,7 @@ function parseGuideUrlParams(): GuideUrlParams {
     hideUi: params.get('ui') === '0',
     freeCamera: params.get('free') === '1',
     roofColorMode: params.get('roof') === 'area' ? 'area' : 'aerial',
+    renderStats: params.get('stats') === '1',
   };
 }
 
@@ -257,6 +260,7 @@ export function App() {
           roofColorMode={roofColorMode}
           initialCamera={urlParams.initialCamera}
           freeCamera={urlParams.freeCamera}
+          renderStats={urlParams.renderStats}
           onSelectBuilding={handleSelectBuilding}
           onSceneChange={setScene}
           sceneRef={sceneRef}
