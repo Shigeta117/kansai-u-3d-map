@@ -6,7 +6,6 @@ import {
   type CampusConfig,
   type CampusDataset,
   type LightingTheme,
-  type ProjectedLabel,
   type RouteResult,
 } from '@kansai-u-3d/core';
 
@@ -25,7 +24,7 @@ interface CampusViewportProps {
   lighting: LightingTheme;
   initialCamera?: CameraPose;
   onSelectBuilding: (buildingId: string | null) => void;
-  onLabelsUpdate: (labels: ProjectedLabel[]) => void;
+  onSceneChange: (scene: CampusScene | null) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
 }
 
@@ -50,16 +49,16 @@ export function CampusViewport({
   lighting,
   initialCamera,
   onSelectBuilding,
-  onLabelsUpdate,
+  onSceneChange,
   sceneRef,
 }: CampusViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [webglError, setWebglError] = useState(false);
 
   const onSelectRef = useRef(onSelectBuilding);
-  const onLabelsRef = useRef(onLabelsUpdate);
+  const onSceneChangeRef = useRef(onSceneChange);
   onSelectRef.current = onSelectBuilding;
-  onLabelsRef.current = onLabelsUpdate;
+  onSceneChangeRef.current = onSceneChange;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -75,13 +74,13 @@ export function CampusViewport({
       config,
       {
         onSelectBuilding: (id) => onSelectRef.current(id),
-        onLabelsUpdate: (labels) => onLabelsRef.current(labels),
       },
       {
         initialCamera,
       },
     );
     sceneRef.current = scene;
+    onSceneChangeRef.current(scene);
 
     if (import.meta.env.DEV) {
       (window as KumWindow).__kum = {
@@ -93,6 +92,7 @@ export function CampusViewport({
       if (import.meta.env.DEV) {
         delete (window as KumWindow).__kum;
       }
+      onSceneChangeRef.current(null);
       scene.dispose();
       sceneRef.current = null;
     };

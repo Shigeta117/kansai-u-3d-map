@@ -1,5 +1,12 @@
 import { Box, Compass, ExternalLink, Layers, MapPinned, Moon, Package, Sun, Tag, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   CATEGORY_OPTIONS,
   CampusScene,
@@ -7,12 +14,14 @@ import {
   getCategoryLabel,
   loadCampusDataset,
   parseCameraParam,
+  selectVisibleLabels,
+  type BuildingCategory,
   type BuildingFeature,
   type CameraPose,
   type CampusDataset,
   type CampusDatasetMeta,
+  type LabelsFrame,
   type LightingTheme,
-  type ProjectedLabel,
 } from '@kansai-u-3d/core';
 
 type KumWindow = Window & {
@@ -240,6 +249,184 @@ function AssetSpecModal({ open, meta, onClose }: AssetSpecModalProps) {
   );
 }
 
+const LITE_CATEGORY_COLOR_MAP = new Map<string, string>(
+  CATEGORY_OPTIONS.map((c) => [c.id, c.color]),
+);
+
+function formatLiteLabelTransform(x: number, y: number): string {
+  return `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -100%)`;
+}
+
+interface LiteDisplayedLabel {
+  id: string;
+  shortName: string;
+  category: BuildingCategory;
+}
+
+interface LiteLabelsOverlayProps {
+  scene: CampusScene | null;
+  visible: boolean;
+  selectedId: string | null;
+  embed: boolean;
+  onSelect: (buildingId: string) => void;
+}
+
+function LiteLabelsOverlay({
+  scene,
+  visible,
+  selectedId,
+  embed,
+  onSelect,
+}: LiteLabelsOverlayProps) {
+  const [displayedLabels, setDisplayedLabels] = useState<LiteDisplayedLabel[]>(
+    [],
+  );
+
+  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const refCallbacksRef = useRef<
+    Map<string, (el: HTMLButtonElement | null) => void>
+  >(new Map());
+  const latestPosRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const displayedKeyRef = useRef<string>('');
+  const latestFrameRef = useRef<LabelsFrame | null>(null);
+  const optionsRef = useRef({ visible, selectedId, embed });
+
+  const applyFrame = useCallback((frame: LabelsFrame) => {
+    latestFrameRef.current = frame;
+    const opts = optionsRef.current;
+
+    if (!opts.visible) {
+      if (displayedKeyRef.current !== '') {
+        displayedKeyRef.current = '';
+        latestPosRef.current.clear();
+        setDisplayedLabels([]);
+      }
+      return;
+    }
+
+    const { viewportWidth, viewportHeight } = frame;
+    const bottomInset = opts.selectedId
+      ? opts.embed
+        ? 156
+        : 136
+      : opts.embed
+        ? 88
+        : 72;
+
+    const accepted = selectVisibleLabels(frame, {
+      selectedId: opts.selectedId,
+      topSafe: 72,
+      bottomSafe: Math.max(120, viewportHeight - bottomInset),
+      maxLabels: viewportWidth < 768 ? 5 : 10,
+    });
+
+    const nextPosMap = latestPosRef.current;
+    nextPosMap.clear();
+
+    const ids: string[] = [];
+    for (const lbl of accepted) {
+      ids.push(lbl.id);
+      nextPosMap.set(lbl.id, { x: lbl.screenX, y: lbl.screenY });
+      const el = buttonRefs.current.get(lbl.id);
+      if (el) {
+        el.style.transform = formatLiteLabelTransform(lbl.screenX, lbl.screenY);
+      }
+    }
+
+    ids.sort();
+    const nextKey = ids.join('|');
+    if (nextKey !== displayedKeyRef.current) {
+      displayedKeyRef.current = nextKey;
+      setDisplayedLabels(
+        accepted.map((lbl) => ({
+          id: lbl.id,
+          shortName: lbl.shortName,
+          category: lbl.category,
+        })),
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    optionsRef.current = { visible, selectedId, embed };
+    if (visible && latestFrameRef.current) {
+      applyFrame(latestFrameRef.current);
+    }
+  }, [visible, selectedId, embed, applyFrame]);
+
+  useEffect(() => {
+    if (!scene || !visible) {
+      if (displayedKeyRef.current !== '') {
+        displayedKeyRef.current = '';
+        latestPosRef.current.clear();
+        setDisplayedLabels([]);
+      }
+      return;
+    }
+    return scene.subscribeLabels(applyFrame);
+  }, [scene, visible, applyFrame]);
+
+  useLayoutEffect(() => {
+    for (const lbl of displayedLabels) {
+      const el = buttonRefs.current.get(lbl.id);
+      const pos = latestPosRef.current.get(lbl.id);
+      if (el && pos) {
+        el.style.transform = formatLiteLabelTransform(pos.x, pos.y);
+      }
+    }
+  }, [displayedLabels]);
+
+  const getButtonRef = useCallback((id: string) => {
+    let cb = refCallbacksRef.current.get(id);
+    if (!cb) {
+      cb = (el: HTMLButtonElement | null) => {
+        if (el) {
+          buttonRefs.current.set(id, el);
+          const pos = latestPosRef.current.get(id);
+          if (pos) {
+            el.style.transform = formatLiteLabelTransform(pos.x, pos.y);
+          }
+        } else {
+          buttonRefs.current.delete(id);
+          refCallbacksRef.current.delete(id);
+        }
+      };
+      refCallbacksRef.current.set(id, cb);
+    }
+    return cb;
+  }, []);
+
+  if (!visible || displayedLabels.length === 0) return null;
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-10 overflow-hidden">
+      {displayedLabels.map((lbl) => {
+        const isSel = lbl.id === selectedId;
+        const dotColor = LITE_CATEGORY_COLOR_MAP.get(lbl.category) ?? '#1B365D';
+        return (
+          <button
+            key={lbl.id}
+            ref={getButtonRef(lbl.id)}
+            type="button"
+            onClick={() => onSelect(lbl.id)}
+            className={`pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-bold shadow-sm transition-colors duration-150 will-change-transform ${
+              isSel
+                ? 'z-20 border-[#C85A3A] bg-[#C85A3A] text-white'
+                : 'border-[#DDD6C8] bg-[#FAF7F2]/90 text-[#1D2430] hover:bg-white'
+            }`}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: isSel ? '#FFFFFF' : dotColor }}
+            />
+            <span className="whitespace-nowrap">{lbl.shortName}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function App() {
   const config = useMemo(() => getCampusConfig('senriyama'), []);
   const urlParams = useMemo(
@@ -249,6 +436,7 @@ export function App() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CampusScene | null>(null);
+  const [sceneInstance, setSceneInstance] = useState<CampusScene | null>(null);
 
   const [dataset, setDataset] = useState<CampusDataset | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -260,10 +448,6 @@ export function App() {
   const [showLabels, setShowLabels] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [specOpen, setSpecOpen] = useState(false);
-  const [labels, setLabels] = useState<ProjectedLabel[]>([]);
-  const [viewportWidth, setViewportWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1280,
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -281,12 +465,6 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   const buildingMap = useMemo(() => {
@@ -325,7 +503,6 @@ export function App() {
       config,
       {
         onSelectBuilding: (id) => onSelectRef.current(id),
-        onLabelsUpdate: (nextLabels) => setLabels(nextLabels),
       },
       {
         campusOnly,
@@ -335,6 +512,7 @@ export function App() {
       },
     );
     sceneRef.current = scene;
+    setSceneInstance(scene);
 
     if (import.meta.env.DEV) {
       (window as KumWindow).__kum = {
@@ -346,6 +524,7 @@ export function App() {
       if (import.meta.env.DEV) {
         delete (window as KumWindow).__kum;
       }
+      setSceneInstance(null);
       scene.dispose();
       sceneRef.current = null;
     };
@@ -365,15 +544,6 @@ export function App() {
     () => (selectedId ? (buildingMap.get(selectedId) ?? null) : null),
     [buildingMap, selectedId],
   );
-
-  const visibleLabels = useMemo(() => {
-    if (!showLabels || viewportWidth <= 0) return [];
-    const maxCount = viewportWidth < 768 ? 5 : 10;
-    return [...labels]
-      .filter((l) => l.screenY > 72)
-      .sort((a, b) => a.priority - b.priority)
-      .slice(0, maxCount);
-  }, [labels, showLabels, viewportWidth]);
 
   if (loadError) {
     return (
@@ -415,36 +585,13 @@ export function App() {
       {!urlParams.hideUi && (
         <>
         {/* Lightweight Projected Labels */}
-        {showLabels && visibleLabels.length > 0 && (
-          <div className="pointer-events-none fixed inset-0 z-10 overflow-hidden">
-            {visibleLabels.map((lbl) => {
-              const isSel = lbl.id === selectedId;
-              const dotColor =
-                CATEGORY_OPTIONS.find((c) => c.id === lbl.category)?.color ?? '#1B365D';
-              return (
-                <button
-                  key={lbl.id}
-                  type="button"
-                  onClick={() => handleSelectBuilding(lbl.id)}
-                  style={{
-                    transform: `translate3d(${lbl.screenX.toFixed(1)}px, ${lbl.screenY.toFixed(1)}px, 0) translate(-50%, -100%)`,
-                  }}
-                  className={`pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-bold shadow-sm transition-colors duration-150 ${
-                    isSel
-                      ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
-                      : 'border-[#DDD6C8] bg-[#FAF7F2]/90 text-[#1D2430] hover:bg-white'
-                  }`}
-                >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: isSel ? '#FFFFFF' : dotColor }}
-                  />
-                  <span className="whitespace-nowrap">{lbl.shortName}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <LiteLabelsOverlay
+          scene={sceneInstance}
+          visible={showLabels}
+          selectedId={selectedId}
+          embed={urlParams.embed}
+          onSelect={handleSelectBuilding}
+        />
 
         {/* Minimal Top Bar */}
         <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex items-center justify-between gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
