@@ -193,7 +193,7 @@ export function LocationPicker({
               </div>
               <div className="truncate text-[10.5px] text-[#666F7B]">
                 {selectedBuilding?.accessibleWalkNodeId
-                  ? '段差フリー経路接続 ・ エリア/教室から選択'
+                  ? '段差なし経路候補あり（参考） ・ エリア/教室から選択'
                   : '歩行ネットワーク接続'}
               </div>
             </div>
@@ -308,7 +308,7 @@ export function LocationPicker({
                       </div>
                       {item.accessibleWalkNodeId && (
                         <span className="shrink-0 rounded bg-[#E4F4F7] px-1.5 py-0.5 text-[9.5px] font-semibold text-[#1F7A8C]">
-                          段差フリー可
+                          段差なし候補（参考）
                         </span>
                       )}
                     </button>
@@ -391,7 +391,7 @@ export function LocationPicker({
                                     {b.accessibleWalkNodeId && (
                                       <Sparkles
                                         className="h-3 w-3 shrink-0 text-[#1F7A8C]"
-                                        aria-label="段差フリー接続"
+                                        aria-label="段差なし経路候補あり（参考）"
                                       />
                                     )}
                                   </div>

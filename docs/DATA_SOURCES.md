@@ -53,5 +53,7 @@
    - `packages/`、`apps/` 以下のアプリケーション・3Dエンジン・探索ロジックおよび `scripts/` 以下の生成ツールは MIT License とします。
 2. **生データキャッシュの分離（`.cache/`）**:
    - `scripts/fetch-open-data.mjs` が取得する生の OSM JSON や DEM PNG タイルは `.cache/raw/` に保存され、`.gitignore` により Git 管理外としています。
-3. **成果物データ・クレジット継承（`public/data/`, `exports/`）**:
-   - 変換後の Web 用軽量データおよび `.glb`/`.obj` 出力は ODbL の **Produced Work** および国土地理院利用規約に基づき生成されます。再配布時は `THIRD_PARTY_NOTICES.md` および出典表記を維持してください。
+3. **JSON データ（`public/data/` — Derivative Database / ODbL v1.0）**:
+   - `public/data/` の JSON は OpenStreetMap から抜き出して加工した **Derivative Database** として **Open Database License (ODbL) v1.0** で提供します（`© OpenStreetMap contributors`）。標高データ（`terrain.json` と各データの標高値）は「出典：国土地理院 地理院タイル（標高タイル）を加工して作成」が適用されます。詳細は [`public/data/senriyama/LICENSE.md`](../public/data/senriyama/LICENSE.md) を参照してください。
+4. **3Dモデル出力（`exports/` — Produced Work）**:
+   - `npm run export:3d` が書き出す `.glb`/`.obj`（Git 管理外）は ODbL の **Produced Work** として、出典表記および `THIRD_PARTY_NOTICES.md` を付けて配布します。

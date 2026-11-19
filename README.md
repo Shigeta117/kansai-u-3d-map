@@ -1,12 +1,15 @@
 # 関西大学 千里山キャンパス 3Dマップ（v0.2 モノレポ）
 
-関西大学 千里山キャンパス（関大前駅〜西門新アクセス路〜正門〜秀麗橋高架〜全学舎・悠久の庭・グラウンド）を、実測の地形高低差と建築特徴にもとづく **ポップなミニチュア・ジオラマ 3D空間** として再現した、オープンソース（MIT License）のマルチパッケージ・プロジェクトです。
+※ 関西大学の公式サービスではありません（個人のオープンソース・プロジェクト）。  
+※ コードとデータの多くは AI（Gemini・Claude）が生成したもので、建物の外観・室内情報には人の確認が済んでいない部分があります。バリアフリー情報は未確認です。
+
+関西大学 千里山キャンパス（関大前駅〜西門新アクセス路〜正門〜秀麗橋高架〜全学舎・悠久の庭・グラウンド）を、実測の地形高低差と建築特徴にもとづく **ポップなミニチュア・ジオラマ 3D空間** として再現した、オープンソースのマルチパッケージ・プロジェクトです（ソースコード: MIT License／`public/data/` 以下のデータ: ODbL v1.0・国土地理院出典表記）。
 
 用途に応じて以下の 2形態＋共通コアで並行開発・配布できます。
 
 - `packages/core` (`@kansai-u-3d/core`): 座標投影・3モード歩行探索・建物/教室検索・Three.js ジオラマ造形エンジン（秀麗橋高架デッキ・新アクセス上屋＆エスカレーター・各種ランドマーク造形を含む）
 - `apps/lite` (`@kansai-u-3d/lite`): **軽量3Dビューア＆GLB/OBJアセット確認版**（Web/ブログへの iframe 埋込パラメータ `?embed=1&preset=...&theme=...&scope=...` 対応）
-- `apps/guide` (`@kansai-u-3d/guide`): **高機能キャンパス＆教室案内アプリ**（階層/キーワード地点ピッカー・最短/坂ひかえめ/完全段差フリーの3モード案内・建物別3タブシート・教室/出入口/棟間連絡表示）
+- `apps/guide` (`@kansai-u-3d/guide`): **高機能キャンパス＆教室案内アプリ**（階層/キーワード地点ピッカー・最短/坂ひかえめ/段差フリー（参考）の3モード案内・建物別3タブシート・教室/出入口/棟間連絡表示）
 
 ---
 
@@ -25,10 +28,10 @@
 - **3モード切替**:
   - **最短（レッド `#C85A3A`）**: 距離最短の歩行ルート
   - **坂ひかえめ（グリーン `#2B8A6E`）**: 階段や急登坂を抑え、西門新アクセスエスカレーターや秀麗橋を積極利用
-  - **段差フリー（ティール `#1F7A8C`）**: 階段およびエスカレーターを完全除外した `accessibleWalkNodeId` 接続ルートを探索（非接続ペアでは「坂ひかえめ」への切替案内を表示）
+  - **段差フリー（ティール `#1F7A8C`）**: 階段およびエスカレーターのタグを除外した `accessibleWalkNodeId` 接続ルートを探索（非接続ペアでは「坂ひかえめ」への切替案内を表示）。OpenStreetMap の階段・エスカレーターの情報に基づく参考で、実際の段差やエレベーターの運用は保証しません。
 
 ### 3. 教室・出入口・棟間連絡情報スキーマ
-- `BuildingFloorPlan` スキーマにより、各建物の階層別教室リスト・定員・車いす対応・電源有無・出入口（地上接続階）・秀麗橋や屋内渡り廊下の棟間連絡データを格納可能。現在は主要13施設に公開情報ベースのサンプルデータを収録しており、将来的な配置図データ拡充に対応しています（詳細は [docs/INDOOR_DATA_SCHEMA.md](docs/INDOOR_DATA_SCHEMA.md)）。
+- `BuildingFloorPlan` スキーマにより、各建物の階層別教室リスト・出入口・棟間連絡・バリアフリー状態（`yes` / `no` / `unknown`）などを格納可能。現在は **28 棟** を収録しており、教室番号は関西大学教務ガイド KAN-CAN! の公開ページにもとづいています。一方、**バリアフリー情報（段差・エレベーター・多機能トイレ）・定員・設備（電源等）は未確認**（全件 `unknown` または未設定）です（詳細は [docs/INDOOR_DATA_SCHEMA.md](docs/INDOOR_DATA_SCHEMA.md)）。
 
 ### 4. 単体 3Dアセット配布（`.glb` / `.obj`）
 - `npm run export:3d` により、用途別の 2種類の 3Dモデルファイルを書き出し可能。
@@ -88,8 +91,8 @@ npm run data:build
 
 ## ライセンスとデータ出典
 
-- **ソースコード・造形ロジック**: [MIT License](LICENSE)
-- **UIモーショントークン**: [transitions.style](https://transitions.style) パターン準拠（MIT © Jakub Antalík）
-- **地図・建物・歩道データ**: Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL v1.0)
-- **標高データ**: 出典：国土地理院 地理院タイル（標高タイル DEM5A）を加工して作成（政府標準利用規約 第2.0版）
+- **ソースコード**: [MIT License](LICENSE)（`packages/`・`apps/`・`scripts/`）
+- **`public/data/` 以下のデータ**: [ODbL v1.0](public/data/senriyama/LICENSE.md)（Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors、Derivative Database）＋国土地理院の出典表記（出典：国土地理院 地理院タイル（標高タイル DEM5A）を加工して作成／政府標準利用規約 第2.0版）
+- **3Dモデル書き出し（`exports/`、Git 管理外）**: ODbL の Produced Work として上記の出典表記を付けて配布
+- **UIモーショントークン**: [transitions.dev](https://transitions.dev)（GitHub: `Jakubantalik/transitions.dev`、MIT © Jakub Antalík）パターン準拠
 - **詳細・権利分離**: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) および [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)

@@ -1,4 +1,4 @@
-import { Box, Compass, ExternalLink, Layers, Moon, Package, Sun, Tag, X } from 'lucide-react';
+import { Box, Compass, ExternalLink, Layers, MapPinned, Moon, Package, Sun, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CATEGORY_OPTIONS,
@@ -125,7 +125,7 @@ function AssetSpecModal({ open, meta, onClose }: AssetSpecModalProps) {
               3Dアセット仕様・iframe埋込・出典
             </h2>
             <p className="mt-0.5 text-[11.5px] text-[#666F7B]">
-              軽量ビューア・GLB / OBJ モデル配布パック（MIT License）
+              軽量ビューア・GLB / OBJ モデル配布パック（非公式 / コード: MIT・地図データ: ODbL v1.0）
             </p>
           </div>
           <button
@@ -139,6 +139,12 @@ function AssetSpecModal({ open, meta, onClose }: AssetSpecModalProps) {
         </div>
 
         <div className="mt-3 space-y-3 text-[12px] leading-relaxed text-[#343C48]">
+          <section className="rounded-xl border border-[#DFD5C3] bg-[#FBF6EC] p-3 text-[#2B3340]">
+            <p className="font-semibold">
+              このアプリは関西大学の公式サービスではありません。関西大学とは関係のない個人が作ったオープンソースのプロジェクトです。
+            </p>
+          </section>
+
           <section className="rounded-xl border border-[#E3DDD1] bg-[#F4EFE5] p-3">
             <h3 className="flex items-center gap-1.5 font-bold text-[#1B365D]">
               <Box className="h-4 w-4" />
@@ -181,7 +187,16 @@ function AssetSpecModal({ open, meta, onClose }: AssetSpecModalProps) {
             <h3 className="font-bold text-[#1D2430]">データ出典・ライセンス</h3>
             <p className="mt-1 text-[11.5px]">
               出典：国土地理院 地理院タイル（標高タイル DEM5A）を加工して作成 ／
-              Map data © OpenStreetMap contributors (ODbL v1.0) ／ transitions.style (MIT © Jakub Antalík)
+              Map data © OpenStreetMap contributors (ODbL v1.0) ／{' '}
+              <a
+                href="https://transitions.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#1B365D] hover:underline"
+              >
+                transitions.dev
+              </a>{' '}
+              (GitHub: Jakubantalik/transitions.dev, MIT © Jakub Antalík)
             </p>
             {meta && (
               <div className="tabular-nums mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#5F6875]">
@@ -197,7 +212,7 @@ function AssetSpecModal({ open, meta, onClose }: AssetSpecModalProps) {
             <a
               href="https://www.openstreetmap.org/copyright"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 font-semibold text-[#1B365D] hover:underline"
             >
               <span>OSM ODbL</span>
@@ -408,21 +423,28 @@ export function App() {
       <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex items-center justify-between gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
         {!urlParams.embed ? (
           <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-3 py-1.5 shadow-sm backdrop-blur-md">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1B365D] text-[11px] font-bold text-white">
-              関大
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1B365D] text-white">
+              <MapPinned className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-[13px] font-bold leading-tight text-[#1D2430]">
-                千里山キャンパス 3Dビューア（簡易版）
-              </h1>
+              <div className="flex items-baseline gap-1.5">
+                <h1 className="text-[13px] font-bold leading-tight text-[#1D2430]">
+                  千里山キャンパス 3Dビューア（簡易版）
+                </h1>
+                <span className="text-[10px] font-medium text-[#666F7B]">
+                  非公式
+                </span>
+              </div>
               <p className="hidden text-[10px] text-[#666F7B] sm:block">
                 軽量埋込 &amp; GLB / OBJ 3Dアセット確認モデル
               </p>
             </div>
           </div>
         ) : (
-          <div className="pointer-events-auto rounded-full border border-[#DDD6C8] bg-[#FAF7F2]/90 px-2.5 py-1 text-[10.5px] font-bold text-[#1B365D] shadow-xs backdrop-blur-md">
-            関大 千里山 3D
+          <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-[#DDD6C8] bg-[#FAF7F2]/90 px-2.5 py-1 text-[10.5px] font-bold text-[#1B365D] shadow-xs backdrop-blur-md">
+            <MapPinned className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span>千里山キャンパス 3D</span>
+            <span className="font-medium text-[#666F7B]">非公式</span>
           </div>
         )}
 
@@ -492,7 +514,11 @@ export function App() {
 
       {/* Compact Selected Building Pill */}
       {selectedBuilding && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-16 z-20 flex justify-center px-3 sm:bottom-18">
+        <div
+          className={`pointer-events-none fixed inset-x-0 z-20 flex justify-center px-3 ${
+            urlParams.embed ? 'bottom-20 sm:bottom-24' : 'bottom-16 sm:bottom-18'
+          }`}
+        >
           <div className="t-pill pointer-events-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/96 px-3.5 py-2 shadow-xl backdrop-blur-md">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-[10.5px] font-semibold text-[#5F6875]">
@@ -524,7 +550,11 @@ export function App() {
       )}
 
       {/* Bottom Camera Presets */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4">
+      <div
+        className={`pointer-events-none fixed inset-x-0 z-20 flex justify-center px-3 ${
+          urlParams.embed ? 'bottom-8 sm:bottom-9' : 'bottom-3 sm:bottom-4'
+        }`}
+      >
         <div
           className="no-scrollbar pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 p-1.5 shadow-lg backdrop-blur-md"
           aria-label="視点プリセット"
@@ -551,6 +581,20 @@ export function App() {
           })}
         </div>
       </div>
+
+      {urlParams.embed && (
+        <div className="pointer-events-auto fixed bottom-1.5 right-2.5 z-20 rounded-md border border-[#DDD6C8]/80 bg-[#FAF7F2]/90 px-2 py-0.5 text-[10px] font-medium text-[#5F6875] backdrop-blur-xs">
+          <span>非公式・</span>
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#1B365D] hover:underline"
+          >
+            © OpenStreetMap contributors
+          </a>
+        </div>
+      )}
 
       <AssetSpecModal
         open={specOpen}

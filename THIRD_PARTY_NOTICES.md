@@ -13,8 +13,10 @@
   - https://opendatacommons.org/licenses/odbl/1-0/
 - **Note**:
   - 本リポジトリのアプリコードおよびデータ生成スクリプトは MIT License です。
-  - OpenStreetMap から取得した生の地理データは `.cache/` にローカル保持され（Git管理外）、ビルドスクリプトにより Web 表示用の軽量ジオラマデータ（Produced Work）へ変換されます。
-  - 再配布・公開時は上記の出典表記（`© OpenStreetMap contributors (ODbL)`）を必ず維持してください。
+  - OpenStreetMap から取得した生の地理データは `.cache/` にローカル保持されます（Git 管理外）。
+  - `public/data/` 以下の JSON は OpenStreetMap から抜き出して加工した **Derivative Database** として **ODbL v1.0** で提供します（詳細は `public/data/senriyama/LICENSE.md` を参照）。
+  - `npm run export:3d` が書き出す `.glb`/`.obj`（Git 管理外）は ODbL の **Produced Work** として出典表記を付けて配布します。
+  - 再配布・公開時は上記の出典表記（`© OpenStreetMap contributors (ODbL v1.0)`）を必ず維持してください。
 
 ### 2. 国土地理院 地理院タイル（標高タイル DEM5A / DEM5B / DEM10B）
 - **Attribution**: 出典：国土地理院 地理院タイル（標高タイル）を加工して作成
@@ -30,7 +32,7 @@
 
 ## Motion Tokens & UI Patterns
 
-- **transitions.style** — MIT License © Jakub Antalík (https://transitions.style)
+- **transitions.dev** — MIT License © Jakub Antalík (https://transitions.dev / GitHub: `Jakubantalik/transitions.dev`)
   - 5軸モーショントークン（duration / ease / distance / scale / blur）および非対称トランジション、`prefers-reduced-motion` 設計を CSS トークンとして採用しています。
 
 ---

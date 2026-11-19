@@ -1,3 +1,4 @@
+import { MapPinned } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CampusScene,
@@ -263,13 +264,18 @@ export function App() {
       <header className="pointer-events-none fixed inset-x-0 top-0 z-30 flex flex-col gap-2 px-3 pt-3 sm:px-5 sm:pt-4">
         <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 px-3 py-1.5 shadow-sm backdrop-blur-md">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1B365D] text-[13px] font-bold text-[#FAF7F2]">
-              関大
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1B365D] text-[#FAF7F2]">
+              <MapPinned className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-[13.5px] font-bold leading-tight text-[#1D2430]">
-                {config.name} 3D
-              </h1>
+              <div className="flex items-baseline gap-1.5">
+                <h1 className="text-[13.5px] font-bold leading-tight text-[#1D2430]">
+                  {config.name} 3D
+                </h1>
+                <span className="text-[10px] font-medium text-[#666F7B]">
+                  非公式
+                </span>
+              </div>
               <p className="hidden text-[10px] font-medium text-[#666F7B] sm:block">
                 {config.subtitle}
               </p>
