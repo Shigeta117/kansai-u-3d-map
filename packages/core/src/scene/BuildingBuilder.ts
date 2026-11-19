@@ -7,6 +7,7 @@ import type {
   DioramaConfig,
   TerrainGrid,
 } from '../domain/types';
+import { SENRIYAMA_AERIAL_ROOF_HEX } from '../data/campuses/senriyama/roof-colors';
 import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { SCENE_PALETTE } from './palette';
@@ -22,6 +23,23 @@ export interface BuildingMeshRecord {
   group: THREE.Group;
   primaryMaterials: MaterialColorEntry[];
   baseY: number;
+  /** 屋根の色の切り替え用（主役の建物以外）。aerial は空中写真の色、area はエリアごとの塗り分け */
+  roofColors?: { entry: MaterialColorEntry; area: string; aerial?: string };
+}
+
+/** 屋根の色の決め方。aerial＝空中写真から読み取った色（無い建物はエリアの色）、area＝エリアごとの塗り分け */
+export type RoofColorMode = 'aerial' | 'area';
+
+export function applyRoofColorMode(
+  records: Map<string, BuildingMeshRecord>,
+  mode: RoofColorMode,
+): void {
+  for (const rec of records.values()) {
+    const rc = rec.roofColors;
+    if (!rc) continue;
+    rc.entry.baseHex = mode === 'aerial' && rc.aerial ? rc.aerial : rc.area;
+    rc.entry.mat.color.set(rc.entry.baseHex);
+  }
 }
 
 export interface BuildingsBuildResult {
@@ -162,7 +180,12 @@ export function buildBuildingsGroup(
   buildings: BuildingFeature[],
   minElevation: number,
   config: CampusConfig,
-  options: { forExport?: boolean; campusOnly?: boolean; terrain?: TerrainGrid } = {},
+  options: {
+    forExport?: boolean;
+    campusOnly?: boolean;
+    terrain?: TerrainGrid;
+    roofColorMode?: RoofColorMode;
+  } = {},
 ): BuildingsBuildResult {
   const root = new THREE.Group();
   root.name = 'campus-buildings-root';
@@ -291,9 +314,12 @@ export function buildBuildingsGroup(
 
     const wallHex = getShadeVariant(SCENE_PALETTE.buildings[b.category], b.id);
     const roofOverride = SCENE_PALETTE.roofOverrides[b.category];
-    const roofHex = roofOverride
+    const areaRoofHex = roofOverride
       ? roofOverride
       : `#${new THREE.Color(wallHex).offsetHSL(0, -0.04, 0.04).getHexString()}`;
+    const aerialRoofHex = SENRIYAMA_AERIAL_ROOF_HEX[b.id];
+    const roofHex =
+      (options.roofColorMode ?? 'aerial') === 'aerial' && aerialRoofHex ? aerialRoofHex : areaRoofHex;
 
     const { geometry, roofVisualY, groundVisualY } = createExtrudedBuildingGeometry(
       b,
@@ -307,6 +333,7 @@ export function buildBuildingsGroup(
       roughness: 0.82,
       metalness: 0.03,
     });
+    const roofEntry: MaterialColorEntry = { mat: roofMat, baseHex: roofHex };
     const wallMat = new THREE.MeshStandardMaterial({
       color: wallHex,
       roughness: 0.78,
@@ -340,11 +367,9 @@ export function buildBuildingsGroup(
       group: bGroup,
       primaryMaterials: options.forExport
         ? [{ mat: wallMat, baseHex: wallHex }]
-        : [
-            { mat: roofMat, baseHex: roofHex },
-            { mat: wallMat, baseHex: wallHex },
-          ],
+        : [roofEntry, { mat: wallMat, baseHex: wallHex }],
       baseY: 0,
+      roofColors: { entry: roofEntry, area: areaRoofHex, aerial: aerialRoofHex },
     });
   }
 
