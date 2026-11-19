@@ -1,7 +1,29 @@
 import * as THREE from 'three';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import { computeVisualY } from '../domain/projection';
-import type { BuildingFeature, CampusConfig, RouteResult } from '../domain/types';
+import type {
+  BuildingFeature,
+  CampusConfig,
+  DioramaConfig,
+  RouteResult,
+} from '../domain/types';
+
+const DIORAMA_TARGET_INSET_M = 40;
+const DIORAMA_MAX_DISTANCE_M = 1600;
+
+export function clampTargetToDiorama(
+  target: { x: number; y: number; z: number },
+  diorama: DioramaConfig,
+  insetM = DIORAMA_TARGET_INSET_M,
+): { x: number; y: number; z: number } {
+  const insetX = Math.min(insetM, (diorama.maxX - diorama.minX) * 0.5);
+  const insetZ = Math.min(insetM, (diorama.maxZ - diorama.minZ) * 0.5);
+  return {
+    x: Math.max(diorama.minX + insetX, Math.min(diorama.maxX - insetX, target.x)),
+    y: Math.max(-5, Math.min(140, target.y)),
+    z: Math.max(diorama.minZ + insetZ, Math.min(diorama.maxZ - insetZ, target.z)),
+  };
+}
 
 export interface CameraPose {
   position: [number, number, number];
@@ -78,7 +100,7 @@ function easeInOutCubic(t: number): number {
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: MapControls;
-  private readonly bounds: CampusConfig['bounds'];
+  private readonly diorama: CampusConfig['diorama'];
   private readonly tempSpherical = new THREE.Spherical();
   private readonly tempOffset = new THREE.Vector3();
   private flight: FlightState | null = null;
@@ -92,7 +114,7 @@ export class CameraRig {
     reducedMotion = false,
     initialCamera?: CameraPose,
   ) {
-    this.bounds = config.bounds;
+    this.diorama = config.diorama;
     this.reducedMotion = reducedMotion;
     this.camera = new THREE.PerspectiveCamera(42, aspect, 2, 4000);
 
@@ -114,7 +136,7 @@ export class CameraRig {
     this.controls.panSpeed = 1.0;
     this.controls.zoomSpeed = 0.9;
     this.controls.minDistance = 35;
-    this.controls.maxDistance = 1180;
+    this.controls.maxDistance = DIORAMA_MAX_DISTANCE_M;
     this.controls.minPolarAngle = 0.05;
     this.controls.maxPolarAngle = 1.28;
     this.controls.screenSpacePanning = false;
@@ -127,9 +149,26 @@ export class CameraRig {
     } else {
       this.controls.target.set(25, 38, 25);
     }
+    this.clampControlsTarget();
     this.controls.update();
 
     this.controls.addEventListener('start', this.handleControlStart);
+  }
+
+  private clampControlsTarget(): void {
+    const prevX = this.controls.target.x;
+    const prevY = this.controls.target.y;
+    const prevZ = this.controls.target.z;
+    const clamped = clampTargetToDiorama(this.controls.target, this.diorama);
+    const dx = clamped.x - prevX;
+    const dy = clamped.y - prevY;
+    const dz = clamped.z - prevZ;
+    if (dx !== 0 || dy !== 0 || dz !== 0) {
+      this.controls.target.set(clamped.x, clamped.y, clamped.z);
+      this.camera.position.x += dx;
+      this.camera.position.y += dy;
+      this.camera.position.z += dz;
+    }
   }
 
   private handleControlStart = (): void => {
@@ -143,6 +182,7 @@ export class CameraRig {
       this.camera.position.copy(this.flight.endPos);
       this.controls.target.copy(this.flight.endTarget);
       this.flight = null;
+      this.clampControlsTarget();
       this.controls.update();
     }
   }
@@ -162,6 +202,7 @@ export class CameraRig {
       this.flight = null;
       this.camera.position.set(...position);
       this.controls.target.set(...target);
+      this.clampControlsTarget();
       this.controls.update();
       return;
     }
@@ -335,17 +376,8 @@ export class CameraRig {
       }
     }
 
-    this.controls.target.x = Math.max(
-      this.bounds.minX + 30,
-      Math.min(this.bounds.maxX - 30, this.controls.target.x),
-    );
-    this.controls.target.z = Math.max(
-      this.bounds.minZ + 30,
-      Math.min(this.bounds.maxZ - 30, this.controls.target.z),
-    );
-    this.controls.target.y = Math.max(-5, Math.min(140, this.controls.target.y));
-
     this.controls.update();
+    this.clampControlsTarget();
     return didFly;
   }
 

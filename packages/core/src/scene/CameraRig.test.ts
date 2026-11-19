@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatCameraParam, parseCameraParam } from './CameraRig';
+import { SENRIYAMA_CONFIG } from '../data/campuses/senriyama/config';
+import {
+  clampTargetToDiorama,
+  formatCameraParam,
+  parseCameraParam,
+} from './CameraRig';
 
 describe('camera param parsing and formatting', () => {
   it('parses valid 6-number comma-separated cam parameter', () => {
@@ -42,5 +47,40 @@ describe('camera param parsing and formatting', () => {
       position: [-110.4, 185.2, 225.8],
       target: [88.1, 36, -15.3],
     });
+  });
+});
+
+describe('clampTargetToDiorama', () => {
+  it('clamps target coordinates to 40m inside the diorama bounds', () => {
+    const diorama = SENRIYAMA_CONFIG.diorama;
+
+    expect(clampTargetToDiorama({ x: 0, y: 30, z: 50 }, diorama)).toEqual({
+      x: 0,
+      y: 30,
+      z: 50,
+    });
+
+    expect(clampTargetToDiorama({ x: -600, y: -20, z: -500 }, diorama)).toEqual({
+      x: -440,
+      y: -5,
+      z: -310,
+    });
+
+    expect(clampTargetToDiorama({ x: 700, y: 200, z: 700 }, diorama)).toEqual({
+      x: 490,
+      y: 140,
+      z: 525,
+    });
+  });
+
+  it('keeps every Senriyama camera preset target inside the clamped diorama range', () => {
+    for (const preset of SENRIYAMA_CONFIG.cameraPresets) {
+      const [tx, ty, tz] = preset.target;
+      const clamped = clampTargetToDiorama(
+        { x: tx, y: ty, z: tz },
+        SENRIYAMA_CONFIG.diorama,
+      );
+      expect(clamped).toEqual({ x: tx, y: ty, z: tz });
+    }
   });
 });

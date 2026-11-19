@@ -260,8 +260,10 @@ export function buildTerrainGroup(
   topMesh.castShadow = false;
   group.add(topMesh);
 
-  const plinthMesh = buildDioramaPlinth(terrain, exag);
-  group.add(plinthMesh);
+  if (options.forExport) {
+    const plinthMesh = buildDioramaPlinth(terrain, exag);
+    group.add(plinthMesh);
+  }
 
   const pathsGroup = buildPathsOverlay(paths, terrain, minElevation, exag);
   group.add(pathsGroup);

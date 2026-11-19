@@ -37,9 +37,9 @@ export class LightingRig {
   }
 
   applyTheme(theme: LightingTheme, scene: THREE.Scene): void {
+    scene.fog = null;
     if (theme === 'day') {
       scene.background = new THREE.Color(SCENE_PALETTE.background.day);
-      scene.fog = new THREE.Fog(SCENE_PALETTE.fog.day, 1150, 2400);
       this.hemiLight.color.set('#FFFDF7');
       this.hemiLight.groundColor.set('#BFAF9B');
       this.hemiLight.intensity = 0.94;
@@ -50,7 +50,6 @@ export class LightingRig {
       this.fillLight.intensity = 0.48;
     } else {
       scene.background = new THREE.Color(SCENE_PALETTE.background.golden);
-      scene.fog = new THREE.Fog(SCENE_PALETTE.fog.golden, 1050, 2250);
       this.hemiLight.color.set('#FFE0C2');
       this.hemiLight.groundColor.set('#7D6874');
       this.hemiLight.intensity = 0.85;
