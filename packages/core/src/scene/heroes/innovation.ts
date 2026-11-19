@@ -95,16 +95,62 @@ const FOOTING_BELOW_LOWEST_GROUND_M = 0.5;
 const COLORS = {
   concrete: '#BDBAB2', // 打ち放しの基壇
   stair: '#C8C5BD',
-  panel: '#868B90', // 縦の目地の金属パネル
+  panel: '#AEB3B7', // 縦の目地の金属パネル（写真では銀灰色。暗くすると黒く見える）
   backGlass: '#97A9AE', // ルーバーの奥のガラスと窓の枠（灰青。写真では組の間から明るく見える）
-  warmGlass: '#BCA684', // 1 階のカフェ: 暖色の室内が透けるガラス（方立ては銀の線）。看板は作らない
-  warmGlow: '#2E2112', // 室内の明かり（ごく弱い自己発光）
+  warmGlass: '#5B544B', // 1 階のカフェのガラス（Node では無地。ブラウザでは室内の明かりの模様を描く）。看板は作らない
+  warmGlow: '#24190C', // 室内の明かり（ごく弱い自己発光）
   glassBox: '#B3C3C8', // 明るい灰青のガラス（銀の方立てで割る）
   fin: '#A3CEC5', // 淡い青緑のガラスのルーバー
   silver: '#D2D6D8',
   steel: '#565B61',
   roof: '#8E908F',
 } as const;
+
+/**
+ * 1 階のカフェのガラスの模様（ブラウザだけ。Node では null）。写真では、ガラスの奥に暖色の照明と
+ * 明るい天井が見え、下の方は家具と人で暗い。一様な明るい色にすると不透明な壁に見える（破壊者レビュー 2 回目）。
+ * 横は方立て 4 本分、縦は 1 階分。色をそのまま描くので、材質の color は白にして使う
+ */
+function createCafeGlassTexture(faceWidthM: number): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const w = 256;
+  const h = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d');
+  if (!g) return null;
+  const sky = g.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#6A6258');
+  sky.addColorStop(1, '#3A352F');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, w, h);
+  // 天井の明るい帯と、吊りの照明
+  g.fillStyle = '#E3C996';
+  g.fillRect(0, Math.round(h * 0.1), w, Math.round(h * 0.07));
+  // 室内の暖色の明かり（決まった並び。乱数は使わない）
+  const spots = [
+    [0.04, 0.26, 0.16, 0.3, 0.75],
+    [0.27, 0.22, 0.12, 0.36, 0.6],
+    [0.45, 0.28, 0.2, 0.26, 0.8],
+    [0.71, 0.24, 0.1, 0.34, 0.55],
+    [0.84, 0.3, 0.13, 0.24, 0.7],
+  ] as const;
+  for (const [x, y, sw, sh, a] of spots) {
+    g.fillStyle = `rgba(236, 196, 128, ${a})`;
+    g.fillRect(Math.round(x * w), Math.round(y * h), Math.round(sw * w), Math.round(sh * h));
+  }
+  // 足元は家具と人で暗い
+  g.fillStyle = 'rgba(40, 35, 30, 0.75)';
+  g.fillRect(0, Math.round(h * 0.68), w, h - Math.round(h * 0.68));
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.repeat.set(Math.max(1, faceWidthM / (GROUND_MULLION_PITCH_M * 4)), 1);
+  tex.needsUpdate = true;
+  return tex;
+}
 
 export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult => {
   const group = new THREE.Group();
@@ -130,10 +176,17 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
     new THREE.MeshStandardMaterial({ color, roughness, metalness });
   const concreteMat = mat(COLORS.concrete, 0.9, 0.02);
   const stairMat = mat(COLORS.stair, 0.88, 0.02);
-  const panelMat = mat(COLORS.panel, 0.6, 0.15);
+  const panelMat = mat(COLORS.panel, 0.5, 0.05);
   const backGlassMat = mat(COLORS.backGlass, 0.3, 0.08);
-  const warmGlassMat = mat(COLORS.warmGlass, 0.25, 0.05);
-  warmGlassMat.emissive.set(COLORS.warmGlow);
+  const cafeGlassMat = (faceWidthM: number): THREE.MeshStandardMaterial => {
+    const tex = createCafeGlassTexture(faceWidthM);
+    const m = mat(tex ? '#FFFFFF' : COLORS.warmGlass, 0.2, 0.05);
+    m.map = tex;
+    m.emissive.set(COLORS.warmGlow);
+    return m;
+  };
+  const warmGlassFrontMat = cafeGlassMat(PANEL_U1 - LONG_U0);
+  const warmGlassSideMat = cafeGlassMat(BACK_V - FRONT_V - GROUND_FLOOR_SETBACK_M);
   const glassBoxMat = mat(COLORS.glassBox, 0.15, 0.1);
   const finMat = mat(COLORS.fin, 0.25, 0.05);
   const silverMat = mat(COLORS.silver, 0.4, 0.3);
@@ -181,7 +234,7 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
     upperY0,
     FRONT_V + GROUND_FLOOR_SETBACK_M,
     BACK_V,
-    [warmGlassMat, panelMat, roofMat, concreteMat, panelMat, warmGlassMat],
+    [warmGlassSideMat, panelMat, roofMat, concreteMat, panelMat, warmGlassFrontMat],
   );
 
   // --- 3. 長い棟の 2〜4 階（正面は灰青のガラス、その前にルーバー） ---

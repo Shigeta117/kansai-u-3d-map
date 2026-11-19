@@ -144,7 +144,7 @@ describe('buildInnovation', () => {
 
   it('exposes the metal panel, the glass louvers and the glass box as primaryMaterials', () => {
     expect(result.primaryMaterials).toHaveLength(3);
-    expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#868B90', '#A3CEC5', '#B3C3C8']);
+    expect(result.primaryMaterials.map((m) => m.baseHex)).toEqual(['#AEB3B7', '#A3CEC5', '#B3C3C8']);
     for (const entry of result.primaryMaterials) {
       expect(entry.mat).toBeInstanceOf(THREE.MeshStandardMaterial);
       expect(entry.mat.metalness).toBeLessThanOrEqual(0.3);
@@ -183,7 +183,7 @@ describe('buildInnovation', () => {
     expect(frontV).toBeLessThan(longFrontV);
   });
 
-  it('shows glass on the ground floor (warm, light, with silver mullions) instead of an opaque brown wall', () => {
+  it('shows glass on the ground floor (darker than the concrete plinth, warm) instead of an opaque light wall', () => {
     const gf = result.group.getObjectByName('innovation-ground-floor');
     if (!(gf instanceof THREE.Mesh)) throw new Error('ground floor missing');
     const mats = gf.material as THREE.MeshStandardMaterial[];
@@ -192,8 +192,10 @@ describe('buildInnovation', () => {
     if (!front) throw new Error('front material missing');
     const hsl = { h: 0, s: 0, l: 0 };
     front.color.getHSL(hsl, THREE.SRGBColorSpace);
-    expect(hsl.l).toBeGreaterThan(0.5);
+    // 一様な明るい色は不透明な壁に見える（破壊者レビュー 2 回目）。Node では模様が無いので、地の色が基壇より暗いことを見る
+    expect(hsl.l).toBeLessThan(0.4);
     expect(front.color.r).toBeGreaterThan(front.color.b);
+    expect(front.emissive.r).toBeGreaterThan(0);
   });
 
   describe('on ground that falls to the south-east', () => {
