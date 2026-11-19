@@ -324,6 +324,8 @@ export function BottomSheet({
 
   // つまみと見出し: Pointer Events（指・マウス・ペン）。touch-action: none で常にシートの移動
   const handleGrabPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // 新しい押し始め。前のドラッグの直後でも、このタップのクリックは捨てない
+    suppressClickUntilRef.current = 0;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     beginDrag('pointer', e.pointerId, e.clientY, e.timeStamp);
   };
