@@ -471,6 +471,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
     ),
     patinaMat,
   );
+  // 蓋の無い押し出し（three r175）。見える端の面は planarFace で張っている（extrudeLids.test.ts の除外の対象）
+  shell.name = 'centenary-vault-shell';
   shell.position.set(0, springY, HALL_NORTH_S - VAULT_EAVE_NORTH_M);
   shell.castShadow = true;
   shell.receiveShadow = true;
@@ -581,6 +583,7 @@ export const buildCentenary: HeroBuilder = (ctx) => {
     new THREE.ExtrudeGeometry(canopyProfile, { depth: canopyLength, bevelEnabled: false }),
     patinaMat,
   );
+  canopyShell.name = 'centenary-canopy-shell';
   canopyShell.castShadow = true;
   canopy.add(canopyShell);
   // 前の端の薄い縁（写真で前の縁が見える）。ExtrudeGeometry が蓋を作らないので自前で張る
@@ -598,6 +601,7 @@ export const buildCentenary: HeroBuilder = (ctx) => {
     ),
     soffitMat,
   );
+  soffit.name = 'centenary-canopy-soffit';
   soffit.position.z = 0.05;
   canopy.add(soffit);
 

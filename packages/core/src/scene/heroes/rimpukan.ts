@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ensureExtrudeLids } from '../extrudeLids';
 import type { HeroBuilder } from './types';
 
 // Palette from visual research and project brief
@@ -1005,11 +1006,17 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   canopyShape.lineTo(canopyMinX, canopyMinSy + 2.5);
   canopyShape.quadraticCurveTo(canopyMinX, canopyMinSy, canopyMinX + 2.5, canopyMinSy);
 
-  const canopyGeo = new THREE.ExtrudeGeometry(canopyShape, {
-    depth: upperCanopyThick,
-    bevelEnabled: false,
-    curveSegments: 8,
-  });
+  // three r175 は面取りなしの押し出しに蓋（庇の上面と下面）を作らないので補う
+  const canopyGeo = ensureExtrudeLids(
+    new THREE.ExtrudeGeometry(canopyShape, {
+      depth: upperCanopyThick,
+      bevelEnabled: false,
+      curveSegments: 8,
+    }),
+    canopyShape,
+    upperCanopyThick,
+    { curveSegments: 8 },
+  );
   canopyGeo.rotateX(-Math.PI / 2);
   canopyGeo.translate(0, upperBodyH, 0);
   canopyGeo.computeVertexNormals();
@@ -1264,10 +1271,15 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   wingShape.lineTo(stairBackZ, landingTopY + 0.35);
   wingShape.closePath();
 
-  const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
-    depth: wingThick,
-    bevelEnabled: false,
-  });
+  // 袖壁の外と内の大きな面は押し出しの蓋にあたる（three r175 は作らないので補う）
+  const wingGeo = ensureExtrudeLids(
+    new THREE.ExtrudeGeometry(wingShape, {
+      depth: wingThick,
+      bevelEnabled: false,
+    }),
+    wingShape,
+    wingThick,
+  );
   wingGeo.translate(0, 0, -wingThick * 0.5);
   wingGeo.rotateY(-Math.PI / 2);
   wingGeo.computeVertexNormals();
