@@ -8,6 +8,7 @@ import type {
   TerrainGrid,
 } from '../domain/types';
 import { SENRIYAMA_AERIAL_ROOF_HEX } from '../data/campuses/senriyama/roof-colors';
+import { ensureExtrudeLids } from './extrudeLids';
 import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { SCENE_PALETTE } from './palette';
@@ -88,7 +89,7 @@ function createExtrudedBuildingGeometry(
   const totalDepth = Math.max(2.5, roofVisualY - minVisualY);
 
   const shape = toShapeInXZ(b.polygon, b.holes);
-  const geo = new THREE.ExtrudeGeometry(shape, {
+  const extruded = new THREE.ExtrudeGeometry(shape, {
     depth: totalDepth,
     bevelEnabled: bevel,
     bevelThickness: bevel ? 0.25 : 0,
@@ -96,6 +97,10 @@ function createExtrudedBuildingGeometry(
     bevelSegments: bevel ? 1 : 0,
     curveSegments: 4,
   });
+  // 面取りなし（周辺の建物）だと three r175 は屋根を作らないので補う。底は地面の下に隠れるので張らない
+  const geo = bevel
+    ? extruded
+    : ensureExtrudeLids(extruded, shape, totalDepth, { curveSegments: 4, bottom: false });
 
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, minVisualY, 0);
