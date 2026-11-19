@@ -143,7 +143,9 @@ describe('buildLibrary', () => {
       expect(box.min.z).toBeGreaterThanOrEqual(0);
       expect(box.max.z).toBeLessThanOrEqual(125);
       expect(box.min.y).toBeGreaterThanOrEqual(groundVisualY - 5);
-      expect(box.max.y).toBeLessThanOrEqual(groundVisualY + 20);
+      // 上限は 20m → 22m に広げた。写真で右の塔の屋根の線が本体より上がっているため、
+      // 右の塔をテラス 4.8m + 本体 14.4m + 2.5m = 21.7m にした（左の塔は +1.5m）
+      expect(box.max.y).toBeLessThanOrEqual(groundVisualY + 22);
       // 3 階建て＋基壇として、誤った OSM 高さ（9m）より十分に高いことを確認
       expect(box.max.y).toBeGreaterThan(groundVisualY + 15);
     },

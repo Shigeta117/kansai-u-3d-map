@@ -12,7 +12,7 @@ const RAILING_HEX = '#E8E8E4';
 const TRUNK_HEX = '#6B5444';
 const SAKURA_HEX = '#F1B9C7';
 const POLE_HEX = '#F4F4F4';
-const UPPER_HEX = '#CDBFA6';
+const UPPER_HEX = '#D9CCB3';
 const STAIR_HEX = '#8E5848';
 const OPENING_HEX = '#2E3438';
 const PLAQUE_FRAME_HEX = '#CFC5B0';
@@ -567,7 +567,7 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
 
   const totalH = building.height > 6 ? building.height : 16.6;
   const floor1H = 4.2;
-  const solarBandH = 1.4;
+  const solarBandH = 2.5; // photo: dark panel band is ~1/6 of the brown wall band, clearly heavier than the white fence
   const bodyTopH = Math.max(floor1H + 4, totalH - solarBandH);
   const roofH = bodyTopH + solarBandH; // 16.6m for default height 16.6
 
@@ -1073,15 +1073,13 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
 
   const stairWidth = 18.0;
   const wingThick = 0.8;
-  const openingWidth = 4.0;
-  const openingHeight = 2.6;
   const stairBackZ = -3.0; // tucked into curved drum to close side gaps
   const landingFrontZ = 2.0;
   const stairFrontZ = 9.6; // ~12m depth from front curve; stays well within x >= 85
   const landingDepth = landingFrontZ - stairBackZ;
   const landingCenterZ = (stairBackZ + landingFrontZ) * 0.5;
   const landingDeckThickness = 1.2;
-  const landingUndersideY = floor1H - landingDeckThickness; // 3.0m clear over 2.6m 1F opening
+  const landingUndersideY = floor1H - landingDeckThickness;
 
   // 2F top landing bridge spanning between the two 0.8m wing walls (no coplanar overlap)
   const innerStairWidth = stairWidth - wingThick * 2; // 16.4m
@@ -1093,36 +1091,26 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   landingMesh.receiveShadow = true;
   frontGroup.add(landingMesh);
 
-  // Left and right solid supports under the landing flanking the central 4m opening
-  const flightWidth = (innerStairWidth - openingWidth) * 0.5; // 6.2m each
-  const flightCenterX = openingWidth * 0.5 + flightWidth * 0.5; // 5.1m
-  const supportGeo = new THREE.BoxGeometry(flightWidth, landingUndersideY, landingDepth);
+  // One solid full-width mass under the landing (photo: a single unbroken staircase, no central gap)
+  const supportGeo = new THREE.BoxGeometry(innerStairWidth, landingUndersideY, landingDepth);
   supportGeo.translate(0, landingUndersideY * 0.5, 0);
+  const supportMesh = new THREE.Mesh(supportGeo, stairMat);
+  supportMesh.name = 'rimpukan-stairs-support';
+  supportMesh.position.set(0, 0, landingCenterZ);
+  supportMesh.receiveShadow = true;
+  frontGroup.add(supportMesh);
 
-  const leftSupport = new THREE.Mesh(supportGeo, stairMat);
-  leftSupport.name = 'rimpukan-stairs-support-left';
-  leftSupport.position.set(-flightCenterX, 0, landingCenterZ);
-  leftSupport.receiveShadow = true;
-  frontGroup.add(leftSupport);
-
-  const rightSupport = new THREE.Mesh(supportGeo, stairMat);
-  rightSupport.name = 'rimpukan-stairs-support-right';
-  rightSupport.position.set(flightCenterX, 0, landingCenterZ);
-  rightSupport.receiveShadow = true;
-  frontGroup.add(rightSupport);
-
-  // 12 crisp steps on left and right flights (24 instances in 1 InstancedMesh)
+  // 12 crisp full-width steps, continuous from the bottom step to the landing
   const stepCount = 12;
   const runTotal = stairFrontZ - landingFrontZ;
   const stepRun = runTotal / stepCount;
 
   const stepGeo = new THREE.BoxGeometry(1, 1, 1);
   stepGeo.translate(0, 0.5, 0);
-  const stepInst = new THREE.InstancedMesh(stepGeo, stairMat, stepCount * 2);
+  const stepInst = new THREE.InstancedMesh(stepGeo, stairMat, stepCount);
   stepInst.name = 'rimpukan-stairs-steps';
   stepInst.receiveShadow = true;
 
-  let stepIdx = 0;
   for (let i = 0; i < stepCount; i++) {
     const stepTop = floor1H * ((stepCount - i) / (stepCount + 1));
     const zBack = landingFrontZ + i * stepRun;
@@ -1130,14 +1118,11 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
     const zCenter = (zFront + zBack) * 0.5;
     const depth = zFront - zBack;
 
-    for (const side of [-1, 1]) {
-      dummy.position.set(side * flightCenterX, 0, zCenter);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(flightWidth, stepTop, depth);
-      dummy.updateMatrix();
-      stepInst.setMatrixAt(stepIdx, dummy.matrix);
-      stepIdx++;
-    }
+    dummy.position.set(0, 0, zCenter);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(innerStairWidth, stepTop, depth);
+    dummy.updateMatrix();
+    stepInst.setMatrixAt(i, dummy.matrix);
   }
   stepInst.instanceMatrix.needsUpdate = true;
   stepInst.computeBoundingBox();
@@ -1176,23 +1161,36 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   rightWingWall.receiveShadow = true;
   frontGroup.add(rightWingWall);
 
-  // Small 2F entrance box centered at top of the staircase
-  const entrance2FGeo = new THREE.BoxGeometry(4.6, 2.8, 2.6);
-  const entrance2FMesh = new THREE.Mesh(entrance2FGeo, glassMat);
-  entrance2FMesh.name = 'rimpukan-entrance-2f';
-  entrance2FMesh.position.set(0, floor1H + 1.4, 0.0);
-  entrance2FMesh.receiveShadow = true;
-  frontGroup.add(entrance2FMesh);
+  // Brown entrance box jutting out of the upper-middle of the staircase (photo: dark opening
+  // sits in its front face, just above the step it stands on; no glass box on the wall above)
+  const entranceBoxW = 4.6;
+  const entranceBoxFrontZ = 4.5;
+  const entranceBoxBackZ = -1.0;
+  const entranceBoxH = 5.2; // top ~1m above the landing deck
+  const entranceBoxGeo = new THREE.BoxGeometry(
+    entranceBoxW,
+    entranceBoxH,
+    entranceBoxFrontZ - entranceBoxBackZ,
+  );
+  entranceBoxGeo.translate(0, entranceBoxH * 0.5, 0);
+  const entranceBoxMesh = new THREE.Mesh(entranceBoxGeo, stairMat);
+  entranceBoxMesh.name = 'rimpukan-entrance-box';
+  entranceBoxMesh.position.set(0, 0, (entranceBoxFrontZ + entranceBoxBackZ) * 0.5);
+  entranceBoxMesh.castShadow = true;
+  entranceBoxMesh.receiveShadow = true;
+  frontGroup.add(entranceBoxMesh);
 
-  // Dark 1F ground-level opening box (4m wide x 2.6m tall) centered beneath landing
-  const entrance1FGeo = new THREE.BoxGeometry(openingWidth, openingHeight, 4.0);
-  entrance1FGeo.translate(0, openingHeight * 0.5, 0);
-  const entrance1FMesh = new THREE.Mesh(entrance1FGeo, openingMat);
-  entrance1FMesh.name = 'rimpukan-entrance-1f';
-  entrance1FMesh.position.set(0, 0, -0.4); // front face at localZ = +1.6 (0.4m under landing)
-  frontGroup.add(entrance1FMesh);
+  // Small dark opening on the box front (floor level = step tread at that depth, ~2.9m)
+  const openingW = 3.0;
+  const openingBottomY = 3.0;
+  const openingTopY = 4.7;
+  const openingGeo = new THREE.PlaneGeometry(openingW, openingTopY - openingBottomY);
+  const openingMesh = new THREE.Mesh(openingGeo, openingMat);
+  openingMesh.name = 'rimpukan-entrance-opening';
+  openingMesh.position.set(0, (openingBottomY + openingTopY) * 0.5, entranceBoxFrontZ + 0.02);
+  frontGroup.add(openingMesh);
 
-  // --- 8. Plain square 3F plaque (2.4m x 2.4m, no emblem) ---
+  // --- 8. Plain square 3F plaque (3.5m x 3.5m, no emblem) ---
   const hitLeft = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, -1.2);
   const hitCenter = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, 0);
   const hitRight = sampleFrontWallAt(ringCW, anchorX, anchorZ, fx, fz, 1.2);
@@ -1201,17 +1199,18 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
     hitCenter ? hitCenter.localZ : 0,
     hitRight ? hitRight.localZ : 0,
   );
-  const plaqueY = Math.min(bodyTopH - 2.4, 10.2);
+  const plaqueSize = 3.5; // photo: ~1/3 of the brown wall band height
+  const plaqueY = 10.6; // upper half of the brown wall band
   const plaqueFrameDepth = 0.72;
   const plaqueFrameFrontZ = wallFrontZ + 0.13;
 
-  const plaqueFrameGeo = new THREE.BoxGeometry(2.4, 2.4, plaqueFrameDepth);
+  const plaqueFrameGeo = new THREE.BoxGeometry(plaqueSize, plaqueSize, plaqueFrameDepth);
   const plaqueFrameMesh = new THREE.Mesh(plaqueFrameGeo, plaqueFrameMat);
   plaqueFrameMesh.name = 'rimpukan-plaque-frame';
   plaqueFrameMesh.position.set(0, plaqueY, plaqueFrameFrontZ - plaqueFrameDepth * 0.5);
   frontGroup.add(plaqueFrameMesh);
 
-  const plaqueInnerGeo = new THREE.BoxGeometry(1.96, 1.96, 0.03);
+  const plaqueInnerGeo = new THREE.BoxGeometry(plaqueSize * 0.82, plaqueSize * 0.82, 0.03);
   const plaqueInnerMesh = new THREE.Mesh(plaqueInnerGeo, plaqueInnerMat);
   plaqueInnerMesh.name = 'rimpukan-plaque-inner';
   plaqueInnerMesh.position.set(0, plaqueY, plaqueFrameFrontZ + 0.015);
@@ -1221,10 +1220,10 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
 
   // --- 9. Small vertical windows on the west front wall (4 windows, 0.9m x 1.8m) ---
   const windowSpecs: [number, number][] = [
-    [-4.5, Math.min(bodyTopH - 2.4, 10.2)],
-    [4.6, Math.min(bodyTopH - 2.4, 10.2)],
-    [-2.6, Math.min(bodyTopH - 1.6, 13.0)],
-    [2.0, Math.min(bodyTopH - 1.6, 13.0)],
+    [-5.2, 10.4],
+    [5.2, 10.4],
+    [-3.6, 12.6],
+    [3.6, 12.6],
   ];
   const windowHits: { hit: WallHit; y: number }[] = [];
   for (const [targetLx, wy] of windowSpecs) {

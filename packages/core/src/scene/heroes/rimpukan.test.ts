@@ -155,7 +155,7 @@ describe('buildRimpukan', () => {
       expect(roundCols.count).toBeLessThanOrEqual(2);
     }
     if (steps instanceof THREE.InstancedMesh) {
-      expect(steps.count).toBe(24);
+      expect(steps.count).toBe(12);
     }
     if (poles instanceof THREE.InstancedMesh) {
       expect(poles.count).toBe(6);
