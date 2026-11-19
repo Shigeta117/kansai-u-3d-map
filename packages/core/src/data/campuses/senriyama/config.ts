@@ -33,7 +33,7 @@ export const SENRIYAMA_CONFIG: CampusConfig = {
     {
       id: 'west-access',
       label: '西門・新アクセス路',
-      description: '関大前駅北口からエスカレーター上屋・第3学舎・秀麗橋高架を望む',
+      description: '関大前駅北口から新アクセス路・第3学舎・高架デッキを望む',
       position: [-435, 145, 425],
       target: [-215, 25, 195],
     },
@@ -46,8 +46,8 @@ export const SENRIYAMA_CONFIG: CampusConfig = {
     },
     {
       id: 'hobunzaka',
-      label: '法文坂・秀麗橋',
-      description: '秀麗橋高架から以文館・簡文館脇を抜け第1学舎高台へ',
+      label: '秀麗橋・法文坂',
+      description: '正門の上の秀麗橋から法文坂を上り、以文館・簡文館の脇を抜けて第1学舎の高台へ',
       position: [-265, 165, 195],
       target: [-55, 42, -90],
     },

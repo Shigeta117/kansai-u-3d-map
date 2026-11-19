@@ -6,6 +6,7 @@ import type {
   CampusConfig,
   DioramaConfig,
 } from '../domain/types';
+import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { SCENE_PALETTE } from './palette';
 import { mergeSimpleGeometries } from './TerrainBuilder';
@@ -197,6 +198,30 @@ export function buildBuildingsGroup(
       }
       geometry.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
       surroundingGeos.push(geometry);
+      continue;
+    }
+
+    // 写真で確かめた主役の建物は、OSM の押し出しの代わりに専用の形で組む（3D の書き出しは従来どおり）
+    const heroBuilder = options.forExport ? undefined : HERO_BUILDERS[b.id];
+    if (heroBuilder) {
+      const groundVisualY = computeVisualY(b.groundY, minElevation, exag);
+      const hero = heroBuilder({ building: b, groundVisualY });
+      hero.group.name = `building-${b.id}`;
+      hero.group.userData = { buildingId: b.id };
+      hero.group.traverse((obj) => {
+        obj.userData = { ...obj.userData, buildingId: b.id };
+        if (obj instanceof THREE.Mesh) {
+          interactiveMeshes.push(obj);
+        }
+      });
+      animatedRotors.push(...hero.animated);
+      root.add(hero.group);
+      campusRecords.set(b.id, {
+        building: b,
+        group: hero.group,
+        primaryMaterials: hero.primaryMaterials,
+        baseY: 0,
+      });
       continue;
     }
 
