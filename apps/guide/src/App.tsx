@@ -10,6 +10,7 @@ import {
   type CameraPose,
   type CampusDataset,
   type LightingTheme,
+  type RoofColorMode,
   type LocationSearchItem,
   type RouteMode,
 } from '@kansai-u-3d/core';
@@ -27,16 +28,20 @@ import { SENRIYAMA_FLOOR_PLANS } from './data/indoor/senriyama-indoor';
 interface GuideUrlParams {
   initialCamera?: CameraPose;
   hideUi: boolean;
+  freeCamera: boolean;
+  roofColorMode: RoofColorMode;
 }
 
 function parseGuideUrlParams(): GuideUrlParams {
   if (typeof window === 'undefined') {
-    return { hideUi: false };
+    return { hideUi: false, freeCamera: false, roofColorMode: 'aerial' };
   }
   const params = new URLSearchParams(window.location.search);
   return {
     initialCamera: parseCameraParam(params.get('cam')),
     hideUi: params.get('ui') === '0',
+    freeCamera: params.get('free') === '1',
+    roofColorMode: params.get('roof') === 'area' ? 'area' : 'aerial',
   };
 }
 
@@ -57,6 +62,7 @@ export function App() {
     'all',
   );
   const [lighting, setLighting] = useState<LightingTheme>('day');
+  const [roofColorMode, setRoofColorMode] = useState<RoofColorMode>(urlParams.roofColorMode);
   const [showLabels, setShowLabels] = useState(true);
   const [activePresetId, setActivePresetId] = useState(
     config.cameraPresets[0]?.id ?? 'overview',
@@ -248,7 +254,9 @@ export function App() {
           activeCategory={activeCategory}
           activeRoute={activeRoute}
           lighting={lighting}
+          roofColorMode={roofColorMode}
           initialCamera={urlParams.initialCamera}
+          freeCamera={urlParams.freeCamera}
           onSelectBuilding={handleSelectBuilding}
           onSceneChange={setScene}
           sceneRef={sceneRef}
@@ -369,6 +377,8 @@ export function App() {
             lighting={lighting}
             showLabels={showLabels}
             onChangeLighting={setLighting}
+            roofColorMode={roofColorMode}
+            onChangeRoofColorMode={setRoofColorMode}
             onToggleLabels={() => setShowLabels((prev) => !prev)}
             onOpenCredits={() => setCreditsOpen(true)}
             onClose={handleCloseMenu}

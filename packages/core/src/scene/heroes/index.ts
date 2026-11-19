@@ -1,3 +1,9 @@
+import { buildArea3 } from './area3';
+import { buildCentenary } from './centenary';
+import { buildEnshinkan } from './enshinkan';
+import { buildIbunkan } from './ibunkan';
+import { buildInnovation } from './innovation';
+import { buildKanbunkan } from './kanbunkan';
 import { buildLibrary } from './library';
 import { buildMainGate } from './mainGate';
 import { buildRimpukan } from './rimpukan';
@@ -10,6 +16,12 @@ export type { HeroBuildContext, HeroBuildResult, HeroBuilder } from './types';
  * LandmarkSculptor の飾りの代わりに、専用の形で描かれる（写真で確かめた主役の建物だけ）。
  */
 export const HERO_BUILDERS: Readonly<Record<string, HeroBuilder>> = {
+  area3: buildArea3,
+  centenary: buildCentenary,
+  enshinkan: buildEnshinkan,
+  ibunkan: buildIbunkan,
+  innovation: buildInnovation,
+  kanbunkan: buildKanbunkan,
   library: buildLibrary,
   'main-gate': buildMainGate,
   rimpukan: buildRimpukan,

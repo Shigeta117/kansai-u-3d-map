@@ -24,6 +24,7 @@ export {
   type BuildingMeshRecord,
   type BuildingsBuildResult,
   type MaterialColorEntry,
+  type RoofColorMode,
 } from './scene/BuildingBuilder';
 export {
   buildDioramaBaseGroup,

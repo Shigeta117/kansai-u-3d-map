@@ -55,6 +55,72 @@ function instanceCorners(mesh: THREE.InstancedMesh): THREE.Vector3[][] {
   return out;
 }
 
+/** group の正確な外形（InstancedMesh は各インスタンスの隅から。three の setFromObject は回転した group で膨らむ） */
+function preciseBox(group: THREE.Object3D): THREE.Box3 {
+  const box = new THREE.Box3();
+  group.traverse((obj) => {
+    if (obj instanceof THREE.InstancedMesh) {
+      for (const corners of instanceCorners(obj)) {
+        for (const p of corners) box.expandByPoint(p);
+      }
+    } else if (obj instanceof THREE.Mesh) {
+      box.union(new THREE.Box3().setFromObject(obj, true));
+    }
+  });
+  return box;
+}
+
+/** OSM の大階段（steps の道 path_423060514）の上端・下端と、メインストリート（path_423060527）の中心線 */
+const OSM_STAIR_TOP = new THREE.Vector2(-52.9, 94.4);
+const OSM_STAIR_BOTTOM = new THREE.Vector2(-69.4, 123.8);
+const MAIN_STREET: [number, number][] = [
+  [-111.2, 120.4],
+  [-89.7, 122.1],
+  [-69.4, 123.8],
+  [-50.2, 124.5],
+  [-33.3, 126.5],
+  [-19.2, 123.4],
+];
+const MAIN_STREET_HALF_WIDTH = 2.1;
+
+function distanceToStreet(x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 0; i + 1 < MAIN_STREET.length; i++) {
+    const a = MAIN_STREET[i];
+    const b = MAIN_STREET[i + 1];
+    if (!a || !b) continue;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)));
+    best = Math.min(best, Math.hypot(a[0] + dx * t - x, a[1] + dz * t - z));
+  }
+  return best;
+}
+
+/** 底面の 4 隅（xz）で囲まれた長方形から点 p までの距離（中なら 0） */
+function distanceToFootprint(corners: THREE.Vector3[], p: THREE.Vector2): number {
+  const bottom = Math.min(...corners.map((c) => c.y));
+  const quad = corners.filter((c) => c.y < bottom + 1e-6).map((c) => new THREE.Vector2(c.x, c.z));
+  const [a, b, c, d] = quad;
+  if (!a || !b || !c || !d) return Infinity;
+  // 箱の底面の隅は (-,-), (-,+), (+,-), (+,+) の順（instanceCorners の並び）。周回の順に並べ替える
+  const ring = [a, b, d, c];
+  let inside = true;
+  let minEdge = Infinity;
+  for (let i = 0; i < 4; i++) {
+    const p0 = ring[i] as THREE.Vector2;
+    const p1 = ring[(i + 1) % 4] as THREE.Vector2;
+    const e = p1.clone().sub(p0);
+    const cross = e.x * (p.y - p0.y) - e.y * (p.x - p0.x);
+    const ref = ring[(i + 2) % 4] as THREE.Vector2;
+    const refCross = e.x * (ref.y - p0.y) - e.y * (ref.x - p0.x);
+    if (Math.sign(cross) !== Math.sign(refCross) && Math.abs(cross) > 1e-9) inside = false;
+    const t = Math.max(0, Math.min(1, p.clone().sub(p0).dot(e) / e.lengthSq()));
+    minEdge = Math.min(minEdge, p0.clone().addScaledVector(e, t).distanceTo(p));
+  }
+  return inside ? 0 : minEdge;
+}
+
 function createLibraryBuilding(): BuildingFeature {
   return {
     id: 'library',
@@ -171,13 +237,14 @@ describe('buildLibrary', () => {
       });
 
       result.group.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(result.group);
+      const box = preciseBox(result.group);
 
       expect(box.isEmpty()).toBe(false);
       expect(box.min.x).toBeGreaterThanOrEqual(-95);
       expect(box.max.x).toBeLessThanOrEqual(40);
       expect(box.min.z).toBeGreaterThanOrEqual(0);
-      expect(box.max.z).toBeLessThanOrEqual(125);
+      // 大階段の下端はメインストリート（中心線 z≈124）の北の縁まで。道の上・道の向こうへは出ない
+      expect(box.max.z).toBeLessThanOrEqual(124);
       // 平らな地面では、底は地面より 0.5m 下
       expect(box.min.y).toBeCloseTo(groundVisualY - 0.5, 5);
       // 右の塔はテラス 0.6m + 本体 14.4m + 2.5m = 17.5m（左の塔は +1.5m）
@@ -280,6 +347,99 @@ describe('buildLibrary', () => {
       expect(new THREE.Box3().setFromObject(body).min.y).toBeLessThanOrEqual(
         lowestOutline - 0.5 + 1e-6,
       );
+    });
+
+    it('runs the stair centerline along the OSM steps from the entrance down to the main street', () => {
+      // 上端の段（いちばん高い段）の中心は OSM の上端の近く
+      const topIdx = stepTops.indexOf(Math.max(...stepTops));
+      const top = steps[topIdx];
+      if (!top) throw new Error('steps empty');
+      const topCenter = new THREE.Vector2(
+        top.reduce((acc, p) => acc + p.x, 0) / top.length,
+        top.reduce((acc, p) => acc + p.z, 0) / top.length,
+      );
+      expect(topCenter.distanceTo(OSM_STAIR_TOP)).toBeLessThan(1.5);
+
+      // OSM の下端は道の中心線上の点。OSM の線が道の北の縁に当たる点（縁石）まで、いちばん低い段が届く
+      let curb = OSM_STAIR_BOTTOM.clone();
+      for (let t = 0; t <= 1; t += 0.001) {
+        const p = OSM_STAIR_TOP.clone().lerp(OSM_STAIR_BOTTOM, t);
+        if (distanceToStreet(p.x, p.y) <= MAIN_STREET_HALF_WIDTH) {
+          curb = p;
+          break;
+        }
+      }
+      const lowestIdx = stepTops.indexOf(Math.min(...stepTops));
+      const lowest = steps[lowestIdx];
+      if (!lowest) throw new Error('steps empty');
+      expect(distanceToFootprint(lowest, curb)).toBeLessThan(0.3);
+      // 道の中心線上の OSM の下端からは、道の幅の半分（2.1m）＋かぶせ量ほど
+      const nearestToBottom = steps
+        .map((c, i) => ({ i, d: distanceToFootprint(c, OSM_STAIR_BOTTOM) }))
+        .sort((a, b) => a.d - b.d)[0];
+      expect(nearestToBottom?.i).toBe(lowestIdx);
+      expect(nearestToBottom?.d ?? Infinity).toBeLessThan(MAIN_STREET_HALF_WIDTH + 0.5);
+    });
+
+    it('never puts steps, the landing or the retaining walls on the main street', () => {
+      const footprints: THREE.Vector3[][] = [...steps];
+      const walls = result.group.getObjectByName('library-retaining-walls');
+      if (walls instanceof THREE.InstancedMesh) footprints.push(...instanceCorners(walls));
+      const landing = result.group.getObjectByName('library-stair-landing');
+      if (!(landing instanceof THREE.Mesh)) throw new Error('landing missing');
+      const lb = new THREE.Box3().setFromObject(landing, true);
+      const landingPos = landing.geometry.getAttribute('position');
+      const v = new THREE.Vector3();
+      for (let i = 0; i < landingPos.count; i++) {
+        v.fromBufferAttribute(landingPos, i).applyMatrix4(landing.matrixWorld);
+        // 前端は道の縁から 0.15m だけ道にかぶせる
+        expect(distanceToStreet(v.x, v.z)).toBeGreaterThan(MAIN_STREET_HALF_WIDTH - 0.2);
+      }
+      expect(lb.isEmpty()).toBe(false);
+      for (const corners of footprints) {
+        for (const p of corners) {
+          expect(distanceToStreet(p.x, p.z)).toBeGreaterThan(MAIN_STREET_HALF_WIDTH - 0.2);
+        }
+      }
+    });
+
+    it('closes the street side of the clipped lower flight with a sloped cheek wall along the curb', () => {
+      const cheek = result.group.getObjectByName('library-stair-street-cheek');
+      if (!(cheek instanceof THREE.Mesh)) throw new Error('cheek missing');
+      const pos = cheek.geometry.getAttribute('position');
+      // 6 面（12 の三角形）すべてがある閉じた立体（道の側の大きな面が欠けない）
+      expect(pos.count).toBe(36);
+      const v = new THREE.Vector3();
+      let maxY = -Infinity;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(cheek.matrixWorld);
+        maxY = Math.max(maxY, v.y);
+        // 道の縁に沿う（縁から 0.15m のかぶせ量＋折れ線と直線の差のぶんまで）
+        expect(distanceToStreet(v.x, v.z)).toBeGreaterThan(MAIN_STREET_HALF_WIDTH - 0.35);
+      }
+      const landing = result.group.getObjectByName('library-stair-landing');
+      if (!(landing instanceof THREE.Mesh)) throw new Error('landing missing');
+      expect(maxY).toBeGreaterThan(new THREE.Box3().setFromObject(landing, true).max.y);
+    });
+
+    it('extends the terrace level forward to the top of the stairs (top step meets it)', () => {
+      const platform = result.group.getObjectByName('library-stair-top-platform');
+      const terrace = result.group.getObjectByName('library-entrance-terrace');
+      if (!(platform instanceof THREE.Mesh) || !(terrace instanceof THREE.Mesh)) {
+        throw new Error('platform or terrace missing');
+      }
+      const pb = new THREE.Box3().setFromObject(platform, true);
+      const tb = new THREE.Box3().setFromObject(terrace, true);
+      expect(pb.max.y).toBeCloseTo(tb.max.y, 5);
+      // 上端の床の前端は OSM の上端を通る（床の箱のローカル座標で、OSM の上端が前端の縁の上にある）
+      const geo = platform.geometry;
+      if (!(geo instanceof THREE.BoxGeometry)) throw new Error('platform is not a box');
+      const { width, depth } = geo.parameters;
+      const local = new THREE.Vector3(OSM_STAIR_TOP.x, pb.max.y, OSM_STAIR_TOP.y).applyMatrix4(
+        platform.matrixWorld.clone().invert(),
+      );
+      expect(Math.abs(local.x)).toBeLessThan(width * 0.5);
+      expect(Math.abs(local.z - depth * 0.5)).toBeLessThan(0.1);
     });
   });
 });

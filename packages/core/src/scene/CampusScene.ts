@@ -14,6 +14,8 @@ import { buildAccessCanopiesGroup } from './AccessWayBuilder';
 import { buildStructuresBridgesGroup } from './BridgeBuilder';
 import {
   applyBuildingVisualStates,
+  applyRoofColorMode,
+  type RoofColorMode,
   buildBuildingsGroup,
   type BuildingMeshRecord,
 } from './BuildingBuilder';
@@ -38,10 +40,14 @@ export interface CampusSceneOptions {
   initialTheme?: LightingTheme;
   initialPresetId?: string;
   initialCamera?: CameraPose;
+  /** 撮影・検収用に、カメラの寄りと傾きの制限を外す（URL の free=1） */
+  freeCamera?: boolean;
 }
 
 export class CampusScene {
   private readonly container: HTMLElement;
+  private lastSelectedId: string | null = null;
+  private lastActiveCategory: BuildingCategory | 'all' = 'all';
   private readonly dataset: CampusDataset;
   private readonly config: CampusConfig;
   private readonly callbacks: CampusSceneCallbacks;
@@ -134,6 +140,7 @@ export class CampusScene {
       options.initialPresetId,
       this.prefersReducedMotion,
       options.initialCamera,
+      options.freeCamera ?? false,
     );
 
     const terrainGroup = buildTerrainGroup(
@@ -488,6 +495,8 @@ export class CampusScene {
     selectedId: string | null,
     activeCategory: BuildingCategory | 'all',
   ): void {
+    this.lastSelectedId = selectedId;
+    this.lastActiveCategory = activeCategory;
     applyBuildingVisualStates(this.campusRecords, selectedId, activeCategory);
     this.needsRender = true;
   }
@@ -540,6 +549,13 @@ export class CampusScene {
       this.labelsDirty = true;
       this.frustumDirty = true;
     }
+  }
+
+  /** 主役の建物以外の屋根の色を、空中写真の色（aerial）とエリアの塗り分け（area）で切り替える */
+  setRoofColorMode(mode: RoofColorMode): void {
+    applyRoofColorMode(this.campusRecords, mode);
+    applyBuildingVisualStates(this.campusRecords, this.lastSelectedId, this.lastActiveCategory);
+    this.needsRender = true;
   }
 
   setLightingTheme(theme: LightingTheme): void {

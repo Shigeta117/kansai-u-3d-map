@@ -57,3 +57,16 @@
    - `public/data/` の JSON は OpenStreetMap から抜き出して加工した **Derivative Database** として **Open Database License (ODbL) v1.0** で提供します（`© OpenStreetMap contributors`）。標高データ（`terrain.json` と各データの標高値）は「出典：国土地理院 地理院タイル（標高タイル）を加工して作成」が適用されます。詳細は [`public/data/senriyama/LICENSE.md`](../public/data/senriyama/LICENSE.md) を参照してください。
 4. **3Dモデル出力（`exports/` — Produced Work）**:
    - `npm run export:3d` が書き出す `.glb`/`.obj`（Git 管理外）は ODbL の **Produced Work** として、出典表記および `THIRD_PARTY_NOTICES.md` を付けて配布します。
+
+---
+
+## 5. 大学の公開資料から読み取った事実（2026-11-20）
+
+| 資料 | 使い方 |
+|---|---|
+| 関西大学 教務ガイド KAN-CAN!「学舎・教室一覧（千里山）」 | 教室番号・棟の呼び名・部屋のある最上階（階数の下限として。`building-facts.ts`） |
+| 関西大学 年史編纂室「CAMPUS GUIDE MAP」 | 建物の正式名・竣工年・設計者・階数（明記のあるもの） |
+| 関西大学 学生相談・支援センター「バリアフリーマップ 千里山キャンパス施設一覧」（2025年12月現在） | 建物ごとのエレベーター・自動扉の入口・多機能トイレの有無（`senriyama-official-access.ts`） |
+
+- いずれも事実（名前・年・階数・設備の有無）だけを使い、文章・図・写真はリポジトリに写していない
+- 読み取りの記録は `docs/visual-research/official-buildings.md`・`barrier-free-map.md`

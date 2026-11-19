@@ -113,6 +113,7 @@ export class CameraRig {
     initialPresetId?: string,
     reducedMotion = false,
     initialCamera?: CameraPose,
+    freeCamera = false,
   ) {
     this.diorama = config.diorama;
     this.reducedMotion = reducedMotion;
@@ -141,6 +142,11 @@ export class CameraRig {
     this.controls.maxPolarAngle = 1.28;
     this.controls.screenSpacePanning = false;
     this.controls.zoomToCursor = true;
+    if (freeCamera) {
+      // 撮影・検収用（URL の free=1）: 写真と同じ目の高さ・近さで撮れるよう、寄りと傾きの制限を外す
+      this.controls.minDistance = 2;
+      this.controls.maxPolarAngle = Math.PI / 2 - 0.01;
+    }
 
     if (initialCamera) {
       this.controls.target.set(...initialCamera.target);

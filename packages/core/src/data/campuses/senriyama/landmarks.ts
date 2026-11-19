@@ -150,7 +150,6 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     description:
       '正門の南側の円形の棟（1996年竣工）。粗い石張りの柱の入口の 1 階にインフォメーションとレストラン。3 階の連絡路「秀麗橋」で北棟とつながり、西側は第3学舎連絡デッキへ続く。',
     architectNote: '円形の平面・石張りの外壁・3 階で秀麗橋に接続',
-    sculptStyle: 'shinkandaikaikan-cone',
     defaultLevels: 4,
     labelPriority: 4,
   },
@@ -235,7 +234,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area1',
     faculties: ['法学部', '文学部'],
     facilityTags: ['hall', 'study', 'architecture'],
-    keywords: ['第1学舎', '1号館', '法学部', '文学部', '千里ホール', '法文坂', 'A棟', 'B棟'],
+    keywords: ['第1学舎', '1号館', '法学部', '文学部', '千里ホール', '法文坂', 'A棟'],
     approxCoord: { lat: 34.776301, lon: 135.510467 },
     osmNameAliases: ['第1学舎1号館'],
     description:
@@ -254,7 +253,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area1',
     faculties: ['法学部', '文学部'],
     facilityTags: ['study', 'architecture'],
-    keywords: ['第1学舎', '2号館', '法学部', '文学部', '北門近く'],
+    keywords: ['第1学舎', '2号館', '法学部', '文学部', '北門近く', 'B棟'],
     approxCoord: { lat: 34.776644, lon: 135.510169 },
     osmNameAliases: ['第1学舎2号館'],
     description:
@@ -272,7 +271,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area1',
     faculties: ['法学部', '文学部'],
     facilityTags: ['study'],
-    keywords: ['第1学舎', '3号館', '法学部', '文学部'],
+    keywords: ['第1学舎', '3号館', '法学部', '文学部', 'C棟'],
     approxCoord: { lat: 34.776264, lon: 135.509888 },
     osmNameAliases: ['第1学舎3号館'],
     description:
@@ -290,7 +289,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area1',
     faculties: ['法学部', '文学部', '政策創造学部'],
     facilityTags: ['study'],
-    keywords: ['第1学舎', '4号館', '法学部', '文学部', '政策創造'],
+    keywords: ['第1学舎', '4号館', '法学部', '文学部', '政策創造', 'D棟'],
     approxCoord: { lat: 34.776064, lon: 135.510982 },
     osmNameAliases: ['第1学舎4号館'],
     description:
@@ -308,7 +307,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area1',
     faculties: ['法学部', '文学部', '政策創造学部'],
     facilityTags: ['study'],
-    keywords: ['第1学舎', '5号館', '法学部', '文学部'],
+    keywords: ['第1学舎', '5号館', '法学部', '文学部', 'E棟'],
     approxCoord: { lat: 34.77663, lon: 135.510757 },
     osmNameAliases: ['第1学舎5号館'],
     description:
@@ -364,7 +363,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area2',
     faculties: ['経済学部', '商学部'],
     facilityTags: ['hall', 'study'],
-    keywords: ['第2学舎', 'BIGホール100', 'ビッグホール', '経済学部', '商学部', '4号館'],
+    keywords: ['第2学舎', 'BIGホール100', 'ビッグホール', '経済学部', '商学部', '4号館', 'F棟'],
     approxCoord: { lat: 34.773086, lon: 135.511028 },
     osmNameAliases: ['BIGホール100', '第2学舎4号館'],
     description:
@@ -383,7 +382,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area2',
     faculties: ['経済学部', '商学部'],
     facilityTags: ['study', 'admin'],
-    keywords: ['第2学舎', '1号館', '経済学部', '商学部', '教務'],
+    keywords: ['第2学舎', '1号館', '経済学部', '商学部', '教務', 'A棟'],
     approxCoord: { lat: 34.772799, lon: 135.509749 },
     osmNameAliases: ['第2学舎1号館'],
     description:
@@ -401,7 +400,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area2',
     faculties: ['経済学部', '商学部'],
     facilityTags: ['study'],
-    keywords: ['第2学舎', '2号館', '経済学部', '商学部'],
+    keywords: ['第2学舎', '2号館', '経済学部', '商学部', 'C棟'],
     approxCoord: { lat: 34.77278, lon: 135.510506 },
     osmNameAliases: ['第2学舎2号館'],
     description: '経済学部・商学部のゼミ室や中講義室が連なる第2学舎2号館。',
@@ -418,7 +417,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     category: 'area2',
     faculties: ['経済学部', '商学部'],
     facilityTags: ['study'],
-    keywords: ['第2学舎', '3号館', '経済学部', '商学部'],
+    keywords: ['第2学舎', '3号館', '経済学部', '商学部', 'D棟', 'E棟'],
     approxCoord: { lat: 34.772548, lon: 135.510883 },
     osmNameAliases: ['第2学舎3号館'],
     description: 'BIGホール100の南側に隣接する第2学舎3号館。',
@@ -610,7 +609,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
   },
   {
     id: 'gaifukan',
-    name: '凱風館（誠之館5・7号館）',
+    name: '誠之館5号館（凱風館）',
     shortName: '凱風館',
     kana: 'がいふうかん せいしかん',
     englishName: 'Gaifukan Athletic Clubrooms',

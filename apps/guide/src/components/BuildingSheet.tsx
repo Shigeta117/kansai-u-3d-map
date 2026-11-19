@@ -21,9 +21,11 @@ import {
   getCategoryLabel,
   normalizeSearchText,
   type BuildingFeature,
+  type AccessStatus,
   type BuildingFloorPlan,
 } from '@kansai-u-3d/core';
 import { ROOM_KIND_LABELS } from '../data/indoor/senriyama-indoor';
+import { OFFICIAL_ACCESS_SOURCE, SENRIYAMA_OFFICIAL_ACCESS } from '../data/indoor/senriyama-official-access';
 import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 
 type SheetTab = 'overview' | 'floors' | 'access';
@@ -40,19 +42,42 @@ interface BuildingSheetProps {
   onJumpToBuildingId: (buildingId: string) => void;
 }
 
-function AccessibilityUnverifiedNotice() {
+const ACCESS_LABEL: Record<AccessStatus, string> = { yes: 'あり', no: 'なし', unknown: '印なし（未確認）' };
+
+function AccessibilityNotice({ buildingId }: { buildingId?: string }) {
+  const official = buildingId ? SENRIYAMA_OFFICIAL_ACCESS[buildingId] : undefined;
   return (
     <div className="rounded-xl border border-[#E3DDD1] bg-[#F5F1E8] px-3 py-2 text-[11px] leading-relaxed text-[#4B5360]">
-      <p>
-        バリアフリー情報（段差・エレベーター・多機能トイレ）は未確認です。移動の前に大学の公式情報で確かめてください。
-      </p>
+      {official ? (
+        <>
+          <p className="font-semibold text-[#1D2430]">大学のバリアフリーマップ（{OFFICIAL_ACCESS_SOURCE.asOf}）による</p>
+          <ul className="mt-1 space-y-0.5">
+            <li>エレベーター: {ACCESS_LABEL[official.elevator]}</li>
+            <li>
+              自動扉の入口:{' '}
+              {official.autoDoorEntrance === 'no'
+                ? 'なし（開き戸か段差のある入口のみ。地図では車椅子は非推奨・不可の印）'
+                : ACCESS_LABEL[official.autoDoorEntrance]}
+            </li>
+            <li>
+              多機能トイレ: {ACCESS_LABEL[official.accessibleRestroom]}
+              {official.restroomFloors ? ` — ${official.restroomFloors}` : ''}
+            </li>
+          </ul>
+          <p className="mt-1">設備は改修されている可能性があります。移動の前に大学のページで確かめてください。下の出入口・連絡の一覧は未確認です。</p>
+        </>
+      ) : (
+        <p>
+          バリアフリー情報（段差・エレベーター・多機能トイレ）は未確認です。移動の前に大学の公式情報で確かめてください。
+        </p>
+      )}
       <a
-        href="https://www.kansai-u.ac.jp/sscc/topimg/access_map.pdf"
+        href={OFFICIAL_ACCESS_SOURCE.url}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-1 inline-flex items-center gap-1 font-semibold text-[#1B365D] hover:underline"
       >
-        <span>関西大学 千里山キャンパス アクセスマップ（PDF）</span>
+        <span>関西大学 バリアフリーマップ（千里山キャンパス）</span>
         <ExternalLink className="h-3 w-3 shrink-0" />
       </a>
     </div>
@@ -279,7 +304,7 @@ export function BuildingSheet({
 
         {activeTab === 'floors' && (
           <div key="floors" className="t-tab-panel space-y-2">
-            <AccessibilityUnverifiedNotice />
+            <AccessibilityNotice buildingId={building?.id} />
             {floorPlan ? (
               <>
                 {(floorPlan.numberingRule || floorPlan.summaryNote) && (
@@ -484,7 +509,7 @@ export function BuildingSheet({
 
         {activeTab === 'access' && (
           <div key="access" className="t-tab-panel space-y-2.5">
-            <AccessibilityUnverifiedNotice />
+            <AccessibilityNotice buildingId={building?.id} />
             {floorPlan && floorPlan.entrances.length > 0 ? (
               <div>
                 <div className="mb-1.5 text-[11px] font-bold text-[#5F6875]">

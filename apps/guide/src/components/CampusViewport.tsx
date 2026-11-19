@@ -6,6 +6,7 @@ import {
   type CampusConfig,
   type CampusDataset,
   type LightingTheme,
+  type RoofColorMode,
   type RouteResult,
 } from '@kansai-u-3d/core';
 
@@ -22,7 +23,9 @@ interface CampusViewportProps {
   activeCategory: BuildingCategory | 'all';
   activeRoute: RouteResult | null;
   lighting: LightingTheme;
+  roofColorMode: RoofColorMode;
   initialCamera?: CameraPose;
+  freeCamera?: boolean;
   onSelectBuilding: (buildingId: string | null) => void;
   onSceneChange: (scene: CampusScene | null) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
@@ -47,7 +50,9 @@ export function CampusViewport({
   activeCategory,
   activeRoute,
   lighting,
+  roofColorMode,
   initialCamera,
+  freeCamera,
   onSelectBuilding,
   onSceneChange,
   sceneRef,
@@ -77,6 +82,7 @@ export function CampusViewport({
       },
       {
         initialCamera,
+        freeCamera,
       },
     );
     sceneRef.current = scene;
@@ -96,7 +102,7 @@ export function CampusViewport({
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [dataset, config, sceneRef, initialCamera]);
+  }, [dataset, config, sceneRef, initialCamera, freeCamera]);
 
   useEffect(() => {
     sceneRef.current?.setHighlightState(selectedId, activeCategory);
@@ -109,6 +115,10 @@ export function CampusViewport({
   useEffect(() => {
     sceneRef.current?.setLightingTheme(lighting);
   }, [lighting, sceneRef]);
+
+  useEffect(() => {
+    sceneRef.current?.setRoofColorMode(roofColorMode);
+  }, [roofColorMode, sceneRef, dataset]);
 
   if (webglError) {
     return (

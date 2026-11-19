@@ -1,6 +1,6 @@
-import { ChevronRight, Info, Moon, Sun, Tag, X } from 'lucide-react';
+import { ChevronRight, Home, Info, Moon, Sun, Tag, X } from 'lucide-react';
 import { useEffect } from 'react';
-import type { LightingTheme } from '@kansai-u-3d/core';
+import type { LightingTheme, RoofColorMode } from '@kansai-u-3d/core';
 import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 
 interface MenuPanelProps {
@@ -9,6 +9,8 @@ interface MenuPanelProps {
   lighting: LightingTheme;
   showLabels: boolean;
   onChangeLighting: (next: LightingTheme) => void;
+  roofColorMode: RoofColorMode;
+  onChangeRoofColorMode: (next: RoofColorMode) => void;
   onToggleLabels: () => void;
   onOpenCredits: () => void;
   onClose: () => void;
@@ -20,6 +22,8 @@ export function MenuPanel({
   lighting,
   showLabels,
   onChangeLighting,
+  roofColorMode,
+  onChangeRoofColorMode,
   onToggleLabels,
   onOpenCredits,
   onClose,
@@ -143,6 +147,45 @@ export function MenuPanel({
                 }`}
               >
                 夕方
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-[#E5DEC9] bg-white px-3 py-2">
+            <span className="flex items-center gap-2.5 text-[13px] font-semibold text-[#1D2430]">
+              <Home className="h-4 w-4 text-[#5F6875]" aria-hidden="true" />
+              <span>屋根の色</span>
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="屋根の色の切り替え"
+              className="flex items-center gap-1 rounded-lg bg-[#F1ECE1] p-0.5"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={roofColorMode === 'aerial'}
+                onClick={() => onChangeRoofColorMode('aerial')}
+                className={`t-interactive rounded-md px-2.5 py-1 text-[11.5px] font-semibold ${
+                  roofColorMode === 'aerial'
+                    ? 'bg-[#1B365D] text-[#FAF7F2]'
+                    : 'text-[#4B5360] hover:text-[#1D2430]'
+                }`}
+              >
+                写真の色
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={roofColorMode === 'area'}
+                onClick={() => onChangeRoofColorMode('area')}
+                className={`t-interactive rounded-md px-2.5 py-1 text-[11.5px] font-semibold ${
+                  roofColorMode === 'area'
+                    ? 'bg-[#1B365D] text-[#FAF7F2]'
+                    : 'text-[#4B5360] hover:text-[#1D2430]'
+                }`}
+              >
+                エリア別
               </button>
             </div>
           </div>

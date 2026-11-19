@@ -7,6 +7,7 @@ import type {
   PathKind,
   TerrainGrid,
 } from '../domain/types';
+import { HERO_MODELED_PATH_IDS } from './heroes/modeledPaths';
 import { SCENE_PALETTE } from './palette';
 
 function pointInPolygon2D(x: number, z: number, poly: [number, number][]): boolean {
@@ -457,6 +458,8 @@ function buildPathsOverlay(
   };
 
   for (const p of paths) {
+    // 主役の建物のモデルが形を作っている階段などは、帯を描かない（モデルの上に重なるため）
+    if (HERO_MODELED_PATH_IDS.has(p.id)) continue;
     const geo = buildRibbonGeometry(
       p.points,
       p.width,
