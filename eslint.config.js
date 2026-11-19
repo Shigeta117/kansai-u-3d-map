@@ -5,10 +5,10 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'exports', '.cache', 'scripts'] },
+  { ignores: ['**/dist', 'exports', '.cache', 'scripts', 'node_modules'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['**/*.{ts,tsx}'],
+    files: ['packages/**/*.{ts,tsx}', 'apps/**/*.{ts,tsx}', '*.config.ts'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.browser,
@@ -27,4 +27,3 @@ export default tseslint.config(
     },
   },
 );
-

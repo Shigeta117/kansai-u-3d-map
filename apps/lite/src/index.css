@@ -1,0 +1,108 @@
+/* Motion tokens & transition presets adapted from transitions.style (MIT © Jakub Antalík) */
+@import "tailwindcss";
+
+:root {
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --distance-sm: 4px;
+  --scale-down: 0.96;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Noto Sans JP', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #efece4;
+    color: #1d2430;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.t-interactive {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-out-cubic);
+}
+
+.t-interactive:active {
+  transform: scale(0.985);
+}
+
+.t-modal-backdrop {
+  transition-property: opacity;
+}
+.t-modal-backdrop[data-state='open'] {
+  opacity: 1;
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-out-cubic);
+}
+.t-modal-backdrop[data-state='closed'] {
+  opacity: 0;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-in-out-cubic);
+}
+
+.t-modal-card {
+  transition-property: opacity, transform;
+}
+.t-modal-card[data-state='open'] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-out-cubic);
+}
+.t-modal-card[data-state='closed'] {
+  opacity: 0;
+  transform: scale(var(--scale-down)) translateY(var(--distance-sm));
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-in-out-cubic);
+}
+
+@keyframes k3d-pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-sm)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.t-pill {
+  animation: k3d-pill-in var(--duration-normal) var(--ease-out-cubic) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-interactive,
+  .t-modal-backdrop,
+  .t-modal-card {
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+  .t-pill {
+    animation-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}
+

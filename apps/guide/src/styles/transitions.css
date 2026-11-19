@@ -1,0 +1,201 @@
+/* Motion tokens & transition presets adapted from transitions.style (MIT © Jakub Antalík) */
+
+:root {
+  --duration-instant: 120ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --duration-panel-close: 350ms;
+
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --distance-sm: 4px;
+  --distance-md: 10px;
+  --distance-lg: 20px;
+
+  --scale-down: 0.96;
+  --blur-sm: 4px;
+}
+
+.t-interactive {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-out-cubic);
+}
+
+.t-interactive:active {
+  transform: scale(0.985);
+}
+
+/* Asymmetric Modal Backdrop & Card: 250ms open / 150ms close */
+.t-modal-backdrop {
+  transition-property: opacity;
+  transition-timing-function: var(--ease-out-cubic);
+}
+.t-modal-backdrop[data-state='open'] {
+  opacity: 1;
+  transition-duration: var(--duration-normal);
+}
+.t-modal-backdrop[data-state='closed'] {
+  opacity: 0;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-in-out-cubic);
+}
+
+.t-modal-card {
+  transition-property: opacity, transform;
+}
+.t-modal-card[data-state='open'] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-out-cubic);
+}
+.t-modal-card[data-state='closed'] {
+  opacity: 0;
+  transform: scale(var(--scale-down)) translateY(var(--distance-sm));
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-in-out-cubic);
+}
+
+/* Asymmetric Floating Side / Mobile Bottom Panels: 400ms open / 350ms close */
+.t-panel-left,
+.t-panel-right {
+  transition-property: opacity, transform;
+}
+.t-panel-left[data-state='open'],
+.t-panel-right[data-state='open'] {
+  opacity: 1;
+  transform: translateY(0);
+  transition-duration: var(--duration-slow);
+  transition-timing-function: var(--ease-out-expo);
+}
+.t-panel-left[data-state='closed'],
+.t-panel-right[data-state='closed'] {
+  opacity: 0;
+  transform: translateY(var(--distance-lg));
+  transition-duration: var(--duration-panel-close);
+  transition-timing-function: var(--ease-out-cubic);
+}
+
+@media (min-width: 640px) {
+  .t-panel-left[data-state='open'],
+  .t-panel-right[data-state='open'] {
+    transform: translateX(0);
+  }
+  .t-panel-left[data-state='closed'] {
+    transform: translateX(calc(var(--distance-lg) * -1));
+  }
+  .t-panel-right[data-state='closed'] {
+    transform: translateX(var(--distance-lg));
+  }
+}
+
+/* Picker Popover: 250ms open / 150ms close */
+.t-picker-popover {
+  transform-origin: top center;
+  transition-property: opacity, transform;
+}
+.t-picker-popover[data-state='open'] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition-duration: var(--duration-normal);
+  transition-timing-function: var(--ease-out-cubic);
+}
+.t-picker-popover[data-state='closed'] {
+  opacity: 0;
+  transform: scale(var(--scale-down)) translateY(calc(var(--distance-sm) * -1));
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-in-out-cubic);
+}
+
+/* Search Dropdown: 200ms open / 120ms close */
+.t-dropdown {
+  transform-origin: top center;
+  transition-property: opacity, transform;
+}
+.t-dropdown[data-state='open'] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out-cubic);
+}
+.t-dropdown[data-state='closed'] {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.985);
+  transition-duration: var(--duration-instant);
+  transition-timing-function: var(--ease-in-out-cubic);
+}
+
+/* Symmetric Tab Content Fade: 250ms */
+@keyframes k3d-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-sm));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.t-tab-panel {
+  animation: k3d-tab-enter var(--duration-normal) var(--ease-out-cubic) both;
+}
+
+/* Number Metric Pop */
+@keyframes k3d-number-pop {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.t-number-pop {
+  animation: k3d-number-pop 220ms var(--ease-out-expo) both;
+}
+
+/* List Item Stagger */
+@keyframes k3d-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.t-stagger-item {
+  animation: k3d-stagger-in 200ms var(--ease-out-cubic) both;
+  animation-delay: calc(var(--stagger-index, 0) * 18ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-interactive,
+  .t-modal-backdrop,
+  .t-modal-card,
+  .t-panel-left,
+  .t-panel-right,
+  .t-picker-popover,
+  .t-dropdown {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    transform: none !important;
+  }
+
+  .t-tab-panel,
+  .t-number-pop,
+  .t-stagger-item {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+  }
+}

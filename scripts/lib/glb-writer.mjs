@@ -150,9 +150,14 @@ export function serializeObjectToGlb(root) {
     const r = hasVertexColor ? 1 : Number(col.r.toFixed(4));
     const g = hasVertexColor ? 1 : Number(col.g.toFixed(4));
     const b = hasVertexColor ? 1 : Number(col.b.toFixed(4));
+    const isBlend = Boolean(
+      mat && mat.transparent && typeof mat.opacity === 'number' && mat.opacity < 0.99,
+    );
+    const alpha = isBlend ? Number(mat.opacity.toFixed(3)) : 1;
     const roughness = Number((mat && typeof mat.roughness === 'number' ? mat.roughness : 0.85).toFixed(3));
     const metalness = Number((mat && typeof mat.metalness === 'number' ? mat.metalness : 0.04).toFixed(3));
-    const key = `${r},${g},${b},${roughness},${metalness}`;
+    const doubleSided = Boolean(mat?.side === THREE.DoubleSide);
+    const key = `${r},${g},${b},${alpha},${roughness},${metalness},${doubleSided ? 1 : 0}`;
     const existing = materialKeyToIndex.get(key);
     if (existing !== undefined) return existing;
 
@@ -160,11 +165,12 @@ export function serializeObjectToGlb(root) {
     materials.push({
       name: mat?.name || `mat_${idx}`,
       pbrMetallicRoughness: {
-        baseColorFactor: [r, g, b, 1],
+        baseColorFactor: [r, g, b, alpha],
         metallicFactor: metalness,
         roughnessFactor: roughness,
       },
-      doubleSided: mat?.side === THREE.DoubleSide,
+      ...(isBlend ? { alphaMode: 'BLEND' } : {}),
+      doubleSided,
     });
     materialKeyToIndex.set(key, idx);
     return idx;
@@ -173,6 +179,25 @@ export function serializeObjectToGlb(root) {
   const vTmp = new THREE.Vector3();
   const nTmp = new THREE.Vector3();
   const normalMat = new THREE.Matrix3();
+  const nameCounts = new Map();
+
+  const resolveNodeName = (obj, meshIdx) => {
+    let base = obj.name || '';
+    if (!base) {
+      let cur = obj.parent;
+      while (cur && cur !== root) {
+        if (cur.name && !cur.name.startsWith('campus-')) {
+          base = cur.name;
+          break;
+        }
+        cur = cur.parent;
+      }
+    }
+    if (!base) base = `node_${meshIdx}`;
+    const seen = nameCounts.get(base) ?? 0;
+    nameCounts.set(base, seen + 1);
+    return seen === 0 ? base : `${base}_part${seen}`;
+  };
 
   root.traverse((obj) => {
     if (!obj.isMesh || obj.isInstancedMesh) return;
@@ -283,9 +308,10 @@ export function serializeObjectToGlb(root) {
     const primaryMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
     const matIdx = getMaterialIndex(primaryMat, Boolean(colorAttr));
 
+    const resolvedName = resolveNodeName(obj, meshes.length);
     const meshIdx = meshes.length;
     meshes.push({
-      name: obj.name || `mesh_${meshIdx}`,
+      name: resolvedName,
       primitives: [
         {
           attributes: baseAttributes,
@@ -297,7 +323,7 @@ export function serializeObjectToGlb(root) {
     });
 
     nodes.push({
-      name: obj.name || `node_${meshIdx}`,
+      name: resolvedName,
       mesh: meshIdx,
     });
   });

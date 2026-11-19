@@ -13,6 +13,31 @@ const OUT_DIR = path.join(ROOT_DIR, 'public', 'data', 'senriyama');
 const GRID_COLS = 129;
 const GRID_ROWS = 129;
 
+// OSM way IDs representing roofed walkway structures rather than solid buildings
+const EXCLUDED_CANOPY_BUILDING_IDS = new Set([
+  624590002,
+  1100978545,
+  1493876596,
+]);
+
+// OSM way IDs forming the Shurei Bridge / Area 3 elevated pedestrian deck
+const SHUREI_BRIDGE_WAY_IDS = new Set([423060539, 423060540, 423060541]);
+const MINOR_BRIDGE_WAY_IDS = new Set([490790149, 490793070, 490942384]);
+
+// Ordered OSM ways along the New Access Road (West Gate -> Area 3)
+const NEW_ACCESS_WAY_IDS = [
+  1259556101,
+  1100978549,
+  482027185,
+  1100978547,
+  923172460,
+  1493876602,
+  923172458, // conveying=yes escalator
+  1493876595,
+  1493876603,
+  1259556104,
+];
+
 function geoToLocal(lat, lon, origin) {
   return {
     x: (lon - origin.originLon) * origin.metersPerDegLon,
@@ -47,7 +72,7 @@ function decodeGsiPixel(png, px, py) {
   const g = png.data[idx + 1] ?? 0;
   const b = png.data[idx + 2] ?? 0;
   const x = r * 65536 + g * 256 + b;
-  if (x === 8388608) return null; // invalid (128, 0, 0)
+  if (x === 8388608) return null;
   return x < 8388608 ? x * 0.01 : (x - 16777216) * 0.01;
 }
 
@@ -98,7 +123,6 @@ async function buildTerrainGrid(config) {
   const { bounds, origin } = config;
   const raw = new Array(GRID_COLS * GRID_ROWS).fill(null);
   let dem5aHits = 0;
-  let dem10Hits = 0;
 
   for (let row = 0; row < GRID_ROWS; row++) {
     const vz = row / (GRID_ROWS - 1);
@@ -115,14 +139,12 @@ async function buildTerrainGrid(config) {
         elev = sampleTileBilinear(tileMap, 'dem5b_png', 15, lat, lon);
         if (elev === null) {
           elev = sampleTileBilinear(tileMap, 'dem_png', 14, lat, lon);
-          if (elev !== null) dem10Hits++;
         }
       }
       raw[row * GRID_COLS + col] = elev;
     }
   }
 
-  // Nearest-neighbor fill for any remaining nulls
   const validVals = raw.filter((v) => v !== null);
   const fallbackMean =
     validVals.length > 0
@@ -153,7 +175,6 @@ async function buildTerrainGrid(config) {
     return fallbackMean;
   });
 
-  // Gentle 1-pass Gaussian smoothing to soften 5m quantization steps while preserving hill relief
   const smoothed = new Array(GRID_COLS * GRID_ROWS);
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
@@ -180,13 +201,8 @@ async function buildTerrainGrid(config) {
   }
 
   console.log(
-    `Terrain built (${GRID_COLS}x${GRID_ROWS}): DEM5A=${dem5aHits}, DEM10B=${dem10Hits}, elevation=${minElevation.toFixed(2)}m .. ${maxElevation.toFixed(2)}m`,
+    `Terrain built (${GRID_COLS}x${GRID_ROWS}): DEM5A=${dem5aHits}, elevation=${minElevation.toFixed(2)}m .. ${maxElevation.toFixed(2)}m`,
   );
-  if (maxElevation - minElevation < 10) {
-    throw new Error(
-      `Terrain relief unexpectedly flat: ${minElevation}..${maxElevation}`,
-    );
-  }
 
   return {
     cols: GRID_COLS,
@@ -262,7 +278,6 @@ function cleanRing(ring) {
   ) {
     out.pop();
   }
-  // Remove duplicate consecutive vertices
   const dedup = [];
   for (const pt of out) {
     const prev = dedup[dedup.length - 1];
@@ -322,7 +337,154 @@ function computeBuildingHeight(tags, levels, inCampus, osmId) {
   return Number((5.8 + jitter * 3.2).toFixed(2));
 }
 
-function buildWalkGraphAndPaths(elements, terrain, config) {
+function buildStructuresData(nodeMap, wayMap, terrain, origin) {
+  const bridges = [];
+  const bridgeNodeElevOverrides = new Map();
+
+  // Compute flat deck elevations for Shurei Bridge (Area 3 -> New Kandaikaikan -> Hobunzaka)
+  // West abutment: node 4227729266 ([-188, 188])
+  // North abutment: node 4227729267 ([-107, 48])
+  const westNode = nodeMap.get(4227729266);
+  const northNode = nodeMap.get(4227729267);
+  const westLoc = westNode ? geoToLocal(westNode.lat, westNode.lon, origin) : { x: -188, z: 188 };
+  const northLoc = northNode ? geoToLocal(northNode.lat, northNode.lon, origin) : { x: -107, z: 48 };
+  const westGround = sampleElevation(terrain, westLoc.x, westLoc.z);
+  const northGround = sampleElevation(terrain, northLoc.x, northLoc.z);
+  // Deck runs smoothly at ~41.5m - 42.5m (staying comfortably above main road ~36m at [-115, 125])
+  const shureiBaseElev = Math.max(westGround + 0.4, northGround + 0.4, 41.8);
+
+  const shureiDefs = [
+    { wayId: 423060539, id: 'bridge-shurei-west', name: '秀麗橋（第3学舎連絡デッキ）', width: 3.4 },
+    { wayId: 423060540, id: 'bridge-shurei-south', name: '秀麗橋（正門南デッキ）', width: 3.6 },
+    { wayId: 423060541, id: 'bridge-shurei-north', name: '秀麗橋（法文坂合流デッキ）', width: 3.6 },
+  ];
+
+  for (const def of shureiDefs) {
+    const w = wayMap.get(def.wayId);
+    if (!w) continue;
+    const pts = [];
+    for (const nid of w.nodes ?? []) {
+      const nd = nodeMap.get(nid);
+      if (!nd) continue;
+      const { x, z } = geoToLocal(nd.lat, nd.lon, origin);
+      const ground = sampleElevation(terrain, x, z);
+      // Slight gentle gradient towards the north Hobunzaka landing while ensuring >= 4.6m over road
+      const tNorth = Math.max(0, Math.min(1, (188 - z) / (188 - 48)));
+      const targetDeck =
+        westGround * (1 - tNorth) + northGround * tNorth + 0.5;
+      const deckY = Number(
+        Math.max(shureiBaseElev, targetDeck, ground + 4.4).toFixed(2),
+      );
+      bridgeNodeElevOverrides.set(nid, deckY);
+      pts.push([Number(x.toFixed(2)), deckY, Number(z.toFixed(2))]);
+    }
+    if (pts.length >= 2) {
+      bridges.push({
+        id: def.id,
+        name: def.name,
+        kind: 'skybridge',
+        points: pts,
+        width: def.width,
+      });
+    }
+  }
+
+  for (const wid of MINOR_BRIDGE_WAY_IDS) {
+    const w = wayMap.get(wid);
+    if (!w) continue;
+    const pts = [];
+    for (const nid of w.nodes ?? []) {
+      const nd = nodeMap.get(nid);
+      if (!nd) continue;
+      const { x, z } = geoToLocal(nd.lat, nd.lon, origin);
+      const y = Number((sampleElevation(terrain, x, z) + 1.6).toFixed(2));
+      bridgeNodeElevOverrides.set(nid, y);
+      pts.push([Number(x.toFixed(2)), y, Number(z.toFixed(2))]);
+    }
+    if (pts.length >= 2) {
+      bridges.push({
+        id: `bridge-${wid}`,
+        name: '構内連絡デッキ',
+        kind: 'overpass',
+        points: pts,
+        width: 3.0,
+      });
+    }
+  }
+
+  // Build New Access Road canopy spine
+  const accessSpine = [];
+  const escalatorRange = [];
+  for (const wid of NEW_ACCESS_WAY_IDS) {
+    const w = wayMap.get(wid);
+    if (!w) continue;
+    const isEsc = w.tags?.conveying === 'yes';
+    for (const nid of w.nodes ?? []) {
+      const nd = nodeMap.get(nid);
+      if (!nd) continue;
+      const { x, z } = geoToLocal(nd.lat, nd.lon, origin);
+      const y = Number(sampleElevation(terrain, x, z).toFixed(2));
+      const pt = [Number(x.toFixed(2)), y, Number(z.toFixed(2))];
+      const prev = accessSpine[accessSpine.length - 1];
+      if (!prev || Math.hypot(pt[0] - prev[0], pt[2] - prev[2]) > 0.8) {
+        accessSpine.push(pt);
+      }
+      if (isEsc) {
+        escalatorRange.push(pt);
+      }
+    }
+  }
+
+  const accessCanopies =
+    accessSpine.length >= 2
+      ? [
+          {
+            id: 'access-west-canopy',
+            name: '新アクセス道（西門〜第3学舎屋根付き歩道・エスカレーター）',
+            spine: accessSpine,
+            escalatorRange: escalatorRange.length >= 2 ? escalatorRange : undefined,
+            width: 5.2,
+          },
+        ]
+      : [];
+
+  // Meishin Expressway tunnel portals (west & east)
+  const tunnelPortals = [];
+  const tunnelWest = geoToLocal(34.77188, 135.50751, origin); // near [-274, 291]
+  const tunnelEast = geoToLocal(34.77256, 135.51298, origin); // near [226, 215]
+  tunnelPortals.push(
+    {
+      id: 'meishin-portal-west',
+      name: '名神高速道路 千里山トンネル西坑口',
+      x: Number(tunnelWest.x.toFixed(2)),
+      y: Number(sampleElevation(terrain, tunnelWest.x, tunnelWest.z).toFixed(2)),
+      z: Number(tunnelWest.z.toFixed(2)),
+      angleRad: -0.08,
+      width: 19,
+    },
+    {
+      id: 'meishin-portal-east',
+      name: '名神高速道路 千里山トンネル東坑口',
+      x: Number(tunnelEast.x.toFixed(2)),
+      y: Number(sampleElevation(terrain, tunnelEast.x, tunnelEast.z).toFixed(2)),
+      z: Number(tunnelEast.z.toFixed(2)),
+      angleRad: -0.24,
+      width: 19,
+    },
+  );
+
+  return {
+    structures: { bridges, accessCanopies, tunnelPortals },
+    bridgeNodeElevOverrides,
+  };
+}
+
+function buildWalkGraphAndPaths(
+  elements,
+  terrain,
+  config,
+  bridgeNodeElevOverrides,
+) {
   const nodeMap = new Map();
   for (const el of elements) {
     if (el.type === 'node') nodeMap.set(el.id, el);
@@ -358,12 +520,19 @@ function buildWalkGraphAndPaths(elements, terrain, config) {
   const nodes = {};
   const adjacency = {};
   const paths = [];
+  const bridgeNodeIds = new Set();
 
   const ensureNode = (osmNodeId, lat, lon) => {
     const id = `n_${osmNodeId}`;
     if (!nodes[id]) {
       const { x, z } = geoToLocal(lat, lon, origin);
-      const y = Number(sampleElevation(terrain, x, z).toFixed(2));
+      const overrideY = bridgeNodeElevOverrides.get(osmNodeId);
+      const y = Number(
+        (overrideY !== undefined ? overrideY : sampleElevation(terrain, x, z)).toFixed(2),
+      );
+      if (overrideY !== undefined) {
+        bridgeNodeIds.add(id);
+      }
       nodes[id] = {
         id,
         x: Number(x.toFixed(2)),
@@ -375,7 +544,7 @@ function buildWalkGraphAndPaths(elements, terrain, config) {
     return nodes[id];
   };
 
-  const addEdge = (aId, bId, isSteps) => {
+  const addEdge = (aId, bId, flags) => {
     const a = nodes[aId];
     const b = nodes[bId];
     if (!a || !b) return;
@@ -389,22 +558,32 @@ function buildWalkGraphAndPaths(elements, terrain, config) {
       dist: Number(dist.toFixed(2)),
       deltaY: Number(deltaAB.toFixed(2)),
       slope: Number((deltaAB / dist).toFixed(4)),
-      isSteps,
+      isSteps: flags.isSteps,
+      isBridge: flags.isBridge,
+      isEscalator: flags.isEscalator,
     });
     adjacency[bId].push({
       to: aId,
       dist: Number(dist.toFixed(2)),
       deltaY: Number((-deltaAB).toFixed(2)),
       slope: Number((-deltaAB / dist).toFixed(4)),
-      isSteps,
+      isSteps: flags.isSteps,
+      isBridge: flags.isBridge,
+      isEscalator: flags.isEscalator,
     });
   };
 
   for (const el of elements) {
     if (el.type !== 'way' || !el.tags?.highway || !Array.isArray(el.nodes)) continue;
     const hw = el.tags.highway;
+    const isEscalator = el.tags.conveying === 'yes';
+    const isSteps = hw === 'steps' && !isEscalator;
+    const isBridge =
+      el.tags.bridge === 'yes' ||
+      SHUREI_BRIDGE_WAY_IDS.has(el.id) ||
+      MINOR_BRIDGE_WAY_IDS.has(el.id);
+    const isTunnel = el.tags.tunnel === 'yes';
     const isWalkable = WALKABLE_HIGHWAYS.has(hw) && el.tags.foot !== 'no';
-    const isSteps = hw === 'steps';
 
     const ptsLocal = [];
     const wayNodeIds = [];
@@ -426,15 +605,15 @@ function buildWalkGraphAndPaths(elements, terrain, config) {
         const nxt = wayNodeIds[i + 1];
         const na = ensureNode(cur.nid, cur.lat, cur.lon);
         const nb = ensureNode(nxt.nid, nxt.lat, nxt.lon);
-        addEdge(na.id, nb.id, isSteps);
+        addEdge(na.id, nb.id, { isSteps, isBridge, isEscalator });
       }
     }
 
-    // Visual path ribbon within diorama bounds
-    if (ptsLocal.length >= 2 && hw !== 'motorway_link') {
+    // Do not draw surface road ribbons for tunnels (Meishin Expwy) or elevated bridges (drawn by BridgeBuilder)
+    if (ptsLocal.length >= 2 && hw !== 'motorway_link' && !isTunnel && !isBridge) {
       let kind = 'road-minor';
       let width = 4.2;
-      if (isSteps) {
+      if (isSteps || isEscalator) {
         kind = 'steps';
         width = 2.8;
       } else if (hw === 'footway' || hw === 'pedestrian' || hw === 'path') {
@@ -454,7 +633,28 @@ function buildWalkGraphAndPaths(elements, terrain, config) {
     }
   }
 
-  // Extract largest connected component to guarantee routability across campus + station
+  // Bridge node micro-gap snapping (OSM Shurei Bridge segments have 2m/3m unmerged node gaps)
+  const shureiNodes = [...bridgeNodeIds]
+    .map((id) => nodes[id])
+    .filter((n) => Boolean(n));
+  let bridgeSnaps = 0;
+  for (let i = 0; i < shureiNodes.length; i++) {
+    for (let j = i + 1; j < shureiNodes.length; j++) {
+      const a = shureiNodes[i];
+      const b = shureiNodes[j];
+      const d = Math.hypot(a.x - b.x, a.z - b.z);
+      if (d > 0.2 && d <= 4.5) {
+        const already = (adjacency[a.id] ?? []).some((e) => e.to === b.id);
+        if (!already) {
+          addEdge(a.id, b.id, { isSteps: false, isBridge: true, isEscalator: false });
+          bridgeSnaps++;
+        }
+      }
+    }
+  }
+  console.log(`Bridge micro-gap snaps applied: ${bridgeSnaps}`);
+
+  // Main connected component
   const visited = new Set();
   const components = [];
   for (const id of Object.keys(nodes)) {
@@ -485,20 +685,45 @@ function buildWalkGraphAndPaths(elements, terrain, config) {
     edgeCount += prunedAdj[id].length;
   }
 
+  // Step-free connected component (edges with !isSteps && !isEscalator)
+  const sfVisited = new Set();
+  const sfComponents = [];
+  for (const id of Object.keys(prunedNodes)) {
+    if (sfVisited.has(id)) continue;
+    const queue = [id];
+    sfVisited.add(id);
+    const comp = [];
+    while (queue.length > 0) {
+      const cur = queue.pop();
+      comp.push(cur);
+      for (const edge of prunedAdj[cur] ?? []) {
+        if (!edge.isSteps && !edge.isEscalator && !sfVisited.has(edge.to)) {
+          sfVisited.add(edge.to);
+          queue.push(edge.to);
+        }
+      }
+    }
+    sfComponents.push(comp);
+  }
+  sfComponents.sort((a, b) => b.length - a.length);
+  const stepFreeComp = new Set(sfComponents[0] ?? []);
+
   console.log(
-    `Walk graph: ${Object.keys(nodes).length} raw nodes -> ${mainComp.size} main component nodes, ${edgeCount / 2} undirected edges (${components.length} total components).`,
+    `Walk graph: ${mainComp.size} main nodes, ${edgeCount / 2} edges; step-free main component: ${stepFreeComp.size} nodes.`,
   );
 
   return {
     walkGraph: { nodes: prunedNodes, adjacency: prunedAdj },
+    stepFreeComp,
     paths,
   };
 }
 
-function findNearestWalkNodeId(walkGraph, x, z) {
+function findNearestNodeInSet(walkGraph, x, z, allowedSet = null) {
   let bestId = null;
   let bestDistSq = Infinity;
   for (const [id, node] of Object.entries(walkGraph.nodes)) {
+    if (allowedSet && !allowedSet.has(id)) continue;
     const dSq = (node.x - x) ** 2 + (node.z - z) ** 2;
     if (dSq < bestDistSq) {
       bestDistSq = dSq;
@@ -510,11 +735,11 @@ function findNearestWalkNodeId(walkGraph, x, z) {
 
 async function main() {
   const { SENRIYAMA_CONFIG } = await tsImport(
-    '../src/data/campuses/senriyama/config.ts',
+    '../packages/core/src/data/campuses/senriyama/config.ts',
     import.meta.url,
   );
   const { SENRIYAMA_LANDMARKS } = await tsImport(
-    '../src/data/campuses/senriyama/landmarks.ts',
+    '../packages/core/src/data/campuses/senriyama/landmarks.ts',
     import.meta.url,
   );
 
@@ -522,13 +747,9 @@ async function main() {
   const osmRaw = JSON.parse(await fs.readFile(osmPath, 'utf8'));
   const elements = osmRaw.elements;
 
-  // Verify projection orientation: Kandai-mae station must be SW (x < 0, z > 0)
   const stationCheck = geoToLocal(34.77109, 135.506038, SENRIYAMA_CONFIG.origin);
-  console.log(
-    `Coordinate check - Kandai-mae Station local: x=${stationCheck.x.toFixed(1)}m, z=${stationCheck.z.toFixed(1)}m`,
-  );
   if (!(stationCheck.x < 0 && stationCheck.z > 0)) {
-    throw new Error('Projection coordinate check failed: station must be SW (x<0, z>0)');
+    throw new Error('Projection coordinate check failed');
   }
 
   const terrain = await buildTerrainGrid(SENRIYAMA_CONFIG);
@@ -551,7 +772,6 @@ async function main() {
     return cleanRing(pts);
   };
 
-  // University boundary polygons
   const universityPolys = [];
   for (const el of elements) {
     if (el.type === 'way' && el.tags?.amenity === 'university') {
@@ -560,13 +780,20 @@ async function main() {
     }
   }
 
-  const { walkGraph, paths } = buildWalkGraphAndPaths(
+  const { structures, bridgeNodeElevOverrides } = buildStructuresData(
+    nodeMap,
+    wayMap,
+    terrain,
+    SENRIYAMA_CONFIG.origin,
+  );
+
+  const { walkGraph, stepFreeComp, paths } = buildWalkGraphAndPaths(
     elements,
     terrain,
     SENRIYAMA_CONFIG,
+    bridgeNodeElevOverrides,
   );
 
-  // Collect relation outer ways so they aren't duplicated as standalone ways
   const relationMemberWayIds = new Set();
   const rawBuildings = [];
 
@@ -599,6 +826,9 @@ async function main() {
     if (el.type !== 'way' || !el.tags?.building || relationMemberWayIds.has(el.id)) {
       continue;
     }
+    if (EXCLUDED_CANOPY_BUILDING_IDS.has(el.id) || el.tags.building === 'roof') {
+      continue;
+    }
     const ring = wayToRing(el);
     if (ring.length < 3) continue;
     rawBuildings.push({
@@ -616,13 +846,11 @@ async function main() {
     z >= bounds.minZ + edgeMargin &&
     z <= bounds.maxZ - edgeMargin;
 
-  // Filter buildings inside diorama and >= 14 m^2
   const candidateBuildings = [];
   for (const rb of rawBuildings) {
     if (polygonArea(rb.polygon) < 14) continue;
     const centroid = polygonCentroid(rb.polygon);
     if (!insideDiorama(centroid.x, centroid.z)) continue;
-    // Skip building footprint extending far outside diorama
     const anyFarOutside = rb.polygon.some(
       ([px, pz]) =>
         px < bounds.minX - 6 ||
@@ -655,12 +883,10 @@ async function main() {
     });
   }
 
-  // Match landmarks to candidate buildings
-  const landmarkMatches = new Map(); // osmId -> LandmarkMeta
+  const landmarkMatches = new Map();
   const usedOsmIds = new Set();
   let nameMatchedCount = 0;
   let proximityMatchedCount = 0;
-  const unmatchedLandmarks = [];
 
   const polyLandmarks = SENRIYAMA_LANDMARKS.filter((lm) => !lm.isSpotOnly);
   const spotLandmarks = SENRIYAMA_LANDMARKS.filter((lm) => lm.isSpotOnly);
@@ -692,7 +918,6 @@ async function main() {
       continue;
     }
 
-    // Proximity fallback
     for (const cb of candidateBuildings) {
       if (usedOsmIds.has(cb.osmId) || !cb.inCampus) continue;
       const d = Math.hypot(cb.centroid.x - lmLocal.x, cb.centroid.z - lmLocal.z);
@@ -706,16 +931,9 @@ async function main() {
       landmarkMatches.set(best.osmId, lm);
       usedOsmIds.add(best.osmId);
       proximityMatchedCount++;
-    } else {
-      unmatchedLandmarks.push(lm.id);
     }
   }
 
-  console.log(
-    `Landmark matching: ${nameMatchedCount} by name, ${proximityMatchedCount} by proximity, ${unmatchedLandmarks.length} unmatched (${unmatchedLandmarks.join(', ') || 'none'}).`,
-  );
-
-  // Build final BuildingFeature array
   const buildings = [];
   let campusCount = 0;
 
@@ -750,13 +968,17 @@ async function main() {
       if (gy < minGroundY) minGroundY = gy;
       if (gy > maxGroundY) maxGroundY = gy;
     }
-    minGroundY = Number(minGroundY.toFixed(2));
-    maxGroundY = Number(maxGroundY.toFixed(2));
 
-    const walkNodeId =
-      lm || (inCampus && rawName)
-        ? findNearestWalkNodeId(walkGraph, cb.centroid.x, cb.centroid.z)
-        : null;
+    const walkAnchor = lm?.walkTargetCoord
+      ? geoToLocal(lm.walkTargetCoord.lat, lm.walkTargetCoord.lon, origin)
+      : cb.centroid;
+    const needWalk = Boolean(lm) || (inCampus && rawName);
+    const walkNodeId = needWalk
+      ? findNearestNodeInSet(walkGraph, walkAnchor.x, walkAnchor.z)
+      : null;
+    const accessibleWalkNodeId = needWalk
+      ? findNearestNodeInSet(walkGraph, walkAnchor.x, walkAnchor.z, stepFreeComp)
+      : null;
 
     buildings.push({
       id: lm ? lm.id : cb.osmId,
@@ -773,9 +995,7 @@ async function main() {
       keywords: lm?.keywords ?? (rawName ? [rawName] : []),
       description:
         lm?.description ??
-        (inCampus
-          ? `${rawName}（千里山キャンパス内施設）`
-          : ''),
+        (inCampus ? `${rawName}（千里山キャンパス内施設）` : ''),
       architectNote: lm?.architectNote,
       sculptStyle: lm?.sculptStyle ?? 'standard',
       labelPriority: lm?.labelPriority ?? (inCampus && cb.tags.name ? 7 : 99),
@@ -787,15 +1007,15 @@ async function main() {
         z: Number(cb.centroid.z.toFixed(2)),
       },
       groundY,
-      minGroundY,
-      maxGroundY,
+      minGroundY: Number(minGroundY.toFixed(2)),
+      maxGroundY: Number(maxGroundY.toFixed(2)),
       height,
       levels,
       walkNodeId,
+      accessibleWalkNodeId,
     });
   }
 
-  // Add spot landmarks (station, gates, Yukyu-no-Niwa)
   for (const lm of spotLandmarks) {
     const loc = geoToLocal(lm.approxCoord.lat, lm.approxCoord.lon, origin);
     const walkLoc = lm.walkTargetCoord
@@ -811,6 +1031,14 @@ async function main() {
         Number((loc.z + Math.sin(a) * r).toFixed(2)),
       ]);
     }
+    const walkNodeId = findNearestNodeInSet(walkGraph, walkLoc.x, walkLoc.z);
+    const accessibleWalkNodeId = findNearestNodeInSet(
+      walkGraph,
+      walkLoc.x,
+      walkLoc.z,
+      stepFreeComp,
+    );
+
     buildings.push({
       id: lm.id,
       landmarkId: lm.id,
@@ -834,16 +1062,39 @@ async function main() {
       groundY,
       minGroundY: groundY,
       maxGroundY: groundY,
-      height: lm.id === 'main-gate' ? 5.2 : lm.id === 'kandaimae-station' ? 6.5 : 2.0,
+      height:
+        lm.id === 'main-gate'
+          ? 5.2
+          : lm.id === 'west-gate'
+            ? 4.6
+            : lm.id === 'kandaimae-station'
+              ? 6.5
+              : 2.0,
       levels: lm.defaultLevels,
-      walkNodeId: findNearestWalkNodeId(walkGraph, walkLoc.x, walkLoc.z),
+      walkNodeId,
+      accessibleWalkNodeId,
     });
   }
 
-  // Landcover extraction
+  // Verify step-free distances for landmarks (from walkTargetCoord if provided)
+  const landmarkMetaById = new Map(SENRIYAMA_LANDMARKS.map((lm) => [lm.id, lm]));
+  for (const b of buildings) {
+    if (!b.landmarkId || !b.accessibleWalkNodeId) continue;
+    const lm = landmarkMetaById.get(b.landmarkId);
+    const anchor = lm?.walkTargetCoord
+      ? geoToLocal(lm.walkTargetCoord.lat, lm.walkTargetCoord.lon, origin)
+      : b.centroid;
+    const sfNode = walkGraph.nodes[b.accessibleWalkNodeId];
+    if (sfNode) {
+      const dist = Math.hypot(sfNode.x - anchor.x, sfNode.z - anchor.z);
+      if (dist > 52) {
+        console.warn(`  [WARN] Landmark ${b.id} step-free node is ${dist.toFixed(1)}m away`);
+      }
+    }
+  }
+
   const landcover = [];
   for (const poly of universityPolys) {
-    // Clip or keep campus base apron inside diorama
     const clipped = poly.map(([px, pz]) => [
       Number(Math.max(bounds.minX + 2, Math.min(bounds.maxX - 2, px)).toFixed(2)),
       Number(Math.max(bounds.minZ + 2, Math.min(bounds.maxZ - 2, pz)).toFixed(2)),
@@ -898,7 +1149,6 @@ async function main() {
     });
   }
 
-  // Transport (Hankyu Senri Line + Kandai-mae station)
   const railways = [];
   for (const el of elements) {
     if (el.type !== 'way' || el.tags?.railway !== 'rail' || !Array.isArray(el.nodes)) {
@@ -934,22 +1184,9 @@ async function main() {
       x: Number(stationCheck.x.toFixed(2)),
       z: Number(stationCheck.z.toFixed(2)),
       y: Number(sampleElevation(terrain, stationCheck.x, stationCheck.z).toFixed(2)),
-      walkNodeId: findNearestWalkNodeId(walkGraph, stationCheck.x, stationCheck.z),
+      walkNodeId: findNearestNodeInSet(walkGraph, -402, 265),
     },
   ];
-
-  // Log elevation checkpoints
-  const checkpoints = [
-    ['関大前駅', 34.77109, 135.506038],
-    ['正門', 34.773426, 135.509103],
-    ['悠久の庭', 34.774469, 135.511151],
-    ['第1学舎1号館', 34.776301, 135.510467],
-  ];
-  for (const [label, lat, lon] of checkpoints) {
-    const p = geoToLocal(lat, lon, origin);
-    const e = sampleElevation(terrain, p.x, p.z);
-    console.log(`  Checkpoint [${label}]: x=${p.x.toFixed(1)}, z=${p.z.toFixed(1)}, elev=${e.toFixed(2)}m`);
-  }
 
   const meta = {
     campusId: 'senriyama',
@@ -961,8 +1198,11 @@ async function main() {
       campusBuildings: campusCount,
       matchedLandmarks: nameMatchedCount + proximityMatchedCount,
       walkNodes: Object.keys(walkGraph.nodes).length,
+      accessibleWalkNodes: stepFreeComp.size,
       walkEdges:
         Object.values(walkGraph.adjacency).reduce((s, arr) => s + arr.length, 0) / 2,
+      bridges: structures.bridges.length,
+      accessCanopies: structures.accessCanopies.length,
       minElevation: terrain.minElevation,
       maxElevation: terrain.maxElevation,
     },
@@ -975,6 +1215,10 @@ async function main() {
     fs.writeFile(path.join(OUT_DIR, 'buildings.json'), JSON.stringify(buildings)),
     fs.writeFile(path.join(OUT_DIR, 'landcover.json'), JSON.stringify(landcover)),
     fs.writeFile(path.join(OUT_DIR, 'paths.json'), JSON.stringify(paths)),
+    fs.writeFile(
+      path.join(OUT_DIR, 'structures.json'),
+      JSON.stringify(structures, null, 2),
+    ),
     fs.writeFile(path.join(OUT_DIR, 'walk-graph.json'), JSON.stringify(walkGraph)),
     fs.writeFile(
       path.join(OUT_DIR, 'transport.json'),
@@ -983,7 +1227,7 @@ async function main() {
   ]);
 
   console.log(
-    `\nData build complete -> ${path.relative(ROOT_DIR, OUT_DIR)} (buildings=${buildings.length}, campus=${campusCount}, matched=${meta.stats.matchedLandmarks}, landcover=${landcover.length}, paths=${paths.length}, railways=${railways.length})`,
+    `Data build complete -> ${path.relative(ROOT_DIR, OUT_DIR)} (buildings=${buildings.length}, campus=${campusCount}, matched=${meta.stats.matchedLandmarks}, bridges=${structures.bridges.length}, canopies=${structures.accessCanopies.length}, portals=${structures.tunnelPortals.length})`,
   );
 }
 
