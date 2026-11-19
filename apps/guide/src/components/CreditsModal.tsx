@@ -36,7 +36,7 @@ export function CreditsModal({ open, meta, onClose }: CreditsModalProps) {
               データ出典・OSSライセンス
             </h2>
             <p className="mt-0.5 text-[11.5px] text-[#666F7B]">
-              関西大学 千里山キャンパス 3D案内マップ（MIT License）
+              関西大学 千里山キャンパス 3D案内マップ（非公式）
             </p>
           </div>
           <button
@@ -50,6 +50,12 @@ export function CreditsModal({ open, meta, onClose }: CreditsModalProps) {
         </div>
 
         <div className="mt-3 space-y-3 text-[12.5px] leading-relaxed text-[#343C48]">
+          <section className="rounded-xl border border-[#DFD5C3] bg-[#FBF6EC] p-3 text-[#2B3340]">
+            <p className="font-semibold">
+              このアプリは関西大学の公式サービスではありません。関西大学とは関係のない個人が作ったオープンソースのプロジェクトです。
+            </p>
+          </section>
+
           <section className="rounded-xl border border-[#E3DDD1] bg-[#F4EFE5] p-3">
             <h3 className="font-bold text-[#1B365D]">1. 地形標高データ（国土地理院）</h3>
             <p className="mt-1">
@@ -70,10 +76,22 @@ export function CreditsModal({ open, meta, onClose }: CreditsModalProps) {
 
           <section className="rounded-xl border border-[#E3DDD1] bg-[#F4EFE5] p-3">
             <h3 className="font-bold text-[#1B365D]">
-              3. 教室番号・オフィス一覧（関西大学 KAN-CAN!）＆ UIモーション
+              3. 室内情報（関西大学 KAN-CAN!）＆ UIモーション
             </h3>
             <p className="mt-1">
-              各学舎の号館・棟コード（A〜F棟 / 1xxx〜4xxx番台）・教室番号・各オフィス所在地は、関西大学教務ガイド「KAN-CAN! 千里山キャンパス 学舎・教室（一覧）」（2026.10.5 更新）の公開情報に基づき構造化しています（詳細フロア平面図は保留）。UIモーションは transitions.style（MIT License）に準拠しています。
+              教室番号は関西大学の教務ガイド KAN-CAN!（公開ページ）をもとにしています。バリアフリー情報・定員・設備は未確認です。
+            </p>
+            <p className="mt-1.5">
+              UIモーションは{' '}
+              <a
+                href="https://transitions.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#1B365D] hover:underline"
+              >
+                transitions.dev
+              </a>
+              （GitHub: Jakubantalik/transitions.dev、MIT © Jakub Antalík）に準拠しています。
             </p>
           </section>
 
@@ -123,7 +141,7 @@ export function CreditsModal({ open, meta, onClose }: CreditsModalProps) {
             <a
               href="https://www.openstreetmap.org/copyright"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 font-semibold text-[#1B365D] hover:underline"
             >
               <span>OSM ODbL</span>
