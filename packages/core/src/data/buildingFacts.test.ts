@@ -18,7 +18,7 @@ describe('applyBuildingFacts', () => {
     expect(b?.height).toBe(35.6);
   });
   it('leaves buildings without facts untouched', () => {
-    const input = make('library', 2, 9);
+    const input = make('rimpukan', 4, 16.6);
     const [b] = applyBuildingFacts([input]);
     expect(b).toBe(input);
   });

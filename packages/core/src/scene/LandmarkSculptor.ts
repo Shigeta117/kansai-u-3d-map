@@ -230,34 +230,6 @@ export function sculptLandmarkDetails(
       break;
     }
 
-    case 'shinkandaikaikan-cone': {
-      // Iconic circular New Kandaikaikan South Wing with conical roof
-      const coneR = Math.max(9.5, Math.min(14.5, fp.radius * 0.72));
-      const collar = new THREE.Mesh(
-        new THREE.CylinderGeometry(coneR * 0.96, coneR * 1.0, 1.4, 24),
-        new THREE.MeshStandardMaterial({
-          color: SCENE_PALETTE.accents.glass,
-          roughness: 0.3,
-          metalness: 0.18,
-        }),
-      );
-      collar.position.set(cx, roofY + 0.7, cz);
-      meshes.push(collar);
-
-      const cone = new THREE.Mesh(
-        new THREE.ConeGeometry(coneR * 1.04, 6.2, 24),
-        new THREE.MeshStandardMaterial({
-          color: SCENE_PALETTE.accents.slateRoof,
-          roughness: 0.62,
-          metalness: 0.14,
-        }),
-      );
-      cone.position.set(cx, roofY + 4.4, cz);
-      cone.castShadow = true;
-      meshes.push(cone);
-      break;
-    }
-
     case 'iwasaki-tower': {
       const roofAnchor = new THREE.Group();
       roofAnchor.position.set(cx, roofY, cz);

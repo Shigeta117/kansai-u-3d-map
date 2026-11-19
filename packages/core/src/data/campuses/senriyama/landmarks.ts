@@ -150,7 +150,6 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     description:
       '正門の南側の円形の棟（1996年竣工）。粗い石張りの柱の入口の 1 階にインフォメーションとレストラン。3 階の連絡路「秀麗橋」で北棟とつながり、西側は第3学舎連絡デッキへ続く。',
     architectNote: '円形の平面・石張りの外壁・3 階で秀麗橋に接続',
-    sculptStyle: 'shinkandaikaikan-cone',
     defaultLevels: 4,
     labelPriority: 4,
   },
