@@ -303,7 +303,8 @@ export function buildBuildingsGroup(
         }
         finalizeBuildingGroup(spotGroup, b.id, sculpted.animatedRotors, mergeParts, interactiveMeshes);
         animatedRotors.push(...sculpted.animatedRotors);
-      } else {
+      } else if (b.sculptStyle !== 'station-platform') {
+        // 駅（station-platform）は TransportBuilder（StationBuilder）が OSM のホーム・駅舎の輪郭から描くので、目印の台は置かない
         const padMat = new THREE.MeshStandardMaterial({
           color:
             b.id === 'yukyu-garden'

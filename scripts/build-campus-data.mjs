@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { tsImport } from 'tsx/esm/api';
+import { buildExpresswayData } from './lib/expressway-data.mjs';
+import { buildStationFacilities } from './lib/station-data.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -39,6 +41,17 @@ const WALKABLE_HIGHWAYS = new Set([
   'service',
   'tertiary',
   'secondary',
+]);
+
+// 短い橋でも地面に沿った帯で描く車道（歩道の橋は BridgeBuilder などが描くので含めない）
+const SHORT_BRIDGE_ROAD_HIGHWAYS = new Set([
+  'primary',
+  'secondary',
+  'tertiary',
+  'unclassified',
+  'residential',
+  'living_street',
+  'service',
 ]);
 
 // Ordered OSM ways along the New Access Road (West Gate -> Area 3)
@@ -502,30 +515,8 @@ function buildStructuresData(nodeMap, wayMap, terrain, origin) {
         ]
       : [];
 
-  // Meishin Expressway tunnel portals (west & east)
+  // 名神高速の坑口は buildExpresswayData（scripts/lib/expressway-data.mjs）が OSM のトンネルの端から作る
   const tunnelPortals = [];
-  const tunnelWest = geoToLocal(34.77188, 135.50751, origin); // near [-274, 291]
-  const tunnelEast = geoToLocal(34.77256, 135.51298, origin); // near [226, 215]
-  tunnelPortals.push(
-    {
-      id: 'meishin-portal-west',
-      name: '名神高速道路 千里山トンネル西坑口',
-      x: Number(tunnelWest.x.toFixed(2)),
-      y: Number(sampleElevation(terrain, tunnelWest.x, tunnelWest.z).toFixed(2)),
-      z: Number(tunnelWest.z.toFixed(2)),
-      angleRad: -0.08,
-      width: 19,
-    },
-    {
-      id: 'meishin-portal-east',
-      name: '名神高速道路 千里山トンネル東坑口',
-      x: Number(tunnelEast.x.toFixed(2)),
-      y: Number(sampleElevation(terrain, tunnelEast.x, tunnelEast.z).toFixed(2)),
-      z: Number(tunnelEast.z.toFixed(2)),
-      angleRad: -0.24,
-      width: 19,
-    },
-  );
 
   return {
     structures: { bridges, accessCanopies, tunnelPortals },
@@ -659,8 +650,24 @@ function buildWalkGraphAndPaths(
       }
     }
 
-    // Do not draw surface road ribbons for tunnels (Meishin Expwy) or elevated bridges (drawn by BridgeBuilder)
-    if (ptsLocal.length >= 2 && hw !== 'motorway_link' && !isTunnel && !isBridge) {
+    // 車道の短い橋（bridge=yes で長さ 15m 未満。水路などをまたぐ暗渠の上）は地面に沿った帯で描く。
+    // 描かないと道の帯が数 m 途切れる（関大前駅の西の吹田箕面線など）
+    let wayLength = 0;
+    for (let i = 1; i < ptsLocal.length; i++) {
+      wayLength += Math.hypot(ptsLocal[i][0] - ptsLocal[i - 1][0], ptsLocal[i][1] - ptsLocal[i - 1][1]);
+    }
+    const isShortRoadBridge =
+      el.tags.bridge === 'yes' && SHORT_BRIDGE_ROAD_HIGHWAYS.has(hw) && wayLength < 15;
+
+    // Do not draw surface road ribbons for tunnels or elevated bridges (drawn by BridgeBuilder).
+    // 名神高速（motorway）は高架・地上・坑口を ExpresswayBuilder が structures.expressways から描く
+    if (
+      ptsLocal.length >= 2 &&
+      hw !== 'motorway' &&
+      hw !== 'motorway_link' &&
+      !isTunnel &&
+      (!isBridge || isShortRoadBridge)
+    ) {
       let kind = 'road-minor';
       let width = 4.2;
       if (isSteps || isEscalator) {
@@ -669,9 +676,9 @@ function buildWalkGraphAndPaths(
       } else if (hw === 'footway' || hw === 'pedestrian' || hw === 'path') {
         kind = 'campus-walk';
         width = 2.6;
-      } else if (hw === 'motorway' || hw === 'primary' || hw === 'secondary' || hw === 'tertiary') {
+      } else if (hw === 'primary' || hw === 'secondary' || hw === 'tertiary') {
         kind = 'road-major';
-        width = hw === 'motorway' ? 8.5 : 6.4;
+        width = 6.4;
       }
       paths.push({
         id: `path_${el.id}`,
@@ -798,6 +805,19 @@ async function main() {
     '../packages/core/src/data/campuses/senriyama/landmarks.ts',
     import.meta.url,
   );
+  const { KANDAIMAE_STATION_SPEC } = await tsImport(
+    '../packages/core/src/data/campuses/senriyama/station.ts',
+    import.meta.url,
+  );
+  const {
+    MEISHIN_SECTIONS,
+    MEISHIN_PORTALS,
+    EXPRESSWAY_DIMENSIONS,
+    EXPRESSWAY_PROFILE_WINDOWS,
+  } = await tsImport('../packages/core/src/data/campuses/senriyama/expressway.ts', import.meta.url);
+  const expresswayMath = await tsImport('../packages/core/src/domain/expressway.ts', import.meta.url);
+  // 駅舎は TransportBuilder（StationBuilder）が駅の一部として描くので、周辺の建物から外す
+  const stationBuildingWayIds = new Set(KANDAIMAE_STATION_SPEC.buildings.map((b) => b.osmWayId));
 
   const osmPath = path.join(CACHE_RAW_DIR, 'osm-senriyama.json');
   const osmRaw = JSON.parse(await fs.readFile(osmPath, 'utf8'));
@@ -882,7 +902,11 @@ async function main() {
     if (el.type !== 'way' || !el.tags?.building || relationMemberWayIds.has(el.id)) {
       continue;
     }
-    if (EXCLUDED_CANOPY_BUILDING_IDS.has(el.id) || el.tags.building === 'roof') {
+    if (
+      EXCLUDED_CANOPY_BUILDING_IDS.has(el.id) ||
+      stationBuildingWayIds.has(el.id) ||
+      el.tags.building === 'roof'
+    ) {
       continue;
     }
     const ring = wayToRing(el);
@@ -1233,6 +1257,38 @@ async function main() {
     }
   }
 
+  // 駅のホーム・駅舎・上屋（OSM の輪郭）
+  const stationFacilities = [buildStationFacilities(KANDAIMAE_STATION_SPEC, (wayId) => wayToRing(wayMap.get(wayId)))];
+
+  // 名神高速の車道・橋脚・坑口（路面の高さは DEM から推定）
+  const expressway = buildExpresswayData({
+    nodeMap,
+    wayMap,
+    elements,
+    terrain,
+    sampleElevation: (x, z) => sampleElevation(terrain, x, z),
+    toLocal: (lat, lon) => geoToLocal(lat, lon, origin),
+    diorama: SENRIYAMA_CONFIG.diorama,
+    buildingPolygons: [
+      ...rawBuildings.map((rb) => rb.polygon),
+      ...stationFacilities.flatMap((f) => f.buildings.map((b) => b.polygon)),
+    ],
+    platformPolygons: stationFacilities.flatMap((f) => f.platforms.map((p) => p.polygon)),
+    spec: {
+      sections: MEISHIN_SECTIONS,
+      portals: MEISHIN_PORTALS,
+      dims: EXPRESSWAY_DIMENSIONS,
+      windows: EXPRESSWAY_PROFILE_WINDOWS,
+    },
+    math: expresswayMath,
+  });
+  structures.tunnelPortals = expressway.portals;
+  structures.expressways = expressway.carriageways;
+  structures.expresswayPiers = expressway.piers;
+  console.log(
+    `Expressway: carriageways=${expressway.carriageways.length}, piers=${expressway.piers.length}, portals=${expressway.portals.length}, clearance=${JSON.stringify(expressway.report.clearance)}`,
+  );
+
   const stations = [
     {
       id: 'kandaimae-station',
@@ -1278,7 +1334,7 @@ async function main() {
     fs.writeFile(path.join(OUT_DIR, 'walk-graph.json'), JSON.stringify(walkGraph)),
     fs.writeFile(
       path.join(OUT_DIR, 'transport.json'),
-      JSON.stringify({ railways, stations }, null, 2),
+      JSON.stringify({ railways, stations, stationFacilities }, null, 2),
     ),
   ]);
 

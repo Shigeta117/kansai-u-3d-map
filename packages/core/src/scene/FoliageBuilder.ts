@@ -106,6 +106,21 @@ export function buildFoliageGroup(
         clearPts.push([pt[0], pt[2], minDist]);
       }
     }
+    // 名神高速の車道（盛土の法面の分も空ける。点は約 4m おき）と坑口の塊
+    for (const cw of structures.expressways ?? []) {
+      const minDist = cw.width * 0.5 + 6.5;
+      for (const pt of cw.points) {
+        clearPts.push([pt[0], pt[2], minDist]);
+      }
+    }
+    for (const p of structures.tunnelPortals) {
+      const depth = p.hoodDepth ?? 3;
+      const ax = Math.cos(p.angleRad);
+      const az = -Math.sin(p.angleRad);
+      for (let u = 0; u <= depth; u += 4) {
+        clearPts.push([p.x - ax * u, p.z - az * u, p.width * 0.5 + 3]);
+      }
+    }
   }
 
   const isNearCampusHeart = (x: number, z: number) =>
