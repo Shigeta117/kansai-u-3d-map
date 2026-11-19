@@ -17,6 +17,13 @@ export const SCENE_PALETTE = {
     plinthBody: '#C4B399',
     plinthFoot: '#3D444E',
   },
+  diorama: {
+    rim: '#EFE7D8',
+    topsoil: '#6B4F3A',
+    subsoil: '#9C7B5B',
+    deepSoil: '#5A4334',
+    bottom: '#4A382B',
+  },
   landcover: {
     'campus-ground': '#EFE8DA',
     lawn: '#89B468',

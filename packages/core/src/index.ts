@@ -19,10 +19,16 @@ export { buildTerrainGroup, mergeSimpleGeometries } from './scene/TerrainBuilder
 export {
   buildBuildingsGroup,
   applyBuildingVisualStates,
+  isBuildingWithinDiorama,
   type BuildingMeshRecord,
   type BuildingsBuildResult,
   type MaterialColorEntry,
 } from './scene/BuildingBuilder';
+export {
+  buildDioramaBaseGroup,
+  createDioramaClippingPlanes,
+  sampleTerrainMeshElevation,
+} from './scene/DioramaBaseBuilder';
 export { buildStructuresBridgesGroup } from './scene/BridgeBuilder';
 export { buildAccessCanopiesGroup } from './scene/AccessWayBuilder';
 export { sculptLandmarkDetails, type SculptExtraResult } from './scene/LandmarkSculptor';
@@ -31,6 +37,7 @@ export { buildTransportGroup, type TransportBuildResult } from './scene/Transpor
 export { RouteOverlay } from './scene/RouteOverlay';
 export {
   CameraRig,
+  clampTargetToDiorama,
   formatCameraParam,
   parseCameraParam,
   type CameraPose,

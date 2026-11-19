@@ -96,6 +96,14 @@ export interface LandmarkMeta {
   isQuickOrigin?: boolean;
 }
 
+export interface DioramaConfig {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  baseDepth: number;
+}
+
 export interface CampusConfig {
   id: CampusId;
   name: string;
@@ -109,6 +117,7 @@ export interface CampusConfig {
     minZ: number;
     maxZ: number;
   };
+  diorama: DioramaConfig;
   verticalExaggeration: number;
   cameraPresets: CameraPreset[];
 }
