@@ -185,7 +185,7 @@ describe('buildRimpukan', () => {
     }
   });
 
-  it('runs the grand staircase west-northwest, square to the main street, from the x≈99 edge', () => {
+  it('runs the grand staircase toward the Y-junction, along the OSM steps way 490803027', () => {
     result.group.updateMatrixWorld(true);
     const steps = result.group.getObjectByName('rimpukan-stairs-steps');
     if (!(steps instanceof THREE.InstancedMesh)) throw new Error('steps missing');
@@ -201,18 +201,15 @@ describe('buildRimpukan', () => {
     const [tx, tz] = centerXZ(top);
     const [fx, fz] = centerXZ(foot);
     const len = Math.hypot(fx - tx, fz - tz);
-    // 上の段から下の段へ向かう向きが (-0.98, -0.19)（道の向き (-0.19, 0.98) に直角）
-    expect((fx - tx) / len).toBeCloseTo(-0.98, 1);
-    expect((fz - tz) / len).toBeCloseTo(-0.19, 1);
-    // 下端の段は、ドラムの先端の辺 (99, 16)-(99, 24) の中央 (99, 20) から約 6.3m 先（道の東の縁）にある
-    const dirLen = Math.hypot(0.98, 0.19);
-    const footFrontX = 99 + (-0.98 / dirLen) * 6.3;
-    const footFrontZ = 20 + (-0.19 / dirLen) * 6.3;
-    const footFrontDist = Math.min(
-      ...foot.map((p) => Math.hypot(p.x - footFrontX, p.z - footFrontZ)),
-    );
-    expect(footFrontDist).toBeLessThan(9.2); // 段の隅（横 8.2m）までの距離
-    expect(Math.hypot(fx - footFrontX, fz - footFrontZ)).toBeLessThan(0.5);
+    // 上の段から下の段へ向かう向きは、OSM の階段の道の上端 (99.9, 28.3) → 下端 (94.7, 33.7)
+    // ＝ Y 字路 (85.3, 45.0) の方（南西寄り、およそ (-0.69, 0.72)）
+    const dx = 94.7 - 99.9;
+    const dz = 33.7 - 28.3;
+    const dlen = Math.hypot(dx, dz);
+    expect((fx - tx) / len).toBeCloseTo(dx / dlen, 1);
+    expect((fz - tz) / len).toBeCloseTo(dz / dlen, 1);
+    // 下端の段の中央は OSM の階段の下端の近く
+    expect(Math.hypot(fx - 94.7, fz - 33.7)).toBeLessThan(1.0);
   });
 
   describe('on ground that rises to the east', () => {

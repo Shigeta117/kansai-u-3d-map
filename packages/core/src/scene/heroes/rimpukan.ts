@@ -20,29 +20,34 @@ const PLAQUE_INNER_HEX = '#B9A983';
 const WINDOW_HEX = '#3E4A52';
 
 /**
- * 正面（ドラムの先端と大階段）の外向きの方向。ドラムの先端の前を南北に走るメインストリート
- * （OSM の道の中心線: (94.5, -2.2) → (85.3, 45.0)、向き およそ (-0.19, 0, 0.98)）に直角な、
- * ほぼ真西・少し北寄りの向き。大階段は道に直角に下りる
+ * 大階段は、メインストリートが北と東に分かれる Y 字路（OSM の交点 (85.3, 45.0)）の方へ下りる
+ * （持ち主の確認 2026-11-20「Y 字路の方向に向かって階段は伸びてる」）。
+ * OSM にこの階段そのものが steps の道（way 490803027）として載っているので、その上端と下端を使う。
+ * 上端＝ドラムの南西の縁、下端＝Y 字路へ続く歩道との接点
  */
-const FRONT_DIR_RAW_X = -0.98;
-const FRONT_DIR_RAW_Z = -0.19;
+const STAIR_TOP_X = 99.9;
+const STAIR_TOP_Z = 28.3;
+const STAIR_BOTTOM_X = 94.7;
+const STAIR_BOTTOM_Z = 33.7;
+const FRONT_DIR_RAW_X = STAIR_BOTTOM_X - STAIR_TOP_X;
+const FRONT_DIR_RAW_Z = STAIR_BOTTOM_Z - STAIR_TOP_Z;
 
 /**
- * 大階段を出すドラムの先端の辺の目安（OSM の輪郭の x≈99・z 16〜24 の辺の中央）。
+ * 大階段を出す地点の目安（OSM の階段の上端）。
  * この点にいちばん近い辺の中点を正面の基準にする。正面の向きに最も出た点の集め方だと、
  * 輪郭の座標が少し違うだけで隣の辺（z 9〜16）に移ってしまうため、辺を名指しする
  */
-const FRONT_EDGE_HINT_X = 98.7;
-const FRONT_EDGE_HINT_Z = 20.1;
+const FRONT_EDGE_HINT_X = STAIR_TOP_X;
+const FRONT_EDGE_HINT_Z = STAIR_TOP_Z;
 /** 目安の点から辺までがこれより遠ければ（別の輪郭）、正面の中心の線が当たる辺を使う */
 const FRONT_EDGE_HINT_MAX_DIST_M = 5.0;
 
 /**
  * 大階段の下端（道寄りの段の前）の、ドラムの先端の辺からの距離 (m)。
- * メインストリートの東の縁（中心線から幅 4.2m の半分）が、x≈99 の辺の中央から正面の向きに約 6.3m 先にある。
+ * OSM の階段の道の上端から下端までの長さ（約 7.5m）。下端は Y 字路へ続く歩道との接点。
  * 下端を道の縁に合わせ、階段が道の上にかぶらず、道とすき間なくつながるようにする
  */
-const STAIR_FOOT_DISTANCE_M = 6.3;
+const STAIR_FOOT_DISTANCE_M = Math.hypot(STAIR_BOTTOM_X - STAIR_TOP_X, STAIR_BOTTOM_Z - STAIR_TOP_Z);
 
 /** 段の高さの目安（0.15〜0.2m）。2 階の床までの総高をこの範囲の段に割る */
 const STAIR_RISER_MAX_M = 0.2;
@@ -753,17 +758,18 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   const probeAnchorX = frontCenterLx * fz + maxProj * fx;
   const probeAnchorZ = frontCenterLx * -fx + maxProj * fz;
   const centerRimHit = sampleFrontWallAt(ringCW, probeAnchorX, probeAnchorZ, fx, fz, 0);
-  // ドラムの先端の辺（x≈99・z 16〜24）の中点を正面の基準にする。大階段・入口・校章の枠はこの点から
+  // OSM の階段の上端（ドラムの南西の縁）を正面の基準にする。大階段・入口・校章の枠はこの点から
   // 正面の向きに出す。目安の点の近くに辺が無い輪郭では、正面の中心の線が当たる辺の中点を使う
   const hintedEdge = findNearestEdgeMid(ringCW, FRONT_EDGE_HINT_X, FRONT_EDGE_HINT_Z);
   const useHint = hintedEdge !== null && hintedEdge.dist <= FRONT_EDGE_HINT_MAX_DIST_M;
+  // 目安の点（OSM の階段の上端）が輪郭の近くにあれば、辺の中点ではなくその点そのものを基準にする
   const anchorX = useHint
-    ? hintedEdge.midX
+    ? FRONT_EDGE_HINT_X
     : centerRimHit
       ? centerRimHit.edgeMidX
       : probeAnchorX;
   const anchorZ = useHint
-    ? hintedEdge.midZ
+    ? FRONT_EDGE_HINT_Z
     : centerRimHit
       ? centerRimHit.edgeMidZ
       : probeAnchorZ;
