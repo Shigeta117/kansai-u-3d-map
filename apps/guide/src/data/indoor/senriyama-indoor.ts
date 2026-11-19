@@ -1,5 +1,6 @@
 import {
   expandRoomRange,
+  type AccessStatus,
   type BuildingFloorPlan,
   type RoomEntry,
 } from '@kansai-u-3d/core';
@@ -12,7 +13,8 @@ function buildStandardFloors(
   levels: number,
   groundFloor: number,
   basementCount = 0,
-  hasElevator = true,
+  elevator: AccessStatus = 'unknown',
+  accessibleRestroom: AccessStatus = 'unknown',
 ): BuildingFloorPlan['floors'] {
   const floors: BuildingFloorPlan['floors'] = [];
   for (let b = basementCount; b >= 1; b--) {
@@ -21,8 +23,8 @@ function buildStandardFloors(
       floor: f,
       label: `B${b}F`,
       groundAccess: f === groundFloor,
-      hasElevator,
-      hasAccessibleRestroom: b === 1,
+      elevator,
+      accessibleRestroom,
     });
   }
   for (let f = 1; f <= levels; f++) {
@@ -30,8 +32,8 @@ function buildStandardFloors(
       floor: f,
       label: `${f}F`,
       groundAccess: f === groundFloor,
-      hasElevator,
-      hasAccessibleRestroom: f === 1 || f === groundFloor,
+      elevator,
+      accessibleRestroom,
     });
   }
   return floors;
@@ -48,20 +50,20 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第1学舎1号館（A棟）。1階に法文オフィス・授業支援ステーション・食堂、2階に千里ホールA/Bを備える文系の中核棟。',
-    floors: buildStandardFloors(6, 1, 0, true),
+    floors: buildStandardFloors(6, 1, 0),
     entrances: [
       {
         id: 'a1-1-front',
         label: 'A棟 1F 正面ピロティ入口（法文オフィス・食堂側）',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
         note: '法文坂上・総合図書館方面からのメインアプローチ',
       },
       {
         id: 'a1-1-2f-link',
         label: '2F 千里ホール・各号館連絡デッキ口',
         floor: 2,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -72,7 +74,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area1-2',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第1学舎 1号館(A棟)〜2号館(B棟)・各号館 連絡通路',
       },
     ],
@@ -84,7 +86,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         wing: 'A棟',
         kind: 'office',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-support-station',
@@ -93,7 +95,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         wing: 'A棟',
         kind: 'office',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-cafeteria',
@@ -102,7 +104,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         wing: 'A棟',
         kind: 'cafeteria',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-senri-a',
@@ -111,7 +113,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         wing: 'A棟',
         kind: 'hall',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-senri-b',
@@ -120,7 +122,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         wing: 'A棟',
         kind: 'hall',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-a201',
@@ -130,7 +132,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: ['A201'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-a301',
@@ -140,7 +142,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: ['A301'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-a401',
@@ -150,7 +152,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: ['A401'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-lang-1-3',
@@ -159,7 +161,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 4,
         wing: 'A棟',
         kind: 'lab',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-a501-504',
@@ -169,7 +171,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('A', 501, 504),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-writing-1',
@@ -178,7 +180,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 5,
         wing: 'A棟',
         kind: 'lounge',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-a601-603',
@@ -188,7 +190,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('A', 601, 603),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-writing-2',
@@ -197,7 +199,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 6,
         wing: 'A棟',
         kind: 'lounge',
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -210,13 +212,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第1学舎2号館（B棟）。北門側に位置する3階建て講義棟。',
-    floors: buildStandardFloors(3, 1, 0, true),
+    floors: buildStandardFloors(3, 1, 0),
     entrances: [
       {
         id: 'a1-2-1f',
         label: 'B棟 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -227,7 +229,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area1-1',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第1学舎1号館(A棟) 連絡通路',
       },
     ],
@@ -240,7 +242,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: ['B101', 'B102'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-b201-202',
@@ -250,7 +252,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: ['B201', 'B202'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-b301',
@@ -260,7 +262,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: ['B301'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -273,13 +275,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第1学舎3号館（C棟）。講義室およびアクティブラーニング教室（ALC）・AVC教室を備える。',
-    floors: buildStandardFloors(5, 1, 0, true),
+    floors: buildStandardFloors(5, 1, 0),
     entrances: [
       {
         id: 'a1-3-1f',
         label: 'C棟 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -292,7 +294,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 101, 104),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-c201-204',
@@ -302,7 +304,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 201, 204),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-c301-304',
@@ -312,7 +314,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 301, 304),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-c401-402',
@@ -322,8 +324,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'seminar',
         searchableCodes: ['C401', 'C402'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-c501-502',
@@ -333,8 +334,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'seminar',
         searchableCodes: ['C501', 'C502'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -348,13 +348,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第1学舎4号館（D棟）。多数のゼミ・小中教室（D101〜D403）に加え、法廷教室・古文書実習室・地理学実習室・心理実験室・情報演習室A/Bを備える。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'a1-4-1f',
         label: 'D棟 1F エントランス',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -365,7 +365,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area1-1',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第1学舎1号館(A棟)方面 連絡通路',
       },
     ],
@@ -378,7 +378,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 101, 119),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-d201-214',
@@ -388,7 +388,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 201, 214),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-d2-special',
@@ -398,7 +398,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lab',
         searchableCodes: ['法廷教室', '古文書実習室', '古文書室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-d301-318',
@@ -408,7 +408,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 301, 318),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-d401-403',
@@ -418,7 +418,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 401, 403),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-d4-labs',
@@ -428,8 +428,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lab',
         searchableCodes: ['情報演習室A', '情報演習室B', '地理学実習室', '心理第3実験室'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-d4-station',
@@ -438,7 +437,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 4,
         wing: 'D棟',
         kind: 'office',
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -451,13 +450,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第1学舎5号館（E棟）。1階自習室、2〜6階にE201〜E603教室および情報演習室C・Dを配置。',
-    floors: buildStandardFloors(6, 1, 0, true),
+    floors: buildStandardFloors(6, 1, 0),
     entrances: [
       {
         id: 'a1-5-1f',
         label: 'E棟 1F 出入口（自習室フロア）',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -469,8 +468,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         wing: 'E棟',
         kind: 'lounge',
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-e201-210',
@@ -480,7 +478,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('E', 201, 210),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-e301-308',
@@ -490,8 +488,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: [...expandRoomRange('E', 301, 308), '情報演習室C', '情報演習室D'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-e401-403',
@@ -501,7 +498,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('E', 401, 403),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-e501-503',
@@ -511,7 +508,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('E', 501, 503),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a1-e601-603',
@@ -521,7 +518,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('E', 601, 603),
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -535,13 +532,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '岩崎記念館（第1学舎エリア F棟）。1階に政外オフィス・SAセンター（外国語学部）、2〜4階にF201〜F402教室・CALL教室・同時通訳ブース・e-LINCを備える。',
-    floors: buildStandardFloors(8, 1, 0, true),
+    floors: buildStandardFloors(8, 1, 0),
     entrances: [
       {
         id: 'iw-glass-1f',
         label: '低層ガラス棟 メインエントランス（1F 政外オフィス側）',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -554,7 +551,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'F棟',
         kind: 'office',
         searchableCodes: ['政外オフィス', 'SAセンター'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'iw-f201-203',
@@ -564,7 +561,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'F棟',
         kind: 'lecture',
         searchableCodes: ['F201', 'F202', 'F203'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'iw-call-3f',
@@ -574,8 +571,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'F棟',
         kind: 'lab',
         searchableCodes: ['CALL教室', '同時通訳ブース'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'iw-f401-402',
@@ -585,7 +581,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'F棟',
         kind: 'lecture',
         searchableCodes: ['F401', 'F402', 'e-LINC'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -599,13 +595,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '大学院学舎「尚文館」。1階マルチメディアAV大教室、2〜5階に201〜522講義室・演習室、3階に授業支援ステーション・教育開発支援センター、6〜7階に各研究科院生共同研究室を配置。',
-    floors: buildStandardFloors(7, 1, 0, true),
+    floors: buildStandardFloors(7, 1, 0),
     entrances: [
       {
         id: 'shobun-1f',
         label: '尚文館 1F メインエントランス',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -617,7 +613,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'hall',
         searchableCodes: ['マルチメディアAV大教室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sb-201-203',
@@ -626,8 +622,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         kind: 'lecture',
         searchableCodes: ['201', '202', '203', 'マルチメディアパソコン教室1'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sb-301-302',
@@ -636,7 +631,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 3,
         kind: 'lecture',
         searchableCodes: ['301', '302', '教育開発支援センター'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sb-401-422',
@@ -645,7 +640,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 4,
         kind: 'seminar',
         searchableCodes: [...expandRoomRange('', 401, 422), '大学院共通自習室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sb-501-522',
@@ -657,7 +652,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
           ...expandRoomRange('', 501, 508),
           ...expandRoomRange('', 510, 522),
         ],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sb-6f-7f-grad',
@@ -665,7 +660,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '法学・文学・経済学・商学・社会学・ガバナンス研究科 院生共同研究室',
         floor: 6,
         kind: 'seminar',
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -679,13 +674,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '法文坂下の八角形ドーム校舎「以文館」。1階に法科大学院オフィス・リーガルクリニック、2階に21〜28講義室/演習室・自習室・学生ラウンジ、3階にロー・ライブラリーを備える。',
-    floors: buildStandardFloors(4, 1, 1, true),
+    floors: buildStandardFloors(4, 1, 1),
     entrances: [
       {
         id: 'ib-east-1f',
         label: '法文坂側 1F エントランス',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -697,7 +692,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: -1,
         kind: 'lecture',
         searchableCodes: ['B1', 'B1講義室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ib-1f-lawschool',
@@ -706,7 +701,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'office',
         searchableCodes: ['法科大学院オフィス', 'リーガルクリニック'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ib-2f-21-28',
@@ -715,7 +710,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         kind: 'seminar',
         searchableCodes: ['21', '22', '23', '24', '25', '27', '28', '21講義室', '24講義室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ib-3f-lawlib',
@@ -724,7 +719,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 3,
         kind: 'library',
         searchableCodes: ['ロー・ライブラリー'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ib-4f-eastasia',
@@ -732,7 +727,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '東アジア文化研究科 院生研究室１〜３／セミナースペース',
         floor: 4,
         kind: 'seminar',
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -747,14 +742,14 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第2学舎1号館（A棟・B棟）。A棟1階に教務センター・教職支援センター・KITENE、2階に経商オフィス・国際部・Mi-room、A棟3〜5階とB棟1〜4階に講義室・自習室を備える。',
-    floors: buildStandardFloors(5, 1, 0, true),
+    floors: buildStandardFloors(5, 1, 0),
     entrances: [
       {
         id: 'a2-1-front',
         label: '第2学舎1号館 A棟 1F 正面入口（教務センター側）',
         floor: 1,
-        accessible: true,
-        note: '正門・総合図書館前広場から段差なしでアクセス可能',
+        access: 'unknown',
+        note: '正門・総合図書館前広場方面からのアプローチ',
       },
     ],
     connectors: [
@@ -765,7 +760,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area2-2',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第2学舎 1号館(A・B棟)〜2号館(C棟) 連絡デッキ',
       },
     ],
@@ -778,7 +773,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'office',
         searchableCodes: ['教務センター', '教職支援センター'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-kitene',
@@ -788,8 +783,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lounge',
         searchableCodes: ['KITENE'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-keisho-office',
@@ -799,7 +793,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'office',
         searchableCodes: ['経商オフィス', '国際部', 'Mi-room', 'Mi-Room'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-a301-312',
@@ -809,7 +803,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('A', 301, 312),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-a4-rooms',
@@ -828,8 +822,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
           'CAL教室',
           '経商ステーション',
         ],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-a501-503',
@@ -839,7 +832,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'A棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('A', 501, 503),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-b101-104',
@@ -849,7 +842,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('B', 101, 104),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-b201-206',
@@ -859,7 +852,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('B', 201, 206),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-b301-306',
@@ -869,7 +862,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('B', 301, 306),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-1-b401',
@@ -879,7 +872,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'B棟',
         kind: 'lecture',
         searchableCodes: ['B401'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -893,13 +886,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第2学舎2号館（C棟）。1階食堂、2〜6階にC201〜C607教室、7階に会計専門職大学院・公認会計士試験受験支援自習室・パソコン教室を備える。',
-    floors: buildStandardFloors(7, 1, 0, true),
+    floors: buildStandardFloors(7, 1, 0),
     entrances: [
       {
         id: 'a2-2-1f',
         label: 'C棟 1F 出入口（第2学舎食堂側）',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -910,7 +903,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area2-1',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第2学舎1号館(A・B棟) 連絡デッキ',
       },
     ],
@@ -922,7 +915,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         wing: 'C棟',
         kind: 'cafeteria',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-2-c201-209',
@@ -932,7 +925,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 201, 209),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-2-c301-304',
@@ -942,7 +935,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 301, 304),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-2-c401-404',
@@ -952,7 +945,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 401, 404),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-2-c501-507',
@@ -962,7 +955,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 501, 507),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-2-c601-607',
@@ -972,7 +965,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 601, 607),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-2-7f-acc',
@@ -981,8 +974,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 7,
         wing: 'C棟',
         kind: 'lounge',
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -995,13 +987,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第2学舎3号館（D棟・E棟）。D101〜D304教室および大型のE101・E201・E301教室で構成。',
-    floors: buildStandardFloors(3, 1, 0, true),
+    floors: buildStandardFloors(3, 1, 0),
     entrances: [
       {
         id: 'a2-3-1f',
         label: '第2学舎3号館（D・E棟）1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -1014,7 +1006,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 101, 104),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-3-d201-204',
@@ -1024,7 +1016,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 201, 204),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-3-d301-304',
@@ -1034,7 +1026,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'D棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('D', 301, 304),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-3-e101',
@@ -1044,7 +1036,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: ['E101'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-3-e201',
@@ -1054,7 +1046,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: ['E201'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a2-3-e301',
@@ -1064,7 +1056,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'E棟',
         kind: 'lecture',
         searchableCodes: ['E301'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1078,14 +1070,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第2学舎4号館（F棟）。1〜3階吹抜の大講堂「BIGホール100」およびリフレッシュコーナー（自習スペース）、4階にF401〜F403教室を備える。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'bh-front-1f',
         label: '第2学舎4号館（F棟）1F 正面エントランス',
         floor: 1,
-        accessible: true,
-        note: 'スロープ・エレベーター完備',
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -1096,7 +1087,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area2-3',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第2学舎3号館 連絡デッキ',
       },
     ],
@@ -1109,8 +1100,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'F棟',
         kind: 'hall',
         searchableCodes: ['BIGホール100', 'BIGホール'],
-        capacity: 1000,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'bh-f401-403',
@@ -1120,7 +1110,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: 'F棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('F', 401, 403),
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1135,21 +1125,21 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '社会学部の拠点・第3学舎（1号館A棟・2号館B棟・3号館C棟・4号館D棟）。西門新アクセス路と高架歩道橋「秀麗橋」に直結。',
-    floors: buildStandardFloors(6, 1, 1, true),
+    floors: buildStandardFloors(6, 1, 1),
     entrances: [
       {
         id: 'a3-west-b1',
         label: '1号館(A棟) 地階・1F 西門新アクセス路側 玄関ホール',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
         note: '屋外エスカレーター到着広場およびカフェソシオ連絡',
       },
       {
         id: 'a3-shurei-2f',
         label: '秀麗橋連絡 2F デッキ入口',
         floor: 2,
-        accessible: true,
-        note: '新関西大学会館南棟・正門・法文坂方面へ高低差なしで直結',
+        access: 'unknown',
+        note: '新関西大学会館南棟・正門・法文坂方面への連絡口',
       },
     ],
     connectors: [
@@ -1160,9 +1150,9 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'shinkandaikaikan-s',
         toFloor: 2,
         kind: 'skybridge',
-        accessible: true,
+        access: 'unknown',
         label: '秀麗橋（高架歩道橋）直結',
-        note: '道路を横断せずそのままの高さで新関西大学会館南棟・正門方面へ移動可能',
+        note: '道路を横断せず新関西大学会館南棟・正門方面へ連絡',
       },
     ],
     rooms: [
@@ -1175,7 +1165,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '1号館 A棟',
         kind: 'cafeteria',
         searchableCodes: ['カフェソシオ'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-office',
@@ -1185,7 +1175,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '1号館 A棟',
         kind: 'office',
         searchableCodes: ['第3学舎オフィス', '社会学部オフィス'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-a101',
@@ -1195,7 +1185,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '1号館 A棟',
         kind: 'lecture',
         searchableCodes: ['A101'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-a201-207',
@@ -1205,7 +1195,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '1号館 A棟',
         kind: 'lecture',
         searchableCodes: [...expandRoomRange('A', 201, 204), 'A207', '第3学舎コモンズ'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-a301-307',
@@ -1215,7 +1205,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '1号館 A棟',
         kind: 'lecture',
         searchableCodes: ['A301', ...expandRoomRange('A', 303, 307)],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-a401-407',
@@ -1225,7 +1215,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '1号館 A棟',
         kind: 'lecture',
         searchableCodes: ['A401A', 'A401B', ...expandRoomRange('A', 401, 407)],
-        accessible: true,
+        access: 'unknown',
       },
       // B棟 (2号館)
       {
@@ -1236,8 +1226,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '2号館 B棟',
         kind: 'lab',
         searchableCodes: ['B101', 'B101A', 'B101B', 'B102', 'B103', 'ソシオ音響スタジオ', 'ソシオ映像スタジオ'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-b201-207',
@@ -1247,7 +1236,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '2号館 B棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('B', 201, 207),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-b301-307',
@@ -1257,7 +1246,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '2号館 B棟',
         kind: 'lecture',
         searchableCodes: [...expandRoomRange('B', 301, 304), 'B306', 'B307'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-b401-407',
@@ -1267,7 +1256,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '2号館 B棟',
         kind: 'lecture',
         searchableCodes: ['B401', 'B402', ...expandRoomRange('B', 404, 407), '心理検査室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-b502-505',
@@ -1277,7 +1266,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '2号館 B棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('B', 502, 505),
-        accessible: true,
+        access: 'unknown',
       },
       // C棟 (3号館)
       {
@@ -1288,8 +1277,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '3号館 C棟',
         kind: 'lounge',
         searchableCodes: ['PASSRoom', 'PASS Room'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-c301-304',
@@ -1299,7 +1287,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '3号館 C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 301, 304),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-c401-404',
@@ -1309,7 +1297,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '3号館 C棟',
         kind: 'lecture',
         searchableCodes: expandRoomRange('C', 401, 404),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-c501-505',
@@ -1319,7 +1307,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '3号館 C棟',
         kind: 'lecture',
         searchableCodes: ['C501', 'C502', 'C505'],
-        accessible: true,
+        access: 'unknown',
       },
       // D棟 (4号館)
       {
@@ -1330,7 +1318,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '4号館 D棟',
         kind: 'hall',
         searchableCodes: ['D101', 'ソシオAV大ホール', '関大ソシオAV大ホール'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-d301-302',
@@ -1340,7 +1328,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '4号館 D棟',
         kind: 'lecture',
         searchableCodes: ['D301', 'D302'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-d401-403',
@@ -1350,7 +1338,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '4号館 D棟',
         kind: 'lecture',
         searchableCodes: ['D401', 'D403'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a3-d501-502',
@@ -1360,7 +1348,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '4号館 D棟',
         kind: 'lecture',
         searchableCodes: ['D501', 'D502'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1375,13 +1363,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第4学舎1号館および1号館（教授棟）。1階に理工系オフィス・授業支援ステーション・学習支援室、2階にキャリアセンター理工系事務室・1201(IoT)・1202(LC)を備える。',
-    floors: buildStandardFloors(5, 1, 0, true),
+    floors: buildStandardFloors(5, 1, 0),
     entrances: [
       {
         id: 'a4-1-west',
         label: '第4学舎1号館 1F メインエントランス（理工系オフィス側）',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -1392,7 +1380,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area4-2',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第4学舎 1号館〜2号館 連絡通路',
       },
     ],
@@ -1405,7 +1393,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '①1号館',
         kind: 'office',
         searchableCodes: ['理工系オフィス', '学習支援室', '協同学習室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-1-career-2f',
@@ -1415,7 +1403,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '①1号館',
         kind: 'office',
         searchableCodes: ['キャリアセンター理工系事務室', '安全管理課'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-1-1201-1202',
@@ -1425,8 +1413,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '①1号館',
         kind: 'lounge',
         searchableCodes: ['1201', '1202', 'IoTセンシングスタジオ'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-1-1301-1302',
@@ -1436,7 +1423,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '①1号館',
         kind: 'seminar',
         searchableCodes: ['1301', '1302'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-1-1401-1402',
@@ -1446,8 +1433,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '①1号館',
         kind: 'lounge',
         searchableCodes: ['1401', '1402'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-1-prof-wing',
@@ -1456,7 +1442,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         wing: '②1号館（教授棟）',
         kind: 'lab',
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1470,13 +1456,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第4学舎2号館（③教室棟・④研究棟・⑤研究棟別館）。2101〜2502教室、情報処理室（4ST）、第2製図室、OD1・OD2教室および化学・材料・建築系研究室群を備える。',
-    floors: buildStandardFloors(5, 1, 1, true),
+    floors: buildStandardFloors(5, 1, 1),
     entrances: [
       {
         id: 'a4-2-1f',
         label: '第4学舎2号館（教室棟）1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -1487,7 +1473,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area4-1',
         toFloor: 2,
         kind: 'indoor-corridor',
-        accessible: true,
+        access: 'unknown',
         label: '第4学舎1号館 連絡通路',
       },
     ],
@@ -1500,8 +1486,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '③2号館（教室棟）',
         kind: 'lecture',
         searchableCodes: [...expandRoomRange('', 2101, 2106), '4ST', '情報処理室'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-2-2201-2208',
@@ -1511,7 +1496,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '③2号館（教室棟）',
         kind: 'lecture',
         searchableCodes: expandRoomRange('', 2201, 2208),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-2-2301-2305',
@@ -1521,7 +1506,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '③2号館（教室棟）',
         kind: 'lecture',
         searchableCodes: expandRoomRange('', 2301, 2305),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-2-2401-2404',
@@ -1531,7 +1516,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '③2号館（教室棟）',
         kind: 'lecture',
         searchableCodes: expandRoomRange('', 2401, 2404),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-2-2501-od2',
@@ -1541,7 +1526,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '③2号館（教室棟）',
         kind: 'lecture',
         searchableCodes: ['2501', '2502', 'OD1', 'OD2', '第2製図室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-2-res-b1-5f',
@@ -1551,7 +1536,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '④2号館（研究棟）',
         kind: 'lab',
         searchableCodes: ['建築設計製図室', '高磁場NMR室', '電子顕微鏡室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-2-annex',
@@ -1561,7 +1546,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑤2号館（研究棟別館）',
         kind: 'lab',
         searchableCodes: ['物理実験場'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1574,13 +1559,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第4学舎3号館（⑥）。3101・3201・3202・3401〜3403教室およびデザインルーム1・2を備える。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'a4-3-1f',
         label: '第4学舎3号館 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -1593,7 +1578,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑥3号館',
         kind: 'lecture',
         searchableCodes: ['3101'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-3-3201-3202',
@@ -1603,7 +1588,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑥3号館',
         kind: 'lecture',
         searchableCodes: ['3201', '3202'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-3-design',
@@ -1613,7 +1598,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑥3号館',
         kind: 'lab',
         searchableCodes: ['デザインルーム1', 'デザインルーム2'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-3-3401-3403',
@@ -1623,7 +1608,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑥3号館',
         kind: 'lecture',
         searchableCodes: expandRoomRange('', 3401, 3403),
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1636,13 +1621,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第4学舎4号館（⑦）。地階4001〜4003教室、1〜3階に4101〜4301教室を配置。',
-    floors: buildStandardFloors(3, 1, 1, true),
+    floors: buildStandardFloors(3, 1, 1),
     entrances: [
       {
         id: 'a4-4-1f',
         label: '第4学舎4号館 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -1655,7 +1640,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑦4号館',
         kind: 'lecture',
         searchableCodes: expandRoomRange('', 4001, 4003),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-4-4101-4103',
@@ -1665,7 +1650,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑦4号館',
         kind: 'lecture',
         searchableCodes: expandRoomRange('', 4101, 4103),
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-4-4201-4202',
@@ -1675,7 +1660,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑦4号館',
         kind: 'lecture',
         searchableCodes: ['4201', '4202'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'a4-4-4301',
@@ -1685,7 +1670,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑦4号館',
         kind: 'lecture',
         searchableCodes: ['4301'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1699,13 +1684,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '第4学舎東側の実験棟群（⑧第1実験棟〜⑬第6実験棟）およびハイテク・リサーチ・コア。テクノサポートオフィスやクリーンルーム、各学科の大型実験場が集まる。',
-    floors: buildStandardFloors(4, 1, 1, true),
+    floors: buildStandardFloors(4, 1, 1),
     entrances: [
       {
         id: 'ht-1f',
         label: '実験棟エリア 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -1718,7 +1703,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑧第1実験棟',
         kind: 'lab',
         searchableCodes: ['第1実験棟', '電気電子実験場1'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ht-exp2-office',
@@ -1728,7 +1713,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑨第2実験棟',
         kind: 'office',
         searchableCodes: ['テクノサポートオフィス', 'クリーンルーム', '第2実験棟'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ht-exp2-chem',
@@ -1738,7 +1723,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑨第2実験棟',
         kind: 'lab',
         searchableCodes: ['共同化学実験場1', '共同化学実験場2'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ht-exp3',
@@ -1748,7 +1733,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑩第3実験棟',
         kind: 'lab',
         searchableCodes: ['第3実験棟', '電気電子実験場2', '半導体実験場'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ht-exp4',
@@ -1758,7 +1743,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑪第4実験棟',
         kind: 'lab',
         searchableCodes: ['第4実験棟', '化学工学実験場', '化学物質実験場', '生命・生物工学実験場'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ht-exp5',
@@ -1768,7 +1753,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑫第5実験棟',
         kind: 'lab',
         searchableCodes: ['第5実験棟', '機械共同実験場'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ht-exp6',
@@ -1778,7 +1763,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '⑬第6実験棟',
         kind: 'lab',
         searchableCodes: ['第6実験棟', '建築構造実験室', '機械実習工場'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1793,33 +1778,22 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '総合学生会館（メディアパーク凜風館）。1階に学生センター・学生相談室・コラボレーションコモンズ、2階に生協食堂、3階に生協総合サービスカウンター・物品売場、4階に小ホール・会議室・和室を備える。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'rmp-west-1f',
         label: '悠久の庭側 1F メインエントランス（学生センター・ラウンジ）',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'rmp-south-2f',
         label: '2F テラス・生協食堂側入口',
         floor: 2,
-        accessible: true,
+        access: 'unknown',
       },
     ],
-    connectors: [
-      {
-        id: 'conn-rmp-ev',
-        fromBuildingId: 'rimpukan',
-        fromFloor: 1,
-        toBuildingId: 'rimpukan',
-        toFloor: 4,
-        kind: 'elevator-shaft',
-        accessible: true,
-        label: '館内エレベーター（1F〜4F・屋上庭園アクセス）',
-      },
-    ],
+    connectors: [],
     rooms: [
       {
         id: 'rmp-1f-center',
@@ -1828,7 +1802,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'office',
         searchableCodes: ['学生センター', '大学学生相談室', '奨学支援'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'rmp-1f-commons',
@@ -1837,8 +1811,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'lounge',
         searchableCodes: ['コラボレーションコモンズ', '学生ラウンジ'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'rmp-2f-dining',
@@ -1847,8 +1820,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         kind: 'cafeteria',
         searchableCodes: ['生協（食堂）', '生協食堂', '凜風館食堂'],
-        capacity: 750,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'rmp-3f-coop',
@@ -1857,7 +1829,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 3,
         kind: 'other',
         searchableCodes: ['総合サービスカウンター', '物品売場', '住宅相談室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'rmp-4f-rooms',
@@ -1866,7 +1838,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 4,
         kind: 'hall',
         searchableCodes: ['小ホール', '和室1', '和室2', '学生支援室'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1880,19 +1852,19 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '新関西大学会館 北棟。1階に入試センター・学生相談・支援センター・北棟ホール、3階にキャリアセンター事務室、4階に保健管理センター・心理相談室を備える。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'skn-1f',
         label: '正門北側 1F エントランス',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'skn-2f-hobunzaka',
         label: '秀麗橋・法文坂側 デッキ連絡口',
         floor: 2,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -1903,7 +1875,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'shinkandaikaikan-s',
         toFloor: 2,
         kind: 'skybridge',
-        accessible: true,
+        access: 'unknown',
         label: '秀麗橋・南棟連絡デッキ',
       },
     ],
@@ -1916,7 +1888,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '北棟',
         kind: 'office',
         searchableCodes: ['入試センター', '学生相談・支援センター', '北棟ホール'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'skn-3f-career',
@@ -1926,7 +1898,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '北棟',
         kind: 'office',
         searchableCodes: ['キャリアセンター事務室', 'キャリアセンター', 'キャリアカウンセリングルーム'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'skn-4f-health',
@@ -1936,7 +1908,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '北棟',
         kind: 'office',
         searchableCodes: ['保健管理センター', '心理相談室'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -1950,19 +1922,19 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '円錐屋根が特徴の新関西大学会館 南棟。1階にインフォメーションロビー・出納課分室、2・3階に研究推進部・社会連携部を備え、秀麗橋高架デッキのハブとなる。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'sks-ground-1f',
         label: '正門側 1F インフォメーションロビー入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sks-shurei-2f',
         label: '秀麗橋 高架デッキ連絡口',
         floor: 2,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [
@@ -1973,7 +1945,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'area3',
         toFloor: 2,
         kind: 'skybridge',
-        accessible: true,
+        access: 'unknown',
         label: '秀麗橋（第3学舎連絡デッキ）',
       },
       {
@@ -1983,7 +1955,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toBuildingId: 'shinkandaikaikan-n',
         toFloor: 2,
         kind: 'skybridge',
-        accessible: true,
+        access: 'unknown',
         label: '秀麗橋（北棟・法文坂合流デッキ）',
       },
     ],
@@ -1996,7 +1968,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '南棟',
         kind: 'office',
         searchableCodes: ['インフォメーションロビー', '出納課分室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'sks-2f-3f-research',
@@ -2006,7 +1978,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '南棟',
         kind: 'office',
         searchableCodes: ['研究推進部', '社会連携部'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -2020,13 +1992,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '千里山中央体育館。1階に事務室・サブアリーナA/B・トレーニングルーム、2階にメインアリーナ、3階にU字型室内ランニングレーンを備える。',
-    floors: buildStandardFloors(3, 1, 0, true),
+    floors: buildStandardFloors(3, 1, 0),
     entrances: [
       {
         id: 'cgym-1f',
         label: '中央体育館 1F エントランス',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -2038,7 +2010,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'office',
         searchableCodes: ['中央体育館事務室'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'cgym-1f-sub',
@@ -2047,7 +2019,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'other',
         searchableCodes: ['サブアリーナA', 'サブアリーナB', 'トレーニングルーム'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'cgym-2f-main',
@@ -2056,7 +2028,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         kind: 'hall',
         searchableCodes: ['メインアリーナ'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'cgym-3f-track',
@@ -2064,7 +2036,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: 'U字型室内ランニングレーン',
         floor: 3,
         kind: 'other',
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -2077,13 +2049,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '千里山東体育館。B1階に器械体操練習場、1階にATルーム・Sports Library・体育会各部室、2階にアリーナ・フィットネススタジオを備える。',
-    floors: buildStandardFloors(3, 1, 1, true),
+    floors: buildStandardFloors(3, 1, 1),
     entrances: [
       {
         id: 'egym-1f',
         label: '東体育館 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -2095,6 +2067,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: -1,
         kind: 'other',
         searchableCodes: ['器械体操練習場'],
+        access: 'unknown',
       },
       {
         id: 'egym-1f-at',
@@ -2103,7 +2076,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 1,
         kind: 'other',
         searchableCodes: ['ATルーム', 'Sports Library'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'egym-2f-arena',
@@ -2112,7 +2085,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         kind: 'hall',
         searchableCodes: ['フィットネススタジオ'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'egym-3f-stand',
@@ -2120,6 +2093,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '観覧席',
         floor: 3,
         kind: 'other',
+        access: 'unknown',
       },
     ],
   },
@@ -2133,13 +2107,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       '誠之館5号館（凱風館）および誠之館7号館（新凱風館）。学生センター（スポーツ振興グループ）・体育会本部・Power Gym・各種武道場・体育会部室が集まる。',
-    floors: buildStandardFloors(4, 1, 0, true),
+    floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
         id: 'gf-1f',
         label: '凱風館・新凱風館 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -2152,7 +2126,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館5号館（凱風館）',
         kind: 'other',
         searchableCodes: ['Power Gym', '重量挙練習場'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'gf-5-2f',
@@ -2161,7 +2135,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         wing: '誠之館5号館（凱風館）',
         kind: 'other',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'gf-5-3f',
@@ -2170,6 +2144,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 3,
         wing: '誠之館5号館（凱風館）',
         kind: 'other',
+        access: 'unknown',
       },
       {
         id: 'gf-7-1f',
@@ -2179,7 +2154,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館7号館（新凱風館）',
         kind: 'office',
         searchableCodes: ['スポーツ振興グループ', '体育会本部', '相撲道場'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'gf-7-2f-4f',
@@ -2189,7 +2164,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館7号館（新凱風館）',
         kind: 'other',
         searchableCodes: ['関大スポーツ編集局'],
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -2203,13 +2178,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
       'KUシンフォニーホール（誠之館4号館）および周辺の誠之館2号館・3号館（旧館/新館）・6号館（有鄰館）・8号館（養心館）を含む課外活動エリア。',
-    floors: buildStandardFloors(5, 1, 1, true),
+    floors: buildStandardFloors(5, 1, 1),
     entrances: [
       {
         id: 'ssk-1f',
         label: '誠之館エリア 1F 出入口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -2222,7 +2197,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館4号館',
         kind: 'hall',
         searchableCodes: ['KUシンフォニーホール'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ssk-2-1f',
@@ -2232,7 +2207,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館2号館',
         kind: 'office',
         searchableCodes: ['共済会事務局', '関大パンセ', 'ボランティアステーション'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ssk-3-b1-5f',
@@ -2242,7 +2217,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館3号館（新館・旧館）',
         kind: 'other',
         searchableCodes: ['文化会本部', '学術研究会本部', '放送研究会'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ssk-6-yurinkan',
@@ -2252,7 +2227,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館6号館（有鄰館）',
         kind: 'other',
         searchableCodes: ['有鄰館', 'アクティブスタジオ'],
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'ssk-8-yoshinkan',
@@ -2262,6 +2237,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wing: '誠之館8号館（養心館）',
         kind: 'other',
         searchableCodes: ['養心館', '射撃場', '剣道場', '柔道場', 'アーチェリー場'],
+        access: 'unknown',
       },
     ],
   },
@@ -2272,29 +2248,17 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     wingLabel: '総合図書館（B1F〜4F）',
     numberingRule: '1F 入館ゲート・レファレンス / B1F ラーニング・コモンズ / 2〜3F 閲覧室',
     summaryNote:
-      '赤褐色レンガ外観と正面大庇が特徴の総合図書館。全館エレベーター・車いす対応閲覧席・ラーニング・コモンズを備える。',
-    floors: buildStandardFloors(4, 1, 1, true),
+      '赤褐色レンガ外観と正面大庇が特徴の総合図書館。ラーニング・コモンズや閲覧室を備える。',
+    floors: buildStandardFloors(4, 1, 1),
     entrances: [
       {
         id: 'lib-front-1f',
-        label: '正面大庇エントランス（1F・スロープ併用）',
+        label: '正面大庇エントランス（1F）',
         floor: 1,
-        accessible: true,
-        note: '正面階段横に段差フリーのスロープあり',
+        access: 'unknown',
       },
     ],
-    connectors: [
-      {
-        id: 'conn-lib-ev',
-        fromBuildingId: 'library',
-        fromFloor: -1,
-        toBuildingId: 'library',
-        toFloor: 4,
-        kind: 'elevator-shaft',
-        accessible: true,
-        label: '図書館エレベーター（B1F〜4F）',
-      },
-    ],
+    connectors: [],
     rooms: [
       {
         id: 'lib-1f-gate',
@@ -2302,7 +2266,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '入館ゲート・レファレンスデスク・新着図書',
         floor: 1,
         kind: 'library',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'lib-lc',
@@ -2310,8 +2274,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: 'ラーニング・コモンズ／AVコーナー',
         floor: -1,
         kind: 'lounge',
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'lib-2f-study',
@@ -2319,8 +2282,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '開架閲覧室・個人学習席・研究個室エリア',
         floor: 2,
         kind: 'library',
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },
@@ -2329,13 +2291,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     buildingId: 'kanbunkan',
     wingLabel: '簡文館（関西大学博物館）',
     summaryNote: '村野藤吾による円形増築と螺旋階段が美しい関西大学博物館（大阪府指定有形文化財）。',
-    floors: buildStandardFloors(3, 1, 0, true),
+    floors: buildStandardFloors(3, 1, 0),
     entrances: [
       {
         id: 'kb-south-1f',
         label: '簡文館 1F 南側入館口',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -2346,7 +2308,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '関西大学博物館 常設展示・特別展示ロビー',
         floor: 1,
         kind: 'other',
-        accessible: true,
+        access: 'unknown',
       },
       {
         id: 'kb-rotunda',
@@ -2354,6 +2316,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         name: '村野藤吾設計 円形棟・螺旋階段空間',
         floor: 2,
         kind: 'other',
+        access: 'unknown',
       },
     ],
   },
@@ -2362,13 +2325,13 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     buildingId: 'enshinkan',
     wingLabel: '円神館（ITセンター）',
     summaryNote: '16本の丸柱ピロティに支えられた円形建築「円神館」（ITセンター・情報処理実習室）。',
-    floors: buildStandardFloors(3, 1, 0, true),
+    floors: buildStandardFloors(3, 1, 0),
     entrances: [
       {
         id: 'en-piloti-1f',
         label: '1F ピロティ・エントランス',
         floor: 1,
-        accessible: true,
+        access: 'unknown',
       },
     ],
     connectors: [],
@@ -2380,8 +2343,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         floor: 2,
         kind: 'lab',
         searchableCodes: ['ITセンター'],
-        powerOutlets: true,
-        accessible: true,
+        access: 'unknown',
       },
     ],
   },

@@ -88,7 +88,7 @@ describe('search', () => {
     'area1-4': {
       buildingId: 'area1-4',
       wingLabel: 'D棟',
-      floors: [{ floor: 1, label: '1F', hasElevator: true }],
+      floors: [{ floor: 1, label: '1F', elevator: 'unknown' }],
       entrances: [],
       connectors: [],
       rooms: [
@@ -105,7 +105,7 @@ describe('search', () => {
     },
     'area4-1': {
       buildingId: 'area4-1',
-      floors: [{ floor: 2, label: '2F', hasElevator: true }],
+      floors: [{ floor: 2, label: '2F', elevator: 'unknown' }],
       entrances: [],
       connectors: [],
       rooms: [

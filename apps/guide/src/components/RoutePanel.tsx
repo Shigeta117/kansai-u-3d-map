@@ -254,6 +254,18 @@ export function RoutePanel({
           </button>
         </div>
 
+        {/* Mode-specific Reference Notes */}
+        {mode === 'step-free' && (
+          <p className="rounded-xl border border-[#C7E2E7] bg-[#EEF7F9] px-3 py-2 text-[11px] leading-relaxed text-[#1E5663]">
+            OpenStreetMap の階段・エスカレーターの情報だけで選んだ参考ルートです。情報の無い段差・工事・エレベーターの運用時間は反映していません。
+          </p>
+        )}
+        {mode === 'gentle' && (
+          <p className="rounded-xl border border-[#CDE3DA] bg-[#EFF7F3] px-3 py-1.5 text-[11px] leading-relaxed text-[#225C49]">
+            標高データから選んだ参考ルートです。
+          </p>
+        )}
+
         {/* Route Result Card or Unreachable Banner */}
         {route ? (
           <div className="space-y-2.5">
@@ -261,7 +273,7 @@ export function RoutePanel({
               {route.isStepFree && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#E2F4F7] px-2.5 py-0.5 text-[10.5px] font-bold text-[#1F7A8C]">
                   <ShieldCheck className="h-3 w-3" />
-                  完全段差フリー
+                  段差なし候補（参考）
                 </span>
               )}
               {route.usesBridge && (
