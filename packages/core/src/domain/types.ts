@@ -216,16 +216,90 @@ export interface TunnelPortalFeature {
   id: string;
   name: string;
   x: number;
+  /** 開口の床（路面）の標高（m） */
   y: number;
   z: number;
+  /** rotation.y。坑門のローカル +X がトンネルの外（坑口が面する側）を向き、ローカル Z が坑門の幅の方向 */
   angleRad: number;
+  /** 坑門の全幅（m） */
   width: number;
+  /** expressway＝高速道路の坑口、culvert＝高速道路の下をくぐる道の通路の口 */
+  kind?: 'expressway' | 'culvert';
+  /** 開口（坑門の中心からの幅の方向のずれと、開口の幅）。無ければ全幅の 78% の開口 1 つ */
+  openings?: { offset: number; width: number }[];
+  /** 開口の高さ（m） */
+  openingHeight?: number;
+  /** 坑門の壁の高さ（m、路面から） */
+  wallHeight?: number;
+  /** 坑門の奥行き（トンネルの中へ向かう覆いの長さ、m） */
+  hoodDepth?: number;
+}
+
+export type ExpresswaySegmentKind = 'bridge' | 'ground';
+
+/** 高速道路の片側の車道（OSM の way をつないだ線と、推定した路面の高さ） */
+export interface ExpresswayCarriagewayFeature {
+  id: string;
+  name: string;
+  lanes: number;
+  osmWayIds: number[];
+  /** (x, 路面の標高 m（推定）, z)。西→東 */
+  points: [number, number, number][];
+  /** i 番目の点から i+1 番目の点までの区間の種類（points.length - 1 個） */
+  segmentKinds: ExpresswaySegmentKind[];
+  /** 車道の幅（高欄の外側まで、m） */
+  width: number;
+  /** 床版＋桁の厚み（m） */
+  structureDepth: number;
+  slabThickness: number;
+  parapetHeight: number;
+  parapetThickness: number;
+  /** 地上の区間の側面。0＝擁壁（縦の壁）、正＝盛土の法面の勾配（水平 / 鉛直） */
+  embankmentSlope: number;
+}
+
+/** 高架の橋脚（柱と梁） */
+export interface ExpresswayPierFeature {
+  carriagewayId: string;
+  x: number;
+  z: number;
+  /** 桁の下面（梁の上面）の標高（m） */
+  topElevM: number;
+  /** 道路の進む向き（rotation.y でローカル +X が進む向きになる角度） */
+  angleRad: number;
+  /** 梁の長さ（車道の幅の方向、m） */
+  capLength: number;
+  /** 柱の太さ（m） */
+  columnSize: number;
 }
 
 export interface CampusStructuresData {
   bridges: ElevatedBridgeFeature[];
   accessCanopies: AccessCanopyFeature[];
   tunnelPortals: TunnelPortalFeature[];
+  expressways?: ExpresswayCarriagewayFeature[];
+  expresswayPiers?: ExpresswayPierFeature[];
+}
+
+/** 駅のホーム・駅舎・上屋（OSM の輪郭。高さは推定） */
+export interface StationFacilitiesFeature {
+  stationId: string;
+  platforms: { id: string; ref: string; polygon: [number, number][] }[];
+  buildings: {
+    id: string;
+    name: string;
+    polygon: [number, number][];
+    /** 地面から屋根までの高さ（m、推定） */
+    heightM: number;
+    roofHex: string;
+  }[];
+  canopies: {
+    id: string;
+    platformId: string;
+    polygon: [number, number][];
+    /** ホームの上面から屋根の下面までの高さ（m、推定） */
+    clearHeightM: number;
+  }[];
 }
 
 export interface TransportData {
@@ -242,6 +316,7 @@ export interface TransportData {
     y: number;
     walkNodeId: string | null;
   }[];
+  stationFacilities?: StationFacilitiesFeature[];
 }
 
 export interface WalkNode {

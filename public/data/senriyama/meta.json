@@ -1,6 +1,6 @@
 {
   "campusId": "senriyama",
-  "generatedAt": "2026-11-19T17:04:01.941Z",
+  "generatedAt": "2026-11-19T23:37:39.939Z",
   "origin": {
     "originLat": 34.7745,
     "originLon": 135.5105,
@@ -14,7 +14,7 @@
     "maxZ": 580
   },
   "stats": {
-    "totalBuildings": 2372,
+    "totalBuildings": 2369,
     "campusBuildings": 75,
     "matchedLandmarks": 34,
     "walkNodes": 2275,
