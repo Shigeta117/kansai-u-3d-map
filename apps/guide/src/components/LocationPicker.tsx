@@ -34,6 +34,8 @@ interface LocationPickerProps {
   pickingActive: boolean;
   onSelect: (next: RouteEndpointSelection) => void;
   onStartMapPick: () => void;
+  /** 候補の一覧を開いたとき（スマホのシートを高い段に上げる） */
+  onOpen?: () => void;
 }
 
 const HUB_IDS = ['kandaimae-station', 'main-gate', 'west-gate', 'rimpukan', 'library'];
@@ -59,6 +61,7 @@ export function LocationPicker({
   pickingActive,
   onSelect,
   onStartMapPick,
+  onOpen,
 }: LocationPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -160,7 +163,10 @@ export function LocationPicker({
       <div className="flex items-stretch gap-1.5">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            if (!open) onOpen?.();
+            setOpen(!open);
+          }}
           aria-expanded={open}
           aria-label={`${roleLabel}地点を選択: ${selectedBuilding?.name ?? ''}`}
           className={`t-interactive flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left ${
@@ -229,6 +235,14 @@ export function LocationPicker({
           data-state={visible ? 'open' : 'closed'}
           role="dialog"
           aria-label={`${roleLabel}地点ピッカー`}
+          onKeyDown={(e) => {
+            // Esc は一覧だけを閉じる（外側のシートまで閉じない）
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            }
+          }}
           className="t-picker-popover absolute left-0 right-0 top-[54px] z-40 flex max-h-[360px] flex-col overflow-hidden rounded-xl border border-[#D8D0C1] bg-[#FAF7F2]/98 shadow-2xl backdrop-blur-md"
         >
           <div className="border-b border-[#EAE3D6] p-2">
