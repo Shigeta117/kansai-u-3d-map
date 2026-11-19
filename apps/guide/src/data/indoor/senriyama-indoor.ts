@@ -1124,7 +1124,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
-      '社会学部の拠点・第3学舎（1号館A棟・2号館B棟・3号館C棟・4号館D棟）。西門新アクセス路と高架歩道橋「秀麗橋」に直結。',
+      '社会学部の拠点・第3学舎（1号館A棟・2号館B棟・3号館C棟・4号館D棟）。西門新アクセス路と、新関西大学会館・秀麗橋へ続く第3学舎連絡デッキに直結。',
     floors: buildStandardFloors(6, 1, 1),
     entrances: [
       {
@@ -1136,7 +1136,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
       },
       {
         id: 'a3-shurei-2f',
-        label: '秀麗橋連絡 2F デッキ入口',
+        label: '第3学舎連絡デッキ 2F 入口',
         floor: 2,
         access: 'unknown',
         note: '新関西大学会館南棟・正門・法文坂方面への連絡口',
@@ -1151,7 +1151,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toFloor: 2,
         kind: 'skybridge',
         access: 'unknown',
-        label: '秀麗橋（高架歩道橋）直結',
+        label: '第3学舎連絡デッキ直結',
         note: '道路を横断せず新関西大学会館南棟・正門方面へ連絡',
       },
     ],
@@ -1921,7 +1921,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
-      '円錐屋根が特徴の新関西大学会館 南棟。1階にインフォメーションロビー・出納課分室、2・3階に研究推進部・社会連携部を備え、秀麗橋高架デッキのハブとなる。',
+      '円形の新関西大学会館 南棟。1階にインフォメーションロビー・出納課分室、2・3階に研究推進部・社会連携部を備え、秀麗橋高架デッキのハブとなる。',
     floors: buildStandardFloors(4, 1, 0),
     entrances: [
       {
@@ -1946,7 +1946,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toFloor: 2,
         kind: 'skybridge',
         access: 'unknown',
-        label: '秀麗橋（第3学舎連絡デッキ）',
+        label: '第3学舎連絡デッキ',
       },
       {
         id: 'conn-sks-north',
@@ -1956,7 +1956,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         toFloor: 2,
         kind: 'skybridge',
         access: 'unknown',
-        label: '秀麗橋（北棟・法文坂合流デッキ）',
+        label: '秀麗橋（北棟へ・法文坂方面）',
       },
     ],
     rooms: [
@@ -2323,7 +2323,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
 
   enshinkan: {
     buildingId: 'enshinkan',
-    wingLabel: '円神館（ITセンター）',
+    wingLabel: 'ITセンター（円神館）',
     summaryNote: '16本の丸柱ピロティに支えられた円形建築「円神館」（ITセンター・情報処理実習室）。',
     floors: buildStandardFloors(3, 1, 0),
     entrances: [
