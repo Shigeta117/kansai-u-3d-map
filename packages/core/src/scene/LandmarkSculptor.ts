@@ -414,32 +414,7 @@ export function sculptLandmarkDetails(
       break;
     }
 
-    case 'station-platform': {
-      const canopy = new THREE.Mesh(
-        new THREE.BoxGeometry(10, 1.4, 34),
-        new THREE.MeshStandardMaterial({
-          color: '#F3ECE0',
-          roughness: 0.7,
-        }),
-      );
-      canopy.position.set(cx, roofY - 1.5, cz);
-      canopy.rotation.y = 0.08;
-      canopy.castShadow = true;
-      meshes.push(canopy);
-
-      const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(10.4, 0.75, 34.4),
-        new THREE.MeshStandardMaterial({
-          color: SCENE_PALETTE.accents.hankyuMaroon,
-          roughness: 0.6,
-        }),
-      );
-      stripe.position.set(cx, roofY - 0.6, cz);
-      stripe.rotation.y = 0.08;
-      meshes.push(stripe);
-      break;
-    }
-
+    // 'station-platform'（関大前駅）は StationBuilder が OSM の輪郭から描く（ここでは何も足さない）
     default:
       break;
   }

@@ -24,6 +24,7 @@ import {
   buildDioramaBaseGroup,
   createDioramaClippingPlanes,
 } from './DioramaBaseBuilder';
+import { carveTerrainForExpressways } from './ExpresswayBuilder';
 import { buildFoliageGroup } from './FoliageBuilder';
 import { LightingRig } from './LightingRig';
 import { RouteOverlay } from './RouteOverlay';
@@ -170,8 +171,11 @@ export class CampusScene {
       options.freeCamera ?? false,
     );
 
+    // 表示用の地形: 名神高速の地上の区間の路面の下にかかる格子を下げる（データの地形は変えない）
+    const terrain = carveTerrainForExpressways(dataset.terrain, dataset.structures);
+
     const terrainGroup = buildTerrainGroup(
-      dataset.terrain,
+      terrain,
       dataset.landcover,
       dataset.paths,
       config,
@@ -182,7 +186,7 @@ export class CampusScene {
       dataset.buildings,
       dataset.terrain.minElevation,
       config,
-      { campusOnly: options.campusOnly, terrain: dataset.terrain },
+      { campusOnly: options.campusOnly, terrain },
     );
     this.scene.add(buildingsResult.root);
     this.campusRecords = buildingsResult.campusRecords;
@@ -191,20 +195,20 @@ export class CampusScene {
 
     const bridgesGroup = buildStructuresBridgesGroup(
       dataset.structures,
-      dataset.terrain,
+      terrain,
       config,
     );
     this.scene.add(bridgesGroup);
 
     const canopiesGroup = buildAccessCanopiesGroup(
       dataset.structures,
-      dataset.terrain,
+      terrain,
       config,
     );
     this.scene.add(canopiesGroup);
 
     const foliageGroup = buildFoliageGroup(
-      dataset.terrain,
+      terrain,
       dataset.landcover,
       dataset.buildings,
       dataset.paths,
@@ -220,10 +224,12 @@ export class CampusScene {
     } else {
       const transportResult = buildTransportGroup(
         dataset.transport,
-        dataset.terrain,
+        terrain,
         config,
       );
       this.scene.add(transportResult.group);
+      // 駅のホーム・駅舎を押すと駅（kandaimae-station）を選ぶ
+      this.interactiveMeshes.push(...transportResult.interactive);
       this.transportCars = transportResult.cars;
       this.updateTransport = transportResult.update;
     }
@@ -233,7 +239,7 @@ export class CampusScene {
 
     this.applyClippingPlanes(this.scene);
 
-    const dioramaBaseGroup = buildDioramaBaseGroup(dataset.terrain, config);
+    const dioramaBaseGroup = buildDioramaBaseGroup(terrain, config);
     this.scene.add(dioramaBaseGroup);
 
     this.scene.updateMatrixWorld(true);

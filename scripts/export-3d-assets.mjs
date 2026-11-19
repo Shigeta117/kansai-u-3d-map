@@ -94,7 +94,7 @@ async function exportVariant({
 }
 
 async function main() {
-  const [{ SENRIYAMA_CONFIG }, terrainB, buildingB, bridgeB, accessB, foliageB, transportB] =
+  const [{ SENRIYAMA_CONFIG }, terrainB, buildingB, bridgeB, accessB, foliageB, transportB, expresswayB] =
     await Promise.all([
       tsImport('../packages/core/src/data/campuses/senriyama/config.ts', import.meta.url),
       tsImport('../packages/core/src/scene/TerrainBuilder.ts', import.meta.url),
@@ -103,6 +103,7 @@ async function main() {
       tsImport('../packages/core/src/scene/AccessWayBuilder.ts', import.meta.url),
       tsImport('../packages/core/src/scene/FoliageBuilder.ts', import.meta.url),
       tsImport('../packages/core/src/scene/TransportBuilder.ts', import.meta.url),
+      tsImport('../packages/core/src/scene/ExpresswayBuilder.ts', import.meta.url),
     ]);
 
   const builders = {
@@ -123,7 +124,15 @@ async function main() {
     fs.readFile(path.join(DATA_DIR, 'transport.json'), 'utf8').then(JSON.parse),
   ]);
 
-  const datasets = { terrain, buildings, landcover, paths, structures, transport };
+  // 表示と同じく、名神高速の地上の区間の路面の下の地形を下げる（データの地形は変えない）
+  const datasets = {
+    terrain: expresswayB.carveTerrainForExpressways(terrain, structures),
+    buildings,
+    landcover,
+    paths,
+    structures,
+    transport,
+  };
   await fs.mkdir(EXPORTS_DIR, { recursive: true });
 
   const campusStats = await exportVariant({
