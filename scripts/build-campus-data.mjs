@@ -21,8 +21,25 @@ const EXCLUDED_CANOPY_BUILDING_IDS = new Set([
 ]);
 
 // OSM way IDs forming the Shurei Bridge / Area 3 elevated pedestrian deck
+// 第3学舎〜新関西大学会館〜法文坂の高架デッキ（OSM の bridge=yes の歩道）
 const SHUREI_BRIDGE_WAY_IDS = new Set([423060539, 423060540, 423060541]);
+// 「秀麗橋」は新関西大学会館の南棟と北棟を結ぶ、正門の上の連絡路の名前（持ち主の確認 2026-11-19）。
+// デッキのうち正門の上をまたぐのは way 423060541（南棟〜北棟〜法文坂）。423060539 は第3学舎側、423060540 は南棟側のデッキ
+const SHUREI_BRIDGE_PROPER_WAY_ID = 423060541;
 const MINOR_BRIDGE_WAY_IDS = new Set([490790149, 490793070, 490942384]);
+
+const WALKABLE_HIGHWAYS = new Set([
+  'footway',
+  'pedestrian',
+  'path',
+  'steps',
+  'living_street',
+  'residential',
+  'unclassified',
+  'service',
+  'tertiary',
+  'secondary',
+]);
 
 // Ordered OSM ways along the New Access Road (West Gate -> Area 3)
 const NEW_ACCESS_WAY_IDS = [
@@ -341,7 +358,25 @@ function buildStructuresData(nodeMap, wayMap, terrain, origin) {
   const bridges = [];
   const bridgeNodeElevOverrides = new Map();
 
-  // Compute flat deck elevations for Shurei Bridge (Area 3 -> New Kandaikaikan -> Hobunzaka)
+  // Nodes belonging to non-bridge ground walkways (excluding steps/escalators that descend from elevated decks)
+  const groundWalkWayNodes = new Set();
+  for (const w of wayMap.values()) {
+    const hw = w.tags?.highway;
+    if (!hw || !WALKABLE_HIGHWAYS.has(hw) || w.tags.foot === 'no') continue;
+    const isBridgeWay =
+      w.tags.bridge === 'yes' ||
+      SHUREI_BRIDGE_WAY_IDS.has(w.id) ||
+      MINOR_BRIDGE_WAY_IDS.has(w.id);
+    if (isBridgeWay) continue;
+    const isEscalator = w.tags.conveying === 'yes';
+    const isSteps = hw === 'steps' && !isEscalator;
+    if (isSteps || isEscalator) continue;
+    for (const nid of w.nodes ?? []) {
+      groundWalkWayNodes.add(nid);
+    }
+  }
+
+  // Compute deck elevations for Shurei Bridge (Area 3 -> New Kandaikaikan -> Hobunzaka)
   // West abutment: node 4227729266 ([-188, 188])
   // North abutment: node 4227729267 ([-107, 48])
   const westNode = nodeMap.get(4227729266);
@@ -350,31 +385,36 @@ function buildStructuresData(nodeMap, wayMap, terrain, origin) {
   const northLoc = northNode ? geoToLocal(northNode.lat, northNode.lon, origin) : { x: -107, z: 48 };
   const westGround = sampleElevation(terrain, westLoc.x, westLoc.z);
   const northGround = sampleElevation(terrain, northLoc.x, northLoc.z);
-  // Deck runs smoothly at ~41.5m - 42.5m (staying comfortably above main road ~36m at [-115, 125])
-  const shureiBaseElev = Math.max(westGround + 0.4, northGround + 0.4, 41.8);
+  const zSpan = westLoc.z - northLoc.z;
 
   const shureiDefs = [
-    { wayId: 423060539, id: 'bridge-shurei-west', name: '秀麗橋（第3学舎連絡デッキ）', width: 3.4 },
-    { wayId: 423060540, id: 'bridge-shurei-south', name: '秀麗橋（正門南デッキ）', width: 3.6 },
-    { wayId: 423060541, id: 'bridge-shurei-north', name: '秀麗橋（法文坂合流デッキ）', width: 3.6 },
+    { wayId: 423060539, id: 'bridge-shurei-west', name: '第3学舎連絡デッキ', width: 3.4 },
+    { wayId: 423060540, id: 'bridge-shurei-south', name: '新関西大学会館 南棟デッキ', width: 3.6 },
+    { wayId: 423060541, id: 'bridge-shurei-north', name: '秀麗橋（南棟〜北棟・法文坂方面）', width: 3.6 },
   ];
 
   for (const def of shureiDefs) {
     const w = wayMap.get(def.wayId);
     if (!w) continue;
+    const nodeIds = w.nodes ?? [];
     const pts = [];
-    for (const nid of w.nodes ?? []) {
+    for (let i = 0; i < nodeIds.length; i++) {
+      const nid = nodeIds[i];
       const nd = nodeMap.get(nid);
       if (!nd) continue;
       const { x, z } = geoToLocal(nd.lat, nd.lon, origin);
       const ground = sampleElevation(terrain, x, z);
-      // Slight gentle gradient towards the north Hobunzaka landing while ensuring >= 4.6m over road
-      const tNorth = Math.max(0, Math.min(1, (188 - z) / (188 - 48)));
-      const targetDeck =
-        westGround * (1 - tNorth) + northGround * tNorth + 0.5;
-      const deckY = Number(
-        Math.max(shureiBaseElev, targetDeck, ground + 4.4).toFixed(2),
-      );
+      const isEnd = i === 0 || i === nodeIds.length - 1;
+      if (isEnd && groundWalkWayNodes.has(nid)) {
+        // Ground-connected bridge abutment uses ground elevation directly (no override)
+        pts.push([Number(x.toFixed(2)), Number(ground.toFixed(2)), Number(z.toFixed(2))]);
+        continue;
+      }
+      // Interior deck node: max of linear line between both abutments and >= 4.4m above ground
+      const tNorth =
+        zSpan !== 0 ? Math.max(0, Math.min(1, (westLoc.z - z) / zSpan)) : 0;
+      const lineElev = westGround * (1 - tNorth) + northGround * tNorth;
+      const deckY = Number(Math.max(lineElev, ground + 4.4).toFixed(2));
       bridgeNodeElevOverrides.set(nid, deckY);
       pts.push([Number(x.toFixed(2)), deckY, Number(z.toFixed(2))]);
     }
@@ -392,12 +432,26 @@ function buildStructuresData(nodeMap, wayMap, terrain, origin) {
   for (const wid of MINOR_BRIDGE_WAY_IDS) {
     const w = wayMap.get(wid);
     if (!w) continue;
+    const nodeIds = w.nodes ?? [];
     const pts = [];
-    for (const nid of w.nodes ?? []) {
+    for (let i = 0; i < nodeIds.length; i++) {
+      const nid = nodeIds[i];
       const nd = nodeMap.get(nid);
       if (!nd) continue;
       const { x, z } = geoToLocal(nd.lat, nd.lon, origin);
-      const y = Number((sampleElevation(terrain, x, z) + 1.6).toFixed(2));
+      // Preserve elevation if node already belongs to Shurei Bridge
+      const existingY = bridgeNodeElevOverrides.get(nid);
+      if (existingY !== undefined) {
+        pts.push([Number(x.toFixed(2)), existingY, Number(z.toFixed(2))]);
+        continue;
+      }
+      const ground = sampleElevation(terrain, x, z);
+      const isEnd = i === 0 || i === nodeIds.length - 1;
+      if (isEnd && groundWalkWayNodes.has(nid)) {
+        pts.push([Number(x.toFixed(2)), Number(ground.toFixed(2)), Number(z.toFixed(2))]);
+        continue;
+      }
+      const y = Number((ground + 1.6).toFixed(2));
       bridgeNodeElevOverrides.set(nid, y);
       pts.push([Number(x.toFixed(2)), y, Number(z.toFixed(2))]);
     }
@@ -504,23 +558,11 @@ function buildWalkGraphAndPaths(
     z >= bounds.minZ + 1 &&
     z <= bounds.maxZ - 1;
 
-  const WALKABLE_HIGHWAYS = new Set([
-    'footway',
-    'pedestrian',
-    'path',
-    'steps',
-    'living_street',
-    'residential',
-    'unclassified',
-    'service',
-    'tertiary',
-    'secondary',
-  ]);
-
   const nodes = {};
   const adjacency = {};
   const paths = [];
   const bridgeNodeIds = new Set();
+  const shureiNodeIds = new Set();
 
   const ensureNode = (osmNodeId, lat, lon) => {
     const id = `n_${osmNodeId}`;
@@ -553,6 +595,7 @@ function buildWalkGraphAndPaths(
     const dist = Math.hypot(dx, dz);
     if (dist < 0.2) return;
     const deltaAB = b.y - a.y;
+    const shureiFlag = flags.isShureiBridge ? { isShureiBridge: true } : {};
     adjacency[aId].push({
       to: bId,
       dist: Number(dist.toFixed(2)),
@@ -560,6 +603,7 @@ function buildWalkGraphAndPaths(
       slope: Number((deltaAB / dist).toFixed(4)),
       isSteps: flags.isSteps,
       isBridge: flags.isBridge,
+      ...shureiFlag,
       isEscalator: flags.isEscalator,
     });
     adjacency[bId].push({
@@ -569,6 +613,7 @@ function buildWalkGraphAndPaths(
       slope: Number((-deltaAB / dist).toFixed(4)),
       isSteps: flags.isSteps,
       isBridge: flags.isBridge,
+      ...shureiFlag,
       isEscalator: flags.isEscalator,
     });
   };
@@ -578,6 +623,7 @@ function buildWalkGraphAndPaths(
     const hw = el.tags.highway;
     const isEscalator = el.tags.conveying === 'yes';
     const isSteps = hw === 'steps' && !isEscalator;
+    const isShureiBridge = el.id === SHUREI_BRIDGE_PROPER_WAY_ID;
     const isBridge =
       el.tags.bridge === 'yes' ||
       SHUREI_BRIDGE_WAY_IDS.has(el.id) ||
@@ -605,7 +651,11 @@ function buildWalkGraphAndPaths(
         const nxt = wayNodeIds[i + 1];
         const na = ensureNode(cur.nid, cur.lat, cur.lon);
         const nb = ensureNode(nxt.nid, nxt.lat, nxt.lon);
-        addEdge(na.id, nb.id, { isSteps, isBridge, isEscalator });
+        if (isShureiBridge) {
+          shureiNodeIds.add(na.id);
+          shureiNodeIds.add(nb.id);
+        }
+        addEdge(na.id, nb.id, { isSteps, isBridge, isShureiBridge, isEscalator });
       }
     }
 
@@ -646,7 +696,13 @@ function buildWalkGraphAndPaths(
       if (d > 0.2 && d <= 4.5) {
         const already = (adjacency[a.id] ?? []).some((e) => e.to === b.id);
         if (!already) {
-          addEdge(a.id, b.id, { isSteps: false, isBridge: true, isEscalator: false });
+          const isShureiSnap = shureiNodeIds.has(a.id) && shureiNodeIds.has(b.id);
+          addEdge(a.id, b.id, {
+            isSteps: false,
+            isBridge: true,
+            isShureiBridge: isShureiSnap,
+            isEscalator: false,
+          });
           bridgeSnaps++;
         }
       }

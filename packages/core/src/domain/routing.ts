@@ -78,6 +78,9 @@ class MinHeap {
   }
 }
 
+/** Wheelchair reference slope threshold (1/12 ≈ 8.33%) */
+export const STEEP_SLOPE_RATIO = 1 / 12;
+
 export function computeEdgeCost(edge: WalkEdge, mode: RouteMode): number {
   const baseDist = Math.max(0.1, edge.dist);
   if (mode === 'shortest') {
@@ -88,11 +91,15 @@ export function computeEdgeCost(edge: WalkEdge, mode: RouteMode): number {
     if (edge.isSteps || edge.isEscalator) {
       return Number.POSITIVE_INFINITY;
     }
+    const absSlope = Math.abs(edge.slope);
+    if (absSlope > STEEP_SLOPE_RATIO) {
+      return baseDist * (1 + absSlope * 60);
+    }
     if (edge.slope > 0.05) {
       return baseDist * (1 + edge.slope * 22);
     }
     if (edge.slope < -0.06) {
-      return baseDist * (1 + Math.abs(edge.slope) * 10);
+      return baseDist * (1 + absSlope * 10);
     }
     return edge.isBridge ? baseDist * 0.92 : baseDist;
   }
@@ -161,9 +168,11 @@ export function findRoute(
       elevationLossM: 0,
       stepsCount: 0,
       usesBridge: false,
+      usesShureiBridge: false,
       usesEscalator: false,
       isStepFree: true,
       maxSlopeRatio: 0,
+      steepSegmentsM: 0,
       profile: [
         {
           distanceM: 0,
@@ -239,8 +248,10 @@ export function findRoute(
   let elevationLossM = 0;
   let stepsCount = 0;
   let usesBridge = false;
+  let usesShureiBridge = false;
   let usesEscalator = false;
   let maxSlopeRatio = 0;
+  let steepSegmentsM = 0;
 
   const first = graph.nodes[pathIds[0] ?? ''];
   if (!first) return null;
@@ -265,8 +276,16 @@ export function findRoute(
     else elevationLossM += Math.abs(edge.deltaY);
     if (edge.isSteps) stepsCount += 1;
     if (edge.isBridge) usesBridge = true;
+    if (edge.isShureiBridge) {
+      usesBridge = true;
+      usesShureiBridge = true;
+    }
     if (edge.isEscalator) usesEscalator = true;
-    maxSlopeRatio = Math.max(maxSlopeRatio, Math.abs(edge.slope));
+    const absSlope = Math.abs(edge.slope);
+    maxSlopeRatio = Math.max(maxSlopeRatio, absSlope);
+    if (absSlope > STEEP_SLOPE_RATIO) {
+      steepSegmentsM += edge.dist;
+    }
 
     points.push({ x: node.x, y: node.y, z: node.z });
     profile.push({
@@ -294,9 +313,11 @@ export function findRoute(
     elevationLossM,
     stepsCount,
     usesBridge,
+    usesShureiBridge,
     usesEscalator,
     isStepFree: stepsCount === 0 && !usesEscalator,
     maxSlopeRatio,
+    steepSegmentsM,
     profile,
   };
 }
