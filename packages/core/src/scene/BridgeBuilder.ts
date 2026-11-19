@@ -5,6 +5,7 @@ import type {
   CampusStructuresData,
   TerrainGrid,
 } from '../domain/types';
+import { buildExpresswayMesh } from './ExpresswayBuilder';
 import { SCENE_PALETTE } from './palette';
 
 function buildDeckStripGeometry(
@@ -207,40 +208,9 @@ export function buildStructuresBridgesGroup(
     group.add(bGroup);
   }
 
-  // Meishin Expressway Tunnel Portals
-  const portalMat = new THREE.MeshStandardMaterial({
-    color: '#C7BEB0',
-    roughness: 0.85,
-  });
-  const voidMat = new THREE.MeshStandardMaterial({
-    color: '#282E36',
-    roughness: 0.95,
-  });
-
-  for (const portal of structures.tunnelPortals) {
-    const pGroup = new THREE.Group();
-    pGroup.name = portal.id;
-    const baseY = computeVisualY(portal.y, minElev, exag);
-    pGroup.position.set(portal.x, baseY, portal.z);
-    pGroup.rotation.y = portal.angleRad;
-
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(3.2, 7.2, portal.width),
-      portalMat,
-    );
-    frame.position.y = 3.2;
-    frame.castShadow = true;
-    pGroup.add(frame);
-
-    const darkMouth = new THREE.Mesh(
-      new THREE.BoxGeometry(3.4, 5.2, portal.width * 0.78),
-      voidMat,
-    );
-    darkMouth.position.y = 2.4;
-    pGroup.add(darkMouth);
-
-    group.add(pGroup);
-  }
+  // 名神高速道路（高架・地上の区間・橋脚・坑口）。頂点色つきの 1 つのメッシュ
+  const expressway = buildExpresswayMesh(structures, terrain, config);
+  if (expressway) group.add(expressway);
 
   return group;
 }

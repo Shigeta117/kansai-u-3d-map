@@ -32,6 +32,8 @@ export {
   sampleTerrainMeshElevation,
 } from './scene/DioramaBaseBuilder';
 export { buildStructuresBridgesGroup } from './scene/BridgeBuilder';
+export { buildExpresswayMesh, carveTerrainForExpressways } from './scene/ExpresswayBuilder';
+export { buildStationGroup, type StationBuildResult } from './scene/StationBuilder';
 export { buildAccessCanopiesGroup } from './scene/AccessWayBuilder';
 export { sculptLandmarkDetails, type SculptExtraResult } from './scene/LandmarkSculptor';
 export { buildFoliageGroup } from './scene/FoliageBuilder';
