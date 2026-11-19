@@ -36,6 +36,24 @@ export interface CampusSceneCallbacks {
   onLabelsUpdate?: (labels: ProjectedLabel[]) => void;
 }
 
+/**
+ * 1 回の描画の重さ（`renderer.info.render` の値）。calls と triangles は画面の描画だけの数で、
+ * 影の地図の描画は含まない（three r175 は影の地図を描いた後に info を数え直すため）。
+ * 影の地図は組み立て時とテーマ切り替え時だけ描き直すので、その回の数を shadowCalls / shadowTriangles に残す
+ */
+export interface RenderStats {
+  /** 画面の描画の描画命令の数（この 1 回分） */
+  calls: number;
+  /** 画面の描画の三角形の数（この 1 回分） */
+  triangles: number;
+  /** 最後に影の地図を描き直したときの描画命令の数（まだ描いていなければ 0） */
+  shadowCalls: number;
+  /** 最後に影の地図を描き直したときの三角形の数 */
+  shadowTriangles: number;
+  /** これまでに描いた回数（値が 1 回分ずつ入れ替わっているかの確かめ用） */
+  renders: number;
+}
+
 export interface CampusSceneOptions {
   campusOnly?: boolean;
   initialTheme?: LightingTheme;
@@ -43,6 +61,8 @@ export interface CampusSceneOptions {
   initialCamera?: CameraPose;
   /** 撮影・検収用に、カメラの寄りと傾きの制限を外す（URL の free=1） */
   freeCamera?: boolean;
+  /** 描画のたびに重さを受け取る（開発時と URL の stats=1 のときだけ渡す） */
+  onRenderStats?: (stats: RenderStats) => void;
 }
 
 export class CampusScene {
@@ -75,6 +95,9 @@ export class CampusScene {
   private readonly tempSphere = new THREE.Sphere();
   private readonly labelListeners = new Set<LabelsListener>();
   private lastLabelsFrame: LabelsFrame | null = null;
+  private readonly onRenderStats: ((stats: RenderStats) => void) | null;
+  private readonly shadowPassStats = { calls: 0, triangles: 0 };
+  private renderCount = 0;
 
   private rafId: number | null = null;
   private startTimeMs = performance.now();
@@ -100,6 +123,7 @@ export class CampusScene {
     this.dataset = dataset;
     this.config = config;
     this.callbacks = callbacks;
+    this.onRenderStats = options.onRenderStats ?? null;
 
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       this.motionMediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -127,6 +151,9 @@ export class CampusScene {
     this.renderer.domElement.style.height = '100%';
     this.renderer.domElement.style.touchAction = 'none';
     container.appendChild(this.renderer.domElement);
+    if (this.onRenderStats) {
+      this.trackShadowPassStats();
+    }
 
     this.scene = new THREE.Scene();
     this.clippingPlanes = createDioramaClippingPlanes(config.diorama);
@@ -227,6 +254,40 @@ export class CampusScene {
 
     this.bindEvents();
     this.startLoop();
+  }
+
+  /**
+   * 影の地図の描画命令を数える。info は影の地図を描いた後に数え直される（autoReset）ので、
+   * 影の地図の描画の前後の差を取る。影の地図を描き直さない回（autoUpdate=false で needsUpdate も false）は数えない
+   */
+  private trackShadowPassStats(): void {
+    const shadowMap = this.renderer.shadowMap;
+    const info = this.renderer.info;
+    const renderShadows = shadowMap.render.bind(shadowMap);
+    shadowMap.render = (lights, scene, camera) => {
+      const willUpdate =
+        shadowMap.enabled && (shadowMap.autoUpdate || shadowMap.needsUpdate) && lights.length > 0;
+      const calls0 = info.render.calls;
+      const triangles0 = info.render.triangles;
+      renderShadows(lights, scene, camera);
+      if (willUpdate) {
+        this.shadowPassStats.calls = info.render.calls - calls0;
+        this.shadowPassStats.triangles = info.render.triangles - triangles0;
+      }
+    };
+  }
+
+  private emitRenderStats(): void {
+    if (!this.onRenderStats) return;
+    this.renderCount += 1;
+    const { calls, triangles } = this.renderer.info.render;
+    this.onRenderStats({
+      calls,
+      triangles,
+      shadowCalls: this.shadowPassStats.calls,
+      shadowTriangles: this.shadowPassStats.triangles,
+      renders: this.renderCount,
+    });
   }
 
   private applyClippingPlanes(root: THREE.Object3D): void {
@@ -406,6 +467,7 @@ export class CampusScene {
       if (this.needsRender) {
         this.needsRender = false;
         this.renderer.render(this.scene, this.cameraRig.camera);
+        this.emitRenderStats();
         if (this.labelsDirty) {
           this.labelsDirty = false;
           this.emitProjectedLabels();

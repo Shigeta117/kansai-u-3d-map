@@ -51,4 +51,5 @@ export {
   CampusScene,
   type CampusSceneCallbacks,
   type CampusSceneOptions,
+  type RenderStats,
 } from './scene/CampusScene';

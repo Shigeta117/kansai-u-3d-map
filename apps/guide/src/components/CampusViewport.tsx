@@ -6,6 +6,7 @@ import {
   type CampusConfig,
   type CampusDataset,
   type LightingTheme,
+  type RenderStats,
   type RoofColorMode,
   type RouteResult,
 } from '@kansai-u-3d/core';
@@ -13,8 +14,31 @@ import {
 type KumWindow = Window & {
   __kum?: {
     getCameraParam: () => string;
+    /** 最後の描画の重さ（開発時か URL の stats=1 のときだけ入る） */
+    renderStats?: RenderStats;
   };
 };
+
+/** 描画の重さを body の data-kum-* と window.__kum.renderStats に出す（撮影の --dump-dom や E2E から読む） */
+function publishRenderStats(stats: RenderStats): void {
+  const ds = document.body.dataset;
+  ds.kumCalls = String(stats.calls);
+  ds.kumTriangles = String(stats.triangles);
+  ds.kumShadowCalls = String(stats.shadowCalls);
+  ds.kumShadowTriangles = String(stats.shadowTriangles);
+  ds.kumRenders = String(stats.renders);
+  const kum = (window as KumWindow).__kum;
+  if (kum) kum.renderStats = stats;
+}
+
+function clearRenderStats(): void {
+  const ds = document.body.dataset;
+  delete ds.kumCalls;
+  delete ds.kumTriangles;
+  delete ds.kumShadowCalls;
+  delete ds.kumShadowTriangles;
+  delete ds.kumRenders;
+}
 
 interface CampusViewportProps {
   dataset: CampusDataset;
@@ -26,6 +50,8 @@ interface CampusViewportProps {
   roofColorMode: RoofColorMode;
   initialCamera?: CameraPose;
   freeCamera?: boolean;
+  /** URL の stats=1。開発時は指定が無くても出す */
+  renderStats?: boolean;
   onSelectBuilding: (buildingId: string | null) => void;
   onSceneChange: (scene: CampusScene | null) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
@@ -53,6 +79,7 @@ export function CampusViewport({
   roofColorMode,
   initialCamera,
   freeCamera,
+  renderStats,
   onSelectBuilding,
   onSceneChange,
   sceneRef,
@@ -73,6 +100,7 @@ export function CampusViewport({
       return;
     }
 
+    const statsEnabled = import.meta.env.DEV || Boolean(renderStats);
     const scene = new CampusScene(
       el,
       dataset,
@@ -83,26 +111,29 @@ export function CampusViewport({
       {
         initialCamera,
         freeCamera,
+        ...(statsEnabled ? { onRenderStats: publishRenderStats } : {}),
       },
     );
     sceneRef.current = scene;
     onSceneChangeRef.current(scene);
 
-    if (import.meta.env.DEV) {
+    // 最初の描画は次のフレーム（requestAnimationFrame）なので、ここで置けば描画の重さも受け取れる
+    if (statsEnabled) {
       (window as KumWindow).__kum = {
         getCameraParam: () => scene.getCameraParam(),
       };
     }
 
     return () => {
-      if (import.meta.env.DEV) {
+      if (statsEnabled) {
         delete (window as KumWindow).__kum;
+        clearRenderStats();
       }
       onSceneChangeRef.current(null);
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [dataset, config, sceneRef, initialCamera, freeCamera]);
+  }, [dataset, config, sceneRef, initialCamera, freeCamera, renderStats]);
 
   useEffect(() => {
     sceneRef.current?.setHighlightState(selectedId, activeCategory);
