@@ -1,137 +1,133 @@
-import { Compass, Info, Moon, Route as RouteIcon, Sun, Tag } from 'lucide-react';
-import type { CameraPreset, LightingTheme } from '@kansai-u-3d/core';
+import { Check, Compass, Eye } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { CameraPreset } from '@kansai-u-3d/core';
+import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 
-interface TopActionButtonsProps {
-  lighting: LightingTheme;
-  showLabels: boolean;
-  routeOpen: boolean;
-  onToggleLighting: () => void;
-  onToggleLabels: () => void;
-  onToggleRoute: () => void;
-  onResetNorth: () => void;
-  onOpenCredits: () => void;
-}
-
-export function TopActionButtons({
-  lighting,
-  showLabels,
-  routeOpen,
-  onToggleLighting,
-  onToggleLabels,
-  onToggleRoute,
-  onResetNorth,
-  onOpenCredits,
-}: TopActionButtonsProps) {
-  return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <button
-        type="button"
-        onClick={onToggleRoute}
-        aria-pressed={routeOpen}
-        aria-label="ルート案内を開く"
-        className={`t-interactive flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-[12px] font-bold shadow-sm backdrop-blur-md ${
-          routeOpen
-            ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
-            : 'border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#1B365D] hover:bg-[#EFE9DC]'
-        }`}
-      >
-        <RouteIcon className="h-3.5 w-3.5" />
-        <span>ルート</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onToggleLighting}
-        aria-label={lighting === 'day' ? '夕方ライトへ切替' : '昼ライトへ切替'}
-        title={lighting === 'day' ? '夕方モードへ' : '昼モードへ'}
-        className={`t-interactive flex h-9 items-center gap-1 rounded-xl border px-2.5 text-[12px] font-semibold shadow-sm backdrop-blur-md ${
-          lighting === 'golden'
-            ? 'border-[#D98245] bg-[#FCEBD9] text-[#8E4313]'
-            : 'border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#333B47] hover:bg-[#EFE9DC]'
-        }`}
-      >
-        {lighting === 'day' ? (
-          <Sun className="h-3.5 w-3.5 text-[#D4882A]" />
-        ) : (
-          <Moon className="h-3.5 w-3.5 text-[#A85224]" />
-        )}
-        <span className="hidden sm:inline">{lighting === 'day' ? '昼' : '夕方'}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onToggleLabels}
-        aria-pressed={showLabels}
-        aria-label="建物ピン表示切替"
-        title="建物ラベル表示切替"
-        className={`t-interactive flex h-9 items-center gap-1 rounded-xl border px-2.5 text-[12px] font-semibold shadow-sm backdrop-blur-md ${
-          showLabels
-            ? 'border-[#1B365D] bg-[#1B365D] text-white'
-            : 'border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#4B5360] hover:bg-[#EFE9DC]'
-        }`}
-      >
-        <Tag className="h-3.5 w-3.5" />
-        <span className="hidden lg:inline">ピン</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onResetNorth}
-        aria-label="北を上にする"
-        title="北を上にする"
-        className="t-interactive flex h-9 w-9 items-center justify-center rounded-xl border border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#4B5360] shadow-sm backdrop-blur-md hover:bg-[#EFE9DC] hover:text-[#1B365D]"
-      >
-        <Compass className="h-4 w-4" />
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenCredits}
-        aria-label="データ出典・OSSライセンスを表示"
-        title="データ出典・OSSライセンス"
-        className="t-interactive flex h-9 w-9 items-center justify-center rounded-xl border border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#4B5360] shadow-sm backdrop-blur-md hover:bg-[#EFE9DC] hover:text-[#1D2430]"
-      >
-        <Info className="h-4 w-4" />
-      </button>
-    </div>
-  );
-}
-
-interface PresetStripProps {
+interface MapSideControlsProps {
   presets: CameraPreset[];
   activePresetId: string;
+  hasBottomSheet: boolean;
+  onResetNorth: () => void;
   onSelectPreset: (id: string) => void;
 }
 
-export function PresetStrip({
+export function MapSideControls({
   presets,
   activePresetId,
+  hasBottomSheet,
+  onResetNorth,
   onSelectPreset,
-}: PresetStripProps) {
+}: MapSideControlsProps) {
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const { mounted, visible } = useAnimatedPresence(presetsOpen, 150);
+
+  useEffect(() => {
+    if (!presetsOpen) return;
+
+    const handlePointerDown = (ev: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(ev.target as Node)) {
+        setPresetsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        setPresetsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [presetsOpen]);
+
   return (
     <div
-      className="no-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/94 p-1.5 shadow-lg backdrop-blur-md"
-      aria-label="カメラ視点プリセット"
+      ref={rootRef}
+      className={`pointer-events-none fixed right-3 z-[25] flex flex-col items-end gap-2 sm:right-5 sm:top-4 ${
+        hasBottomSheet
+          ? 'top-[calc(max(0.75rem,env(safe-area-inset-top))_+_3.5rem)]'
+          : 'top-[calc(max(0.75rem,env(safe-area-inset-top))_+_3.75rem)]'
+      }`}
     >
-      {presets.map((p) => {
-        const active = p.id === activePresetId;
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onSelectPreset(p.id)}
-            title={p.description}
-            className={`t-interactive shrink-0 rounded-xl px-2.5 py-1.5 text-[11.5px] font-semibold ${
-              active
-                ? 'bg-[#1B365D] text-white shadow-sm'
-                : 'text-[#3D4552] hover:bg-[#EAE3D6]'
-            }`}
+      <button
+        type="button"
+        onClick={() => {
+          setPresetsOpen(false);
+          onResetNorth();
+        }}
+        aria-label="北を上にする"
+        title="北を上にする"
+        className="t-interactive pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#333B47] shadow-md backdrop-blur-md hover:bg-[#EFE9DC] hover:text-[#1B365D]"
+      >
+        <Compass className="h-[18px] w-[18px]" aria-hidden="true" />
+      </button>
+
+      <div className="pointer-events-auto relative">
+        <button
+          type="button"
+          onClick={() => setPresetsOpen((prev) => !prev)}
+          aria-expanded={presetsOpen}
+          aria-haspopup="menu"
+          aria-label="視点を切り替え"
+          title="視点"
+          className={`t-interactive flex h-10 w-10 items-center justify-center rounded-full border shadow-md backdrop-blur-md ${
+            presetsOpen
+              ? 'border-[#1B365D] bg-[#1B365D] text-[#FAF7F2]'
+              : 'border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#333B47] hover:bg-[#EFE9DC] hover:text-[#1B365D]'
+          }`}
+        >
+          <Eye className="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
+
+        {mounted && (
+          <div
+            role="menu"
+            aria-label="視点プリセット"
+            data-state={visible ? 'open' : 'closed'}
+            className="t-picker-popover absolute right-12 top-0 w-48 rounded-2xl border border-[#DDD6C8] bg-[#FAF7F2]/98 p-1.5 shadow-xl backdrop-blur-md"
           >
-            {p.label}
-          </button>
-        );
-      })}
+            <div className="px-2.5 py-1 text-[10.5px] font-bold text-[#666F7B]">
+              視点を選ぶ
+            </div>
+            <div className="flex flex-col gap-0.5">
+              {presets.map((p) => {
+                const active = p.id === activePresetId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
+                    title={p.description}
+                    onClick={() => {
+                      onSelectPreset(p.id);
+                      setPresetsOpen(false);
+                    }}
+                    className={`t-interactive flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-[12px] font-semibold ${
+                      active
+                        ? 'bg-[#1B365D] text-[#FAF7F2]'
+                        : 'text-[#2E3643] hover:bg-[#EAE3D6]'
+                    }`}
+                  >
+                    <span className="truncate">{p.label}</span>
+                    {active && (
+                      <Check
+                        className="h-3.5 w-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
