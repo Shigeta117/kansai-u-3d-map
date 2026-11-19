@@ -15,6 +15,8 @@ interface LandmarkLabelsOverlayProps {
   routeEndpointIds: readonly string[];
   hasLeftCard: boolean;
   hasRightCard: boolean;
+  /** スマホで下のシートが覆っている高さ（px）。0 なら従来の目安（画面の 4 割より上） */
+  sheetInset?: number;
   onSelect: (buildingId: string) => void;
 }
 
@@ -44,6 +46,7 @@ export function LandmarkLabelsOverlay({
   routeEndpointIds,
   hasLeftCard,
   hasRightCard,
+  sheetInset = 0,
   onSelect,
 }: LandmarkLabelsOverlayProps) {
   const [displayedLabels, setDisplayedLabels] = useState<DisplayedLabel[]>([]);
@@ -61,6 +64,7 @@ export function LandmarkLabelsOverlay({
     routeEndpointIds,
     hasLeftCard,
     hasRightCard,
+    sheetInset,
   });
 
   const applyFrame = useCallback((frame: LabelsFrame) => {
@@ -82,9 +86,11 @@ export function LandmarkLabelsOverlay({
 
     const topSafe = 76;
     const bottomSafe = isMobile
-      ? opts.hasLeftCard || opts.hasRightCard
-        ? viewportHeight * 0.4
-        : viewportHeight - 36
+      ? opts.sheetInset > 0
+        ? viewportHeight - opts.sheetInset - 8
+        : opts.hasLeftCard || opts.hasRightCard
+          ? viewportHeight * 0.4
+          : viewportHeight - 36
       : viewportHeight - 28;
 
     const avoidRects: LabelRect[] = [];
@@ -164,6 +170,7 @@ export function LandmarkLabelsOverlay({
       routeEndpointIds,
       hasLeftCard,
       hasRightCard,
+      sheetInset,
     };
     if (visible && latestFrameRef.current) {
       applyFrame(latestFrameRef.current);
@@ -174,6 +181,7 @@ export function LandmarkLabelsOverlay({
     routeEndpointIds,
     hasLeftCard,
     hasRightCard,
+    sheetInset,
     applyFrame,
   ]);
 

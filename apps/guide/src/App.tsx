@@ -15,6 +15,7 @@ import {
   type RouteMode,
 } from '@kansai-u-3d/core';
 import { BuildingSheet } from './components/BuildingSheet';
+import type { SheetSnap } from './components/bottomSheetSnap';
 import { CampusViewport } from './components/CampusViewport';
 import { CreditsModal } from './components/CreditsModal';
 import { LandmarkLabelsOverlay } from './components/LandmarkLabelsOverlay';
@@ -61,6 +62,12 @@ export function App() {
   const [initialSheetFloor, setInitialSheetFloor] = useState<number | undefined>(
     undefined,
   );
+  // スマホのシートを開いたときの段。地図で選んだら低い段（地図を見せたまま）、検索や「ここへ行く」以外は中の段
+  const [buildingSheetSnap, setBuildingSheetSnap] = useState<SheetSnap>('half');
+  const [routeSheetSnap, setRouteSheetSnap] = useState<SheetSnap>('half');
+  // スマホのシートが地図を覆っている高さ（ラベルをその上だけに出す）
+  const [buildingSheetHeight, setBuildingSheetHeight] = useState(0);
+  const [routeSheetHeight, setRouteSheetHeight] = useState(0);
   const [activeCategory, setActiveCategory] = useState<BuildingCategory | 'all'>(
     'all',
   );
@@ -163,6 +170,7 @@ export function App() {
       }
 
       setInitialSheetFloor(undefined);
+      setBuildingSheetSnap('peek');
       setSelectedId(buildingId);
       if (buildingId) {
         const b = buildingMap.get(buildingId);
@@ -178,6 +186,7 @@ export function App() {
     (item: LocationSearchItem) => {
       setSelectedId(item.buildingId);
       setInitialSheetFloor(item.floor);
+      setBuildingSheetSnap('half');
       const b = buildingMap.get(item.buildingId);
       if (b) {
         sceneRef.current?.focusBuilding(b);
@@ -193,6 +202,7 @@ export function App() {
 
   const handleNavigateTo = useCallback((b: BuildingFeature) => {
     setDestSelection({ buildingId: b.id });
+    setRouteSheetSnap('peek');
     setRouteOpen(true);
     setPickingTarget(null);
     if (window.innerWidth < 768) {
@@ -202,6 +212,7 @@ export function App() {
 
   const handleSetAsOrigin = useCallback((b: BuildingFeature) => {
     setOriginSelection({ buildingId: b.id });
+    setRouteSheetSnap('half');
     setRouteOpen(true);
     setPickingTarget(null);
     if (window.innerWidth < 768) {
@@ -219,6 +230,7 @@ export function App() {
   const handleJumpToBuilding = useCallback(
     (targetId: string) => {
       setInitialSheetFloor(undefined);
+      setBuildingSheetSnap('half');
       setSelectedId(targetId);
       const b = buildingMap.get(targetId);
       if (b) {
@@ -283,6 +295,7 @@ export function App() {
             routeEndpointIds={routeEndpointIds}
             hasLeftCard={routeOpen}
             hasRightCard={Boolean(selectedBuilding)}
+            sheetInset={Math.max(buildingSheetHeight, routeSheetHeight)}
             onSelect={handleSelectBuilding}
           />
 
@@ -299,6 +312,7 @@ export function App() {
                 onSelectLocation={handleSelectSearchLocation}
                 onOpenMenu={() => setMenuOpen(true)}
                 onToggleRoute={() => {
+                  setRouteSheetSnap('half');
                   setRouteOpen((prev) => !prev);
                   setPickingTarget(null);
                 }}
@@ -344,6 +358,8 @@ export function App() {
               mode={routeMode}
               pickingTarget={pickingTarget}
               route={activeRoute}
+              initialSnap={routeSheetSnap}
+              onSheetHeightChange={setRouteSheetHeight}
               onChangeOrigin={setOriginSelection}
               onChangeDest={setDestSelection}
               onSwap={handleSwapRouteEndpoints}
@@ -366,6 +382,8 @@ export function App() {
                   : undefined
               }
               initialFloor={initialSheetFloor}
+              initialSnap={buildingSheetSnap}
+              onSheetHeightChange={setBuildingSheetHeight}
               allBuildings={dataset.buildings}
               onClose={() => setSelectedId(null)}
               onFocusBuilding={(b) => sceneRef.current?.focusBuilding(b)}
