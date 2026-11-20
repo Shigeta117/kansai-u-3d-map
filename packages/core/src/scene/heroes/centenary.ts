@@ -347,7 +347,8 @@ function arcPoints(cx: number, cy: number, r: number, a0: number, a1: number, n:
 
 /**
  * 平面の多角形（x, y）を z の位置に張る面。facing が −1 なら −z 向き、+1 なら +z 向き。
- * ExtrudeGeometry が手元の three で蓋の面を作らないので、見える端の面はこれで張る
+ * 押し出しの蓋ではない面（妻壁の弓形・軒の陰の帯）に使う。押し出しの端の面は three（r176）が蓋として作るので、
+ * 同じ位置に張ると面が二重になってちらつく
  */
 function planarFace(points: readonly THREE.Vector2[], z: number, facing: 1 | -1): THREE.BufferGeometry {
   const tris = THREE.ShapeUtils.triangulateShape([...points], []);
@@ -592,8 +593,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const vaultCenterY = VAULT_RISE_M - vaultRadius;
   const tympanumHalfAngle = Math.asin(hallHalfSpan / vaultRadius);
   const hallLength = HALL_SOUTH_S - HALL_NORTH_S;
-  // 妻壁（弓形）の北と南の面。ExtrudeGeometry は手元の three（r175）で前後の蓋の面を作らず、
-  // 2 回目のレビューの「オレンジの弧」はこの穴から奥の床（レンガ色）が見えていたもの。平らな面を自前で張る
+  // 妻壁（弓形）の北と南の面。ホールの壁の上、屋根の殻の下の弓形の妻面だけを平らな面で張る（押し出しは使わない。
+  // 間は屋根の殻が覆うので側面は要らない）。2 回目のレビューの「オレンジの弧」はここが空いて奥の床が見えていたもの
   const tympanumOutline = arcPoints(
     HALL_CENTER_T,
     vaultCenterY,
@@ -642,35 +643,12 @@ export const buildCentenary: HeroBuilder = (ctx) => {
     ),
     patinaMat,
   );
-  // 蓋の無い押し出し（three r175）。見える端の面は planarFace で張っている（extrudeLids.test.ts の除外の対象）
+  // 南北の端の縁（円弧の帯の面）は、押し出しの蓋として three（r176）が作る
   shell.name = 'centenary-vault-shell';
   shell.position.set(0, springY, HALL_NORTH_S - VAULT_EAVE_NORTH_M);
   shell.castShadow = true;
   shell.receiveShadow = true;
   local.add(shell);
-  // 屋根の殻の南北の端の縁（ExtrudeGeometry が蓋を作らないので自前で張る）
-  const shellEdgeOutline = [
-    ...arcPoints(
-      HALL_CENTER_T,
-      vaultCenterY,
-      shellInner + VAULT_SHELL_THICKNESS_M,
-      Math.PI / 2 + shellHalfAngle,
-      Math.PI / 2 - shellHalfAngle,
-      32,
-    ),
-    ...arcPoints(HALL_CENTER_T, vaultCenterY, shellInner, Math.PI / 2 - shellHalfAngle, Math.PI / 2 + shellHalfAngle, 32),
-  ];
-  const shellNorthEdge = new THREE.Mesh(
-    planarFace(shellEdgeOutline, HALL_NORTH_S - VAULT_EAVE_NORTH_M, -1),
-    patinaMat,
-  );
-  shellNorthEdge.position.y = springY;
-  const shellSouthEdge = new THREE.Mesh(
-    planarFace(shellEdgeOutline, HALL_NORTH_S - VAULT_EAVE_NORTH_M + shellLength, 1),
-    patinaMat,
-  );
-  shellSouthEdge.position.y = springY;
-  local.add(shellNorthEdge, shellSouthEdge);
 
   // 屋根の頂部の天窓（空中写真でホールの屋根の中央やや西に暗い四角）
   const crownOuter = shellInner + VAULT_SHELL_THICKNESS_M;
@@ -774,15 +752,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   );
   canopyShell.name = 'centenary-canopy-shell';
   canopyShell.castShadow = true;
+  // 前の端の薄い縁（写真で前の縁が見える）は、押し出しの蓋として three（r176）が作る
   canopy.add(canopyShell);
-  // 前の端の薄い縁（写真で前の縁が見える）。ExtrudeGeometry が蓋を作らないので自前で張る
-  const canopyEdgePoints = canopyProfile.getPoints();
-  const lastEdgePoint = canopyEdgePoints[canopyEdgePoints.length - 1];
-  const firstEdgePoint = canopyEdgePoints[0];
-  if (lastEdgePoint && firstEdgePoint && lastEdgePoint.distanceTo(firstEdgePoint) < 1e-6) {
-    canopyEdgePoints.pop();
-  }
-  canopy.add(new THREE.Mesh(planarFace(canopyEdgePoints, 0, -1), patinaMat));
   const soffit = new THREE.Mesh(
     new THREE.ExtrudeGeometry(
       canopyProfileShape(canopyHalf - 0.05, CANOPY_ARC_RISE_M, CANOPY_PROFILE_POWER, 0.03, -0.035),

@@ -261,8 +261,9 @@ function planGrandStairs(
 
 /**
  * 天端が傾いた壁（長さ方向 +X に length、厚み方向 +Z に thickness、底は bottomY、天端は x = 0 で topStartY・
- * x = length で topEndY）の 6 面の立体。ExtrudeGeometry は three r175 で大きな面（シェイプの面）を作らないことが
- * あるため（この壁で再現）、自前で組む
+ * x = length で topEndY）の 6 面の立体。8 つの頂点から 12 枚の三角形を直に組む。
+ * three r175 の ExtrudeGeometry が蓋（この壁の大きな 2 面）を作らなかったころに作った物だが、押し出しに蓋を
+ * 足した物ではなく、これだけで閉じた立体なので面は重ならない（r176 でも組み直さずに残す）
  */
 function buildSlopedWallGeometry(
   length: number,
@@ -467,55 +468,7 @@ function createExtrudedPolygonGeometry(
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, baseY, 0);
   geo.computeVertexNormals();
-  const lidGroup = geo.groups[0];
-  if (lidGroup && lidGroup.count > 0) {
-    return geo;
-  }
-  // 輪郭によっては ExtrudeGeometry が屋根と床の面を作らない（three r175 で、切り取った後の輪郭で再現）。
-  // そのときは輪郭を自前で三角形に割り、屋根（上）と床（下）の面を足して組み直す
-  return addLidsManually(geo, polygon, baseY, height);
-}
-
-function addLidsManually(
-  wallGeo: THREE.BufferGeometry,
-  polygon: readonly [number, number][],
-  baseY: number,
-  height: number,
-): THREE.BufferGeometry {
-  const pts2d = polygon.map(([x, z]) => new THREE.Vector2(x, z));
-  const tris = THREE.ShapeUtils.triangulateShape(pts2d, []);
-  const lidPositions: number[] = [];
-  const topY = baseY + height;
-  for (const tri of tris) {
-    const [a, b, c] = tri;
-    if (a === undefined || b === undefined || c === undefined) continue;
-    const pa = polygon[a];
-    const pb = polygon[b];
-    const pc = polygon[c];
-    if (!pa || !pb || !pc) continue;
-    // 上面は上向き（+Y）になるよう、xz 平面での向きに合わせて頂点の順を決める
-    const cross = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]);
-    const [p1, p2, p3] = cross < 0 ? [pa, pb, pc] : [pa, pc, pb];
-    lidPositions.push(p1[0], topY, p1[1], p2[0], topY, p2[1], p3[0], topY, p3[1]);
-    lidPositions.push(p1[0], baseY, p1[1], p3[0], baseY, p3[1], p2[0], baseY, p2[1]);
-  }
-  const wall = wallGeo.index ? wallGeo.toNonIndexed() : wallGeo;
-  const wallPos = wall.getAttribute('position');
-  const positions = new Float32Array(lidPositions.length + wallPos.count * 3);
-  positions.set(lidPositions, 0);
-  for (let i = 0; i < wallPos.count; i++) {
-    positions[lidPositions.length + i * 3] = wallPos.getX(i);
-    positions[lidPositions.length + i * 3 + 1] = wallPos.getY(i);
-    positions[lidPositions.length + i * 3 + 2] = wallPos.getZ(i);
-  }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  out.addGroup(0, lidPositions.length / 3, 0);
-  out.addGroup(lidPositions.length / 3, wallPos.count, 1);
-  out.computeVertexNormals();
-  wallGeo.dispose();
-  if (wall !== wallGeo) wall.dispose();
-  return out;
+  return geo;
 }
 
 interface CanopySpec {

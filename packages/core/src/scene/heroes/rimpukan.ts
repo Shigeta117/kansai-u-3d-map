@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { ensureExtrudeLids } from '../extrudeLids';
 import {
   TriBucket,
   addBucketMesh,
@@ -1616,15 +1615,11 @@ export const buildRimpukan: HeroBuilder = (ctx) => {
   wingShape.lineTo(stairBackZ, landingTopY + 0.35);
   wingShape.closePath();
 
-  // 袖壁の外と内の大きな面は押し出しの蓋にあたる（three r175 は作らないので補う）
-  const wingGeo = ensureExtrudeLids(
-    new THREE.ExtrudeGeometry(wingShape, {
-      depth: wingThick,
-      bevelEnabled: false,
-    }),
-    wingShape,
-    wingThick,
-  );
+  // 袖壁の外と内の大きな面は押し出しの蓋にあたる（three r176 は面取りなしでも蓋を作る）
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
+    depth: wingThick,
+    bevelEnabled: false,
+  });
   wingGeo.translate(0, 0, -wingThick * 0.5);
   wingGeo.rotateY(-Math.PI / 2);
   wingGeo.computeVertexNormals();

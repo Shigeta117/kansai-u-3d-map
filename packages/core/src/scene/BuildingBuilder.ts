@@ -9,7 +9,7 @@ import type {
 } from '../domain/types';
 import { SENRIYAMA_AERIAL_ROOF_HEX } from '../data/campuses/senriyama/roof-colors';
 import { SENRIYAMA_WALL_HEX } from '../data/campuses/senriyama/wall-colors';
-import { ensureExtrudeLids } from './extrudeLids';
+import { dropExtrudeBottomLid } from './extrudeLids';
 import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { mergeStaticMeshes } from './mergeStaticMeshes';
@@ -105,10 +105,8 @@ function createExtrudedBuildingGeometry(
     bevelSegments: bevel ? 1 : 0,
     curveSegments: 4,
   });
-  // 面取りなし（周辺の建物）だと three r175 は屋根を作らないので補う。底は地面の下に隠れるので張らない
-  const geo = bevel
-    ? extruded
-    : ensureExtrudeLids(extruded, shape, totalDepth, { curveSegments: 4, bottom: false });
+  // 面取りなし（周辺の建物）は、底がいつも地面の下に隠れるので外して三角形を減らす（three r176 は上下の蓋を作る）
+  const geo = bevel ? extruded : dropExtrudeBottomLid(extruded);
 
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, minVisualY, 0);

@@ -42,7 +42,7 @@ export interface CampusSceneCallbacks {
 
 /**
  * 1 回の描画の重さ（`renderer.info.render` の値）。calls と triangles は画面の描画だけの数で、
- * 影の地図の描画は含まない（three r175 は影の地図を描いた後に info を数え直すため）。
+ * 影の地図の描画は含まない（three は影の地図を描いた後に info を数え直すため。r175・r176 で同じ）。
  * 影の地図は組み立て時とテーマ切り替え時だけ描き直すので、その回の数を shadowCalls / shadowTriangles に残す
  */
 export interface RenderStats {

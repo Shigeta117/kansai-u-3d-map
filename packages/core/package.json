@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "peerDependencies": {
-    "three": "^0.175.0"
+    "three": "^0.176.0"
   }
 }
 
