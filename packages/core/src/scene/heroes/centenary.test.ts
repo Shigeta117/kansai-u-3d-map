@@ -160,6 +160,39 @@ describe('buildCentenary', () => {
           expect(p.y + s.y / 2).toBeGreaterThan(g + 3);
         }
       });
+
+      it('keeps the canopy roof level (photos) instead of following the ground, with a flat walkway under it', () => {
+        const shell = result.group.getObjectByName('centenary-canopy-shell');
+        const deck = result.group.getObjectByName('centenary-canopy-deck');
+        if (!shell || !(deck instanceof THREE.Mesh)) throw new Error('canopy parts missing');
+        const box = new THREE.Box3().setFromObject(shell);
+        // 高さの幅は断面の円弧と板の厚みだけ（地面の傾きに沿うと 3m 以上になる）
+        expect(box.max.y - box.min.y).toBeLessThan(1.3);
+        // 床まわり（床・縁石・植え込み）の上端は屋根の下端より 2.8m 以上下で、広場（北の端）の地面より下がらない
+        const deckBox = new THREE.Box3().setFromObject(deck);
+        expect(box.min.y - deckBox.max.y).toBeGreaterThan(2.8);
+        expect(deckBox.max.y).toBeGreaterThanOrEqual(ground(-227.2, 408.9) - 0.5);
+        // 白い見切りの材質ではなく、頂点の色で床（石色）と植え込み（緑）を塗り分けた材質
+        const mat = deck.material as THREE.MeshStandardMaterial;
+        expect(mat.vertexColors).toBe(true);
+        const colors = deck.geometry.getAttribute('color');
+        let green = 0;
+        for (let i = 0; i < colors.count; i++) {
+          if (colors.getY(i) > colors.getX(i) * 1.15 && colors.getY(i) > colors.getZ(i) * 1.3) green++;
+        }
+        expect(green).toBeGreaterThan(0);
+      });
+
+      it('makes the canopy columns about 0.26m thick (photo: ~0.3m for ~3.3m height), not hairlines', () => {
+        const columns = meshesOf(result).find(
+          (mesh): mesh is THREE.InstancedMesh =>
+            mesh instanceof THREE.InstancedMesh && mesh.geometry instanceof THREE.CylinderGeometry,
+        );
+        if (!columns) throw new Error('columns missing');
+        const params = (columns.geometry as THREE.CylinderGeometry).parameters;
+        expect(params.radiusTop).toBeGreaterThanOrEqual(0.12);
+        expect(params.radiusTop).toBeLessThanOrEqual(0.14);
+      });
     });
   }
 

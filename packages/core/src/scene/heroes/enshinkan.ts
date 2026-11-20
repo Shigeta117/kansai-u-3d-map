@@ -94,17 +94,28 @@ const ANNEX_SLAB_H = 0.35;
 /** 床の帯をガラスの面から外へ出す倍率（輪郭の重心から。張り出しは 9m 角なので約 0.1m） */
 const ANNEX_SLAB_SCALE = 1.025;
 
+/**
+ * 上の階の色。Commons の観察は #AAA6A4（日の当たる正面）だが、場面の日は南西から当たるので、写真の正面（北西）は
+ * 半ば陰になり、その色をそのまま使うと暗い茶灰色に沈んだ（2 回目のレビュー「上のドラムが暗い」）。
+ * 陰の面でも写真の明るい灰色に見えるよう、地の色を明るく、わずかに青みに寄せる（暖色の空の光で茶色に寄るのを打ち消す）。
+ * 日の当たる南西の面は写真の観察の色に近い明るい灰色になる。自己発光は選択の光らせ方が上書きするので使わない
+ */
 const COLORS = {
-  drum: '#ADA9A6',
-  /** 上の階の壁（テクスチャの壁の明るさ #D0 を掛けて drum の色になる値。白い窓枠と付け柱はこの色で出る） */
-  drumWall: '#D5D0CC',
+  drum: '#D4D3D4',
+  /** 上の階の壁（テクスチャの壁の明るさ #E2 を掛けて drum の色に近くなる値。白い窓枠と付け柱はこの色で出る） */
+  drumWall: '#F4F5F8',
   column: '#C3BEB6',
   roof: '#9C9B95',
   roofBlock: '#BDB5AC',
-  lobbyGlass: '#2F3843',
+  /** 1 階のロビーのガラス（Node の無地の代わり。ブラウザでは白い枠と戸の模様を描く） */
+  lobbyGlass: '#5E6A75',
+  /** ロビーの室内の明かり（上の階の陰で日も空の光も届かず、黒い帯に見えたので、ごく弱い自己発光で持ち上げる） */
+  lobbyGlow: '#22272C',
   boxGlass: '#6F7E8A',
-  boxUpperGlass: '#46525E',
-  spandrel: '#36404B',
+  /** 上の段のガラス（写真では木と空を映す中くらいの灰青。前の #46525E は陰で黒い帯に見えた） */
+  boxUpperGlass: '#5C6874',
+  /** 下の段の腰板（Kansai_University_6.JPG で暗い灰色のすりガラス。陰で黒く潰れないよう少し明るく） */
+  spandrel: '#4C5660',
   frame: '#E8E7E2',
   annexGlass: '#A3B0BA',
   annexRoof: '#8A9396',
@@ -152,13 +163,13 @@ function createDrumTexture(): THREE.CanvasTexture | null {
   const tallH = 70;
   const tallInset = 9;
   return makeCanvasTexture(w, h, COLUMN_COUNT, (g) => {
-    g.fillStyle = '#D0D0D0';
+    g.fillStyle = '#E2E2E2';
     g.fillRect(0, 0, w, h);
     // 付け柱（幅 12px ≒ 0.45m を区画の両端に半分ずつ）と、その脇の陰の線
     g.fillStyle = frame;
     g.fillRect(0, 0, 6, h);
     g.fillRect(w - 6, 0, 6, h);
-    g.fillStyle = '#B4B4B4';
+    g.fillStyle = '#C4C4C4';
     g.fillRect(6, 0, 1, h);
     g.fillRect(w - 7, 0, 1, h);
     // 横長の窓の帯（縦長窓の間をつなぐ）
@@ -196,6 +207,30 @@ function createBoxLowerTexture(): THREE.CanvasTexture | null {
     g.fillRect(0, h - 3, w, 3);
     g.fillRect(0, 18, w, 2);
     for (const x of [0, 21, 42, w - 2]) g.fillRect(x, 0, 2, h);
+  });
+}
+
+/**
+ * 1 階のロビーのガラス（Kansai_University_6.JPG: 白い枠の大きなガラスと両開きの戸、上に白い無目、
+ * ガラスの奥に明るい室内）。1 区画 = 柱の間の 1 面（約 5.5m）。黒い帯に見えないよう、ガラスは室内の明るさを描く
+ */
+function createLobbyTexture(): THREE.CanvasTexture | null {
+  const w = 64;
+  const h = 32;
+  return makeCanvasTexture(w, h, COLUMN_COUNT, (g) => {
+    const glass = g.createLinearGradient(0, 0, 0, h);
+    glass.addColorStop(0, '#8A939B');
+    glass.addColorStop(0.55, '#6C7782');
+    glass.addColorStop(1, '#4A535C');
+    g.fillStyle = glass;
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = COLORS.frame;
+    // 上の無目と、足元の框
+    g.fillRect(0, 0, w, 4);
+    g.fillRect(0, h - 2, w, 2);
+    // 方立て（1 区画に 4 枚。戸の高さに横の桟）
+    for (const x of [0, 16, 32, 48, w - 2]) g.fillRect(x, 0, 2, h);
+    g.fillRect(0, 9, w, 1);
   });
 }
 
@@ -275,7 +310,14 @@ export const buildEnshinkan: HeroBuilder = (ctx) => {
   const roofBlockMat = new THREE.MeshStandardMaterial({ color: COLORS.roofBlock, roughness: 0.9, metalness: 0.02 });
   const frameMat = new THREE.MeshStandardMaterial({ color: COLORS.frame, roughness: 0.8, metalness: 0.02 });
   const annexGlassMat = new THREE.MeshStandardMaterial({ color: COLORS.annexGlass, roughness: 0.4, metalness: 0.05 });
-  const lobbyMat = new THREE.MeshStandardMaterial({ color: COLORS.lobbyGlass, roughness: 0.35, metalness: 0.05 });
+  const lobbyTex = createLobbyTexture();
+  const lobbyMat = new THREE.MeshStandardMaterial({
+    color: lobbyTex ? '#FFFFFF' : COLORS.lobbyGlass,
+    map: lobbyTex,
+    emissive: COLORS.lobbyGlow,
+    roughness: 0.35,
+    metalness: 0.05,
+  });
   const boxLowerTex = createBoxLowerTexture();
   const boxLowerMat = new THREE.MeshStandardMaterial({
     color: boxLowerTex ? '#FFFFFF' : COLORS.boxGlass,

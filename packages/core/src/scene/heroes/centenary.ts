@@ -34,7 +34,25 @@ const WING_ROOF_HEX = '#6A6C64';
 const BASE_ROOF_HEX = '#8E7A68';
 const GLASS_HEX = '#3A4650';
 const SOFFIT_HEX = '#E6E1D6';
-const BRONZE_HEX = '#A9884F';
+/**
+ * 車寄せの天井の照り返し（下向きの面は日も空の光も当たらず茶色く沈むので、写真の白い天井に寄せる自己発光。推定）。
+ * 写真 3 枚とも、天井は地面の照り返しで明るい白に写る
+ */
+const SOFFIT_GLOW_HEX = '#6E6A62';
+/**
+ * 柱の色。写真では赤みのある銅色の丸柱で、日の当たる側が明るい。前の #A9884F（金属の度合い 0.3）は
+ * 環境の映り込みが無いと茶色く沈んだ（2 回目のレビュー「柱が太く茶色い」）。金属の度合いを下げ、明るい銅色にする
+ */
+const BRONZE_HEX = '#BE7B4F';
+/**
+ * 車寄せの床まわりの色（頂点の色で塗り分ける 1 つのメッシュ）。床は広場の舗装に寄せた少し明るい石色、
+ * 縁石は床より明るい石、植え込みは緑。写真で床の両脇は床と同じ高さの植え込みと、ひざ下の低い縁石だけ
+ */
+const WALK_PAVING_HEX = '#BDB8AE';
+const WALK_PAVING_SIDE_HEX = '#A39E95';
+const WALK_CURB_HEX = '#CFCAC0';
+const PLANTER_TOP_HEX = '#6F8E4F';
+const PLANTER_SIDE_HEX = '#5E7046';
 const TRIM_HEX = '#E9E6DF';
 const DARK_HEX = '#3A3F42';
 const OVAL_GLASS_HEX = '#2E3C5E';
@@ -146,9 +164,12 @@ const WEST_STRIP: readonly ST[] = [
 ];
 
 /**
- * 高さは北の広場の高さ（ホールの妻面の中央・両翼の北の面の中央の地面の高い方）を基準にする。
+ * 高さは北の広場の高さ（ホールの妻面の中央・両翼の北の面の中央・車寄せの北の端の地面のいちばん高い所）を基準にする。
  * 敷地は南へ大きく下がる（輪郭の中で表示上 13m ほど）ので、北から見た写真の比を基準の上で再現する。
- * 写真では翼が約 2 階、円弧の両端は翼の上端とほぼ同じ高さで、頂部は翼の 1.5 倍ほど
+ * 写真では翼が約 2 階、円弧の両端は翼の上端とほぼ同じ高さで、頂部は翼の 1.5 倍ほど。
+ * 写真 3 枚はどれも車寄せの前の広場から撮っていて、広場・車寄せの床・入口の床は同じ高さに写る。
+ * 地形のデータでは車寄せの北の端が両翼の北の面より約 2.3m 高いので、車寄せの北の端も基準に入れる
+ * （入れないと、広場から見て建物が沈み、水平の車寄せの屋根が妻面の楕円の窓にかかる）
  */
 const BASE_TOP_ABOVE_REF_M = -1.5;
 const WING_TOP_ABOVE_REF_M = 7.5;
@@ -176,6 +197,9 @@ const ENTRANCE_ARCH_HALF_CHORD_M = 8.5;
 const ENTRANCE_ARCH_RISE_M = 1.3;
 const ENTRANCE_ARCH_TOP_RATIO = 0.55;
 const ENTRANCE_GLASS_HALF_WIDTH_M = 7.0;
+/** 白い弓形の帯の太さ（半径）と、壁から出る向きのつぶし（出は 0.2 × 0.35 ≒ 0.07m） */
+const ENTRANCE_ARCH_TUBE_M = 0.2;
+const ENTRANCE_ARCH_DEPTH_SCALE = 0.35;
 
 /** 空中写真で車寄せの屋根の真上（2014 年の写真で車寄せの消点が建物の軸より西へ約 5° ずれるのと合う） */
 const CANOPY_NORTH: ST = [-55.9, 3.4];
@@ -186,15 +210,38 @@ const CANOPY_SOUTH: ST = [HALL_NORTH_S - 0.3, 0.63];
  * 空中写真では中央の緑青が幅約 5m、その両側に明るい縁が約 1.2m ずつ見えるので、全幅は約 7.6m
  */
 const CANOPY_WIDTH_M = 7.6;
-const CANOPY_ARC_RISE_M = 0.65;
+/**
+ * 断面の円弧の高さ。2014 年の写真（車寄せの軸の正面）で、前の縁の中央から両端まで、全幅 667px に対して約 88px
+ * 下がる（幅の約 0.13 ≒ 1.0m）。前の 0.65m では平らな板に見えた（2 回目のレビュー）
+ */
+const CANOPY_ARC_RISE_M = 0.95;
 /** 断面の形の指数（2 で放物線。大きいほど中ほどが平らで、端だけが下がる） */
-const CANOPY_PROFILE_POWER = 2.6;
+const CANOPY_PROFILE_POWER = 2.2;
 const CANOPY_SHELL_THICKNESS_M = 0.2;
-/** 車寄せの屋根の両端の下端の、その場の地面からの高さ（中ほどはこれに CANOPY_ARC_RISE_M を足した高さ） */
+/**
+ * 車寄せの屋根の両端の下端の高さ（北の広場の高さ refY から。中ほどはこれに CANOPY_ARC_RISE_M を足した高さ）。
+ * 屋根は水平: 写真 3 枚で、柱の下端は広場から入口まで平らな床に並び、柱の高さは遠いほど同じ割合で縮む
+ * （100-nen_Kinen_Kaikan.jpg で手前から 210・170・135px）。地形のデータは入口の前で約 4.7m 下がるが、
+ * それに沿わせると広場から見て手前へ上がる板に見えた（2 回目のレビュー）。柱は足元の地形まで下ろす
+ */
 const CANOPY_CLEARANCE_M = 3.3;
 /** 柱（2 列 × 5 本）。写真で左右に 5 本前後ずつ。前の端から少し下がった所から、入口の手前まで */
 const CANOPY_COLUMN_OFFSET_M = 2.3;
-const CANOPY_COLUMN_RADIUS_M = 0.14;
+/**
+ * 柱の半径。写真で太さは高さ約 3.3m に対して約 0.3m（3 回目のレビュー）。前の 0.09m は細すぎた
+ * （「太く茶色い」は沈んだ色のせいで、太さは写真どおりだった）
+ */
+const CANOPY_COLUMN_RADIUS_M = 0.13;
+/** 車寄せの床の半分の幅（柱の列の外に 0.9m。写真で床は柱の外の植え込みと低い縁石まで。推定）と、広場からの高さ */
+const CANOPY_DECK_HALF_WIDTH_M = 3.2;
+const CANOPY_DECK_ABOVE_REF_M = 0.05;
+/** 床の両脇の縁石（幅と、広場からの高さ。ひざ下。推定） */
+const WALK_CURB_WIDTH_M = 0.3;
+const WALK_CURB_ABOVE_REF_M = 0.3;
+/** 床と両翼の間の植え込みの上面（広場からの高さ。床とほぼ同じ高さ。推定） */
+const PLANTER_ABOVE_REF_M = 0.2;
+/** 植え込みの北の端（両翼の北の面）から、床の高さに上がりきるまでの長さ（推定） */
+const PLANTER_RAMP_M = 4.0;
 const CANOPY_COLUMN_STATIONS_M = [1.6, 7.4, 13.2, 19.0, 24.2] as const;
 
 /** 輪郭が使えないときの代わり（buildings.json の centenary） */
@@ -348,6 +395,120 @@ function canopyProfileShape(
   return shape;
 }
 
+/** 車寄せの床まわりを組む材料（ローカルの s・t。groundAt はその地点の表示上の地面の高さ） */
+interface WalkwayPlan {
+  groundAt: (s: number, t: number) => number;
+  refY: number;
+  north: ST;
+  south: ST;
+}
+
+/** 西の翼の中庭側の面（WEST_WING_NORTH の辺）と東の翼の中庭側の面（EAST_WING_NORTH の辺）の t */
+function westCourtFaceT(s: number): number {
+  return -6.7 + ((s + 47.8) * -0.3) / (HALL_NORTH_S + 47.8);
+}
+function eastCourtFaceT(s: number): number {
+  return 9.5 + ((s + 48.5) * 0.9) / (HALL_NORTH_S + 48.5);
+}
+
+/**
+ * 車寄せの床・縁石・植え込みを、頂点の色つきの 1 つのジオメトリ（ローカルの x = t、z = s）にする。
+ * どの部分も底は足元のいちばん低い地面の 0.5m 下まで下ろす（地形の落ち込みに隙間を作らない）
+ */
+function buildWalkwayGeometry(plan: WalkwayPlan): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const col: number[] = [];
+  const color = new THREE.Color();
+  const pushTri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, outward: THREE.Vector3, hex: string): void => {
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    const [p, q, r] = n.dot(outward) < 0 ? [a, c, b] : [a, b, c];
+    if (n.dot(outward) < 0) n.negate();
+    // Color.set は 16 進の sRGB を作業用の線形の色に直す（頂点の色は線形のまま渡す）
+    color.set(hex);
+    for (const v of [p, q, r]) {
+      pos.push(v.x, v.y, v.z);
+      nor.push(n.x, n.y, n.z);
+      col.push(color.r, color.g, color.b);
+    }
+  };
+  /**
+   * 4 隅（s, t）の柱状の塊。上面と 4 つの側面（底は地面の下なので作らない）。
+   * topY は 4 隅で共通の高さか、隅ごとの高さ（植え込みの北の端を広場の地面に下ろす斜面に使う）
+   */
+  const addPrism = (quad: readonly ST[], topY: number | readonly number[], topHex: string, sideHex: string): void => {
+    const topOf = (i: number): number => (typeof topY === 'number' ? topY : (topY[i] ?? plan.refY));
+    let bottomY = Math.min(...quad.map((_, i) => topOf(i))) - 0.5;
+    for (const [s, t] of quad) bottomY = Math.min(bottomY, plan.groundAt(s, t) - FOOTING_BELOW_LOWEST_GROUND_M);
+    const top = quad.map(([s, t], i) => new THREE.Vector3(t, topOf(i), s));
+    const low = quad.map(([s, t]) => new THREE.Vector3(t, bottomY, s));
+    const up = new THREE.Vector3(0, 1, 0);
+    const [t0, t1, t2, t3] = top;
+    if (!t0 || !t1 || !t2 || !t3) return;
+    pushTri(t0, t1, t2, up, topHex);
+    pushTri(t0, t2, t3, up, topHex);
+    const cx = top.reduce((sum, v) => sum + v.x, 0) / 4;
+    const cz = top.reduce((sum, v) => sum + v.z, 0) / 4;
+    for (let i = 0; i < 4; i++) {
+      const a = top[i];
+      const b = top[(i + 1) % 4];
+      const la = low[i];
+      const lb = low[(i + 1) % 4];
+      if (!a || !b || !la || !lb) continue;
+      const outward = new THREE.Vector3((a.x + b.x) / 2 - cx, 0, (a.z + b.z) / 2 - cz);
+      pushTri(la, lb, b, outward, sideHex);
+      pushTri(la, b, a, outward, sideHex);
+    }
+  };
+
+  const [ns, nt] = plan.north;
+  const [ss, st] = plan.south;
+  const len = Math.hypot(ss - ns, st - nt) || 1;
+  // 車寄せの軸に直交する向き（s, t）。t の正（東）を向く
+  const ps = -(st - nt) / len;
+  const pt = (ss - ns) / len;
+  const at = (k: number, offset: number): ST => [ns + (ss - ns) * k + ps * offset, nt + (st - nt) * k + pt * offset];
+  const half = CANOPY_DECK_HALF_WIDTH_M;
+  const curbOut = half + WALK_CURB_WIDTH_M;
+  // 床
+  addPrism([at(0, -half), at(0, half), at(1, half), at(1, -half)], plan.refY + CANOPY_DECK_ABOVE_REF_M, WALK_PAVING_HEX, WALK_PAVING_SIDE_HEX);
+  // 縁石（両脇）
+  for (const [o0, o1] of [
+    [-curbOut, -half],
+    [half, curbOut],
+  ] as const) {
+    addPrism([at(0, o0), at(0, o1), at(1, o1), at(1, o0)], plan.refY + WALK_CURB_ABOVE_REF_M, WALK_CURB_HEX, WALK_CURB_HEX);
+  }
+  // 植え込み: 両翼の北の面（s ≈ -48）から妻面まで、縁石の外から翼の中庭側の面の手前まで。
+  // 北の端は広場の地面（地形のデータでは床より 1〜3m 低い）に下ろし、PLANTER_RAMP_M で床の高さまで上げる
+  // （植え込みの北の面が、広場から見て緑の壁にならないように）
+  const kOf = (s: number): number => (s - ns) / (ss - ns || 1);
+  const s0 = -47.8;
+  const sRamp = s0 + PLANTER_RAMP_M;
+  const s1 = ss;
+  const edge = (s: number, offset: number): ST => at(kOf(s), offset);
+  const westIn = (s: number): ST => [s, westCourtFaceT(s) + 0.15];
+  const eastIn = (s: number): ST => [s, eastCourtFaceT(s) - 0.15];
+  const planterTop = plan.refY + PLANTER_ABOVE_REF_M;
+  const footOf = (p: ST): number => Math.min(planterTop, plan.groundAt(p[0], p[1]) + 0.1);
+  for (const [inner, outer] of [
+    [westIn, (s: number): ST => edge(s, -curbOut)],
+    [(s: number): ST => edge(s, curbOut), eastIn],
+  ] as const) {
+    const bank: ST[] = [inner(s0), outer(s0), outer(sRamp), inner(sRamp)];
+    addPrism(bank, [footOf(inner(s0)), footOf(outer(s0)), planterTop, planterTop], PLANTER_TOP_HEX, PLANTER_SIDE_HEX);
+    addPrism([inner(sRamp), outer(sRamp), outer(s1), inner(s1)], planterTop, PLANTER_TOP_HEX, PLANTER_SIDE_HEX);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 export const buildCentenary: HeroBuilder = (ctx) => {
   const polygon = usablePolygon(ctx.building.polygon);
   const centroid =
@@ -376,7 +537,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const glassMat = standard(GLASS_HEX, 0.4, 0.05);
   const soffitMat = standard(SOFFIT_HEX, 0.8);
   soffitMat.side = THREE.DoubleSide;
-  const bronzeMat = standard(BRONZE_HEX, 0.45, 0.3);
+  soffitMat.emissive.set(SOFFIT_GLOW_HEX);
+  const bronzeMat = standard(BRONZE_HEX, 0.4, 0.1);
   const trimMat = standard(TRIM_HEX, 0.7);
   const darkMat = standard(DARK_HEX, 0.8);
   const ovalGlassMat = standard(OVAL_GLASS_HEX, 0.35, 0.05);
@@ -385,7 +547,16 @@ export const buildCentenary: HeroBuilder = (ctx) => {
 
   const bottom = minGroundUnder(ctx, polygon) - FOOTING_BELOW_LOWEST_GROUND_M;
   const hallFaceGround = groundAt(HALL_NORTH_S, HALL_CENTER_T);
-  const refY = Math.max(hallFaceGround, groundAt(-48.0, -12.4), groundAt(-48.5, 15.3));
+  const refY = Math.max(
+    hallFaceGround,
+    groundAt(-48.0, -12.4),
+    groundAt(-48.5, 15.3),
+    groundAt(CANOPY_NORTH[0], CANOPY_NORTH[1]),
+  );
+  /** 入口と車寄せの床（広場と同じ高さ。写真で広場から入口まで平らに続く） */
+  const entranceFloorY = refY;
+  /** 車寄せの屋根の頂部（ホールの妻面の前の端で） */
+  const canopyTopY = refY + CANOPY_CLEARANCE_M + CANOPY_ARC_RISE_M + CANOPY_SHELL_THICKNESS_M;
 
   // 低い基壇（輪郭全体）。南東・西の細い棟と、南の端の曲面の張り出しはこの高さ。
   // 上に載る各部は基壇の上面のすぐ下から立ち上げる（輪郭の辺と各部の辺が同じ面で重なってちらつかないように）
@@ -523,21 +694,28 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   local.add(ovalGlass);
 
   // 入口の上の白い弓形の庇と、入口のガラス
-  // 写真（関西大学100周年記念会館.JPG）で弓形の頂部は、入口の地面から起拱点までの約 55% の高さ
+  // 写真（関西大学100周年記念会館.JPG）で弓形の頂部は、入口の床から起拱点までの約 55% の高さ。
+  // 写真 3 枚とも、車寄せの屋根はこの弓形のすぐ下で妻面に着くので、屋根の頂部より上に置く
   const archTopY = Math.min(
-    hallFaceGround + ENTRANCE_ARCH_TOP_RATIO * (springY - hallFaceGround),
+    Math.max(entranceFloorY + ENTRANCE_ARCH_TOP_RATIO * (springY - entranceFloorY), canopyTopY + 0.4),
     ovalY - OVAL_HEIGHT_M / 2 - 0.6,
   );
   const archSpringY = archTopY - ENTRANCE_ARCH_RISE_M;
   const archRadius =
     (ENTRANCE_ARCH_HALF_CHORD_M ** 2 + ENTRANCE_ARCH_RISE_M ** 2) / (2 * ENTRANCE_ARCH_RISE_M);
   const archAngle = 2 * Math.asin(ENTRANCE_ARCH_HALF_CHORD_M / archRadius);
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(archRadius, 0.28, 6, 32, archAngle), trimMat);
+  // 管の断面を壁の向きに薄くつぶして妻面に貼り、壁の上の帯に見せる
+  // （丸い管を壁から離して置くと、端が屋根の脇から白い管のように突き出して見えた。3 回目のレビュー）
+  const arch = new THREE.Mesh(
+    new THREE.TorusGeometry(archRadius, ENTRANCE_ARCH_TUBE_M, 6, 32, archAngle),
+    trimMat,
+  );
   arch.rotation.z = Math.PI / 2 - archAngle / 2;
-  arch.position.set(HALL_CENTER_T, archTopY - archRadius, HALL_NORTH_S - 0.3);
+  arch.scale.z = ENTRANCE_ARCH_DEPTH_SCALE;
+  arch.position.set(HALL_CENTER_T, archTopY - archRadius, HALL_NORTH_S - 0.04);
   local.add(arch);
-  const entranceTop = Math.max(hallFaceGround + 2.5, archSpringY - 0.1);
-  const entranceBottom = hallFaceGround - 0.3;
+  const entranceTop = Math.max(entranceFloorY + 2.5, archSpringY - 0.1);
+  const entranceBottom = entranceFloorY - 0.3;
   const entrance = new THREE.Mesh(
     new THREE.BoxGeometry(ENTRANCE_GLASS_HALF_WIDTH_M * 2, entranceTop - entranceBottom, 0.12),
     glassMat,
@@ -556,23 +734,34 @@ export const buildCentenary: HeroBuilder = (ctx) => {
     glass.position.set((from[1] + to[1]) / 2 + outward, (y0 + y1) / 2, (from[0] + to[0]) / 2);
     local.add(glass);
   };
-  const westCourtGround = groundAt(-38, -6.85);
-  addFaceGlass([-45.6, -6.73], [-30.6, -6.99], 0.08, westCourtGround - 0.3, westCourtGround + 3.2);
-  const eastCourtGround = groundAt(-39, 9.95);
-  addFaceGlass([-47.0, 9.57], [-31.0, 10.36], -0.08, eastCourtGround - 0.3, refY + WING_TOP_ABOVE_REF_M - 0.8);
+  // 中庭は車寄せの床の高さまで植え込みで埋めるので（下の床まわり）、ガラスは床の高さから立ち上げる
+  addFaceGlass([-45.6, -6.73], [-30.6, -6.99], 0.08, entranceFloorY - 0.3, entranceFloorY + 3.5);
+  addFaceGlass([-47.0, 9.57], [-31.0, 10.36], -0.08, entranceFloorY - 0.3, refY + WING_TOP_ABOVE_REF_M - 0.8);
 
-  // 車寄せ: 薄く浅い曲面の金属の屋根（上は緑青色、下は白い天井）を、地面の傾きに沿わせて置く
+  // 車寄せ: 薄く浅い曲面の金属の屋根（上は緑青色、下は白い天井）を、北の広場の高さで水平に置く
   const canopyDs = CANOPY_SOUTH[0] - CANOPY_NORTH[0];
   const canopyDt = CANOPY_SOUTH[1] - CANOPY_NORTH[1];
   const canopyLength = Math.hypot(canopyDs, canopyDt);
-  const northY = groundAt(CANOPY_NORTH[0], CANOPY_NORTH[1]) + CANOPY_CLEARANCE_M;
-  const southY = groundAt(CANOPY_SOUTH[0], CANOPY_SOUTH[1]) + CANOPY_CLEARANCE_M;
-  const pitch = Math.atan2(northY - southY, canopyLength);
+  const northY = refY + CANOPY_CLEARANCE_M;
   const canopy = new THREE.Group();
   canopy.position.set(CANOPY_NORTH[1], northY, CANOPY_NORTH[0]);
-  canopy.rotation.set(pitch, Math.atan2(canopyDt, canopyDs), 0, 'YXZ');
+  canopy.rotation.set(0, Math.atan2(canopyDt, canopyDs), 0, 'YXZ');
   local.add(canopy);
   const canopyHalf = CANOPY_WIDTH_M / 2;
+
+  // 車寄せの床まわり（広場から入口まで平らな石の床、両脇のひざ下の縁石、床と両翼の間を床の高さまで埋める植え込み）。
+  // 地形のデータは入口の前で約 4.7m 下がるが、写真では床の両脇に落ち込みは無い。頂点の色で塗り分けた 1 つのメッシュ
+  const walkway = new THREE.Mesh(
+    buildWalkwayGeometry({
+      groundAt,
+      refY,
+      north: CANOPY_NORTH,
+      south: [HALL_NORTH_S - 0.15, CANOPY_SOUTH[1]],
+    }),
+    new THREE.MeshStandardMaterial({ color: '#FFFFFF', vertexColors: true, roughness: 0.92, metalness: 0.02 }),
+  );
+  walkway.name = 'centenary-canopy-deck';
+  local.add(walkway);
   const canopyProfile = canopyProfileShape(
     canopyHalf,
     CANOPY_ARC_RISE_M,
@@ -618,8 +807,8 @@ export const buildCentenary: HeroBuilder = (ctx) => {
   const scl = new THREE.Vector3();
   let ci = 0;
   for (const station of CANOPY_COLUMN_STATIONS_M) {
-    const along = station * Math.cos(pitch);
-    const topY = northY - station * Math.sin(pitch) + soffitRiseAtColumn;
+    const along = station;
+    const topY = northY + soffitRiseAtColumn;
     for (const side of [-1, 1]) {
       // 車寄せの幅の向き（ローカルの x = t を正に近い向き）: (dirS, dirT) を 90° 回した (−dirT, dirS) の t・s
       const s = CANOPY_NORTH[0] + dirS * along - dirT * side * CANOPY_COLUMN_OFFSET_M;
