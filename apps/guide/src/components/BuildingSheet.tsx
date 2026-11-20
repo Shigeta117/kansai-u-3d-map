@@ -1,6 +1,7 @@
 import {
   Accessibility,
   ArrowRight,
+  Building2,
   Compass,
   DoorOpen,
   ExternalLink,
@@ -18,9 +19,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CATEGORY_OPTIONS,
   FACILITY_TAG_LABELS,
+  findWing,
   getCategoryLabel,
   normalizeSearchText,
+  wingFloorsText,
+  wingHasFloor,
+  wingTitle,
   type BuildingFeature,
+  type BuildingWing,
   type AccessStatus,
   type BuildingFloorPlan,
 } from '@kansai-u-3d/core';
@@ -36,7 +42,11 @@ type SheetTab = 'overview' | 'floors' | 'access';
 interface BuildingSheetProps {
   building: BuildingFeature | null;
   floorPlan?: BuildingFloorPlan;
+  /** 選んでいる建物の中の棟（第3学舎の A〜D棟など）。見出しを棟の名前にし、「フロア・教室」をその棟に絞る */
+  wing?: BuildingWing | null;
   initialFloor?: number;
+  /** 開いたときのタブ（棟の名前で検索したら「フロア・教室」）。initialFloor があれば「フロア・教室」 */
+  initialTab?: 'floors';
   /** スマホで開いたときの段（地図で選んだら低い段、検索から来たら中の段など） */
   initialSnap?: SheetSnap;
   allBuildings: BuildingFeature[];
@@ -45,6 +55,8 @@ interface BuildingSheetProps {
   onNavigateTo: (building: BuildingFeature) => void;
   onSetAsOrigin: (building: BuildingFeature) => void;
   onJumpToBuildingId: (buildingId: string) => void;
+  /** 棟を選び直す（null は建物全体）。地図の光らせ方も替わる */
+  onSelectWing?: (wingId: string | null) => void;
   /** スマホで、シートが地図を覆っている高さ（閉じると 0） */
   onSheetHeightChange?: (height: number) => void;
 }
@@ -104,7 +116,9 @@ const DESKTOP_CLASS =
 export function BuildingSheet({
   building,
   floorPlan,
+  wing = null,
   initialFloor,
+  initialTab,
   initialSnap = 'half',
   allBuildings,
   onClose,
@@ -112,6 +126,7 @@ export function BuildingSheet({
   onNavigateTo,
   onSetAsOrigin,
   onJumpToBuildingId,
+  onSelectWing,
   onSheetHeightChange,
 }: BuildingSheetProps) {
   const { mounted, visible } = useAnimatedPresence(Boolean(building), 350);
@@ -132,7 +147,7 @@ export function BuildingSheet({
         setActiveTab('floors');
         setSelectedFloor(initialFloor);
       } else {
-        setActiveTab('overview');
+        setActiveTab(initialTab === 'floors' ? 'floors' : 'overview');
         setSelectedFloor('all');
       }
       setSelectedWing('all');
@@ -140,25 +155,46 @@ export function BuildingSheet({
       setSnap(initialSnap);
       contentRef.current?.scrollTo({ top: 0 });
     }
-  }, [building, initialFloor, initialSnap]);
+  }, [building, initialFloor, initialTab, initialSnap]);
 
   const target = building ?? cachedBuilding;
 
+  // 建物が棟を持てば（第3学舎）、棟の絞り込みは選んでいる棟（地図の光らせ方と同じ）に従う。持たなければシートの中だけの絞り込み
+  const wingControlled = Boolean(onSelectWing) && (target?.wings?.length ?? 0) > 0;
+  const activeWing = wingControlled ? findWing(target, wing?.id) : null;
+  const wingFilter: string | 'all' = wingControlled ? (activeWing?.id ?? 'all') : selectedWing;
+  // 選んでいる階がその棟に無ければ（棟を替えたとき）、全フロアに戻して見せる
+  const floorFilter: number | 'all' =
+    selectedFloor !== 'all' && activeWing && !wingHasFloor(activeWing, selectedFloor) ? 'all' : selectedFloor;
+
+  /** 部屋の棟の絞り込みの鍵: 棟の id があれば id、無ければ棟の表示の名前 */
   const availableWings = useMemo(() => {
     if (!floorPlan) return [];
-    const seen = new Set<string>();
+    const seen = new Map<string, string>();
     for (const r of floorPlan.rooms) {
-      if (r.wing) seen.add(r.wing);
+      const key = r.wingId ?? r.wing;
+      if (key && !seen.has(key)) seen.set(key, r.wing ?? key);
     }
-    return [...seen];
+    return [...seen].map(([key, label]) => ({ key, label }));
   }, [floorPlan]);
+
+  // 階のボタンは、棟を選んでいればその棟の階だけ
+  const floorChips = (floorPlan?.floors ?? []).filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor));
+
+  const chooseWing = (key: string | 'all') => {
+    if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
+      onSelectWing(key === 'all' ? null : key);
+    } else {
+      setSelectedWing(key);
+    }
+  };
 
   const filteredRooms = useMemo(() => {
     if (!floorPlan) return [];
     const nq = normalizeSearchText(roomQuery);
     return floorPlan.rooms.filter((r) => {
-      if (selectedWing !== 'all' && r.wing !== selectedWing) return false;
-      if (selectedFloor !== 'all' && r.floor !== selectedFloor) return false;
+      if (wingFilter !== 'all' && (r.wingId ?? r.wing) !== wingFilter) return false;
+      if (floorFilter !== 'all' && r.floor !== floorFilter) return false;
       if (!nq) return true;
       if (
         normalizeSearchText(r.code).includes(nq) ||
@@ -172,7 +208,7 @@ export function BuildingSheet({
         r.searchableCodes?.some((c) => normalizeSearchText(c).includes(nq)),
       );
     });
-  }, [floorPlan, selectedWing, selectedFloor, roomQuery]);
+  }, [floorPlan, wingFilter, floorFilter, roomQuery]);
 
   if (!mounted || !target) return null;
 
@@ -216,7 +252,7 @@ export function BuildingSheet({
         </span>
       )}
       <span className="tabular-nums rounded-full bg-[#ECE6DA] px-2 py-0.5 text-[10.5px] font-semibold text-[#4B5360]">
-        標高 {target.groundY.toFixed(1)}m / {target.levels}階建相当
+        標高 {target.groundY.toFixed(1)}m / {activeWing ? wingFloorsText(activeWing) : `${target.levels}階建相当`}
       </span>
       {target.accessibleWalkNodeId && (
         <span className="inline-flex items-center gap-1 rounded-full bg-[#E2F4F7] px-2 py-0.5 text-[10.5px] font-bold text-[#1F7A8C]">
@@ -229,6 +265,22 @@ export function BuildingSheet({
 
   const englishName = target.englishName ? (
     <p className="text-[11px] font-medium text-[#6C7582]">{target.englishName}</p>
+  ) : null;
+
+  // 見出し: 棟を選んでいれば棟の名前（例: 第3学舎 3号館 C棟）
+  const title = activeWing ? wingTitle(activeWing) : target.name;
+  const wholeBuildingRow = activeWing ? (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#5F6875]">
+      <span className="min-w-0">{target.name}の棟</span>
+      <button
+        type="button"
+        onClick={() => chooseWing('all')}
+        className="t-interactive inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#D4CCB8] bg-white px-2 py-0.5 text-[10.5px] font-bold text-[#1B365D] hover:bg-[#EFE9DC]"
+      >
+        <Building2 className="h-3 w-3" />
+        <span>建物全体を見る</span>
+      </button>
+    </div>
   ) : null;
 
   const closeButton = (
@@ -353,9 +405,10 @@ export function BuildingSheet({
                 <div className="no-scrollbar flex items-center gap-1 overflow-x-auto pb-0.5">
                   <button
                     type="button"
-                    onClick={() => setSelectedWing('all')}
+                    onClick={() => chooseWing('all')}
+                    aria-pressed={wingFilter === 'all'}
                     className={`t-interactive shrink-0 rounded-lg border px-2 py-0.5 text-[10.5px] font-bold ${
-                      selectedWing === 'all'
+                      wingFilter === 'all'
                         ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
                         : 'border-[#DCD4C5] bg-white text-[#47505E]'
                     }`}
@@ -363,19 +416,20 @@ export function BuildingSheet({
                     全棟
                   </button>
                   {availableWings.map((w) => {
-                    const active = selectedWing === w;
+                    const active = wingFilter === w.key;
                     return (
                       <button
-                        key={w}
+                        key={w.key}
                         type="button"
-                        onClick={() => setSelectedWing(w)}
+                        onClick={() => chooseWing(w.key)}
+                        aria-pressed={active}
                         className={`t-interactive shrink-0 rounded-lg border px-2 py-0.5 text-[10.5px] font-bold ${
                           active
                             ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
                             : 'border-[#DCD4C5] bg-white text-[#47505E]'
                         }`}
                       >
-                        {w}
+                        {w.label}
                       </button>
                     );
                   })}
@@ -387,15 +441,15 @@ export function BuildingSheet({
                   type="button"
                   onClick={() => setSelectedFloor('all')}
                   className={`t-interactive shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold ${
-                    selectedFloor === 'all'
+                    floorFilter === 'all'
                       ? 'border-[#1B365D] bg-[#1B365D] text-white'
                       : 'border-[#DCD4C5] bg-white text-[#47505E]'
                   }`}
                 >
                   全フロア
                 </button>
-                {floorPlan.floors.map((fl) => {
-                  const active = selectedFloor === fl.floor;
+                {floorChips.map((fl) => {
+                  const active = floorFilter === fl.floor;
                   return (
                     <button
                       key={fl.floor}
@@ -698,8 +752,9 @@ export function BuildingSheet({
               <div className="min-w-0">
                 {!nameOnly && chips}
                 <h2 className="mt-1.5 text-[16px] font-bold leading-snug text-[#1D2430]">
-                  {target.name}
+                  {title}
                 </h2>
+                {wholeBuildingRow && <div className="mt-1">{wholeBuildingRow}</div>}
                 {!nameOnly && englishName}
               </div>
               {closeButton}
@@ -734,7 +789,7 @@ export function BuildingSheet({
       header={
         <div className="flex items-center justify-between gap-2 pb-2">
           <h2 className="min-w-0 truncate text-[16px] font-bold leading-snug text-[#1D2430]">
-            {target.name}
+            {title}
           </h2>
           {closeButton}
         </div>
@@ -750,6 +805,7 @@ export function BuildingSheet({
         <div className="pb-3">{nameOnlyNote}</div>
       ) : (
       <div className="pb-3">
+        {wholeBuildingRow && <div className="mb-2">{wholeBuildingRow}</div>}
         {chips}
         {englishName && <div className="mt-1.5">{englishName}</div>}
         <div ref={tabsAnchorRef} />

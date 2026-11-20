@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { LabelsFrame, LabelsListener } from '../domain/labels';
 import { computeVisualY } from '../domain/projection';
+import { findWing, wingFootprintCentroid } from '../domain/wings';
 import type {
   BuildingCategory,
   BuildingFeature,
@@ -31,9 +32,11 @@ import { LightingRig } from './LightingRig';
 import { RouteOverlay } from './RouteOverlay';
 import { buildTerrainGroup } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
+import { resolveBuildingPick, WingHighlighter } from './wingSelection';
 
 export interface CampusSceneCallbacks {
-  onSelectBuilding: (buildingId: string | null) => void;
+  /** 建物を押したとき（何も無い所なら null）。建物の中の棟（第3学舎の A〜D棟など）を押したら wingId も渡す */
+  onSelectBuilding: (buildingId: string | null, wingId?: string | null) => void;
   onLabelsUpdate?: (labels: ProjectedLabel[]) => void;
 }
 
@@ -66,10 +69,15 @@ export interface CampusSceneOptions {
   onRenderStats?: (stats: RenderStats) => void;
 }
 
+/** 棟に寄るときの距離（建物は水平 165m・上 128m。棟は塊が小さいので近くまで寄る） */
+const WING_FOCUS_HORIZ_M = 120;
+const WING_FOCUS_HEIGHT_M = 94;
+
 export class CampusScene {
   private readonly container: HTMLElement;
   private lastSelectedId: string | null = null;
   private lastActiveCategory: BuildingCategory | 'all' = 'all';
+  private lastSelectedWingId: string | null = null;
   private readonly dataset: CampusDataset;
   private readonly config: CampusConfig;
   private readonly callbacks: CampusSceneCallbacks;
@@ -80,6 +88,8 @@ export class CampusScene {
   private readonly cameraRig: CameraRig;
   private readonly lightingRig: LightingRig;
   private readonly routeOverlay: RouteOverlay;
+  /** 選んだ棟だけに重ねる光の殻（棟を選んでいる間だけ描く。描画命令 +1） */
+  private readonly wingHighlighter: WingHighlighter;
 
   private readonly campusRecords: Map<string, BuildingMeshRecord>;
   private readonly interactiveMeshes: THREE.Object3D[];
@@ -247,6 +257,7 @@ export class CampusScene {
     this.scene.add(this.routeOverlay.group);
 
     this.applyClippingPlanes(this.scene);
+    this.wingHighlighter = new WingHighlighter(this.clippingPlanes);
 
     const dioramaBaseGroup = buildDioramaBaseGroup(terrain, config);
     this.scene.add(dioramaBaseGroup);
@@ -385,12 +396,11 @@ export class CampusScene {
     this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.cameraRig.camera);
     const hits = this.raycaster.intersectObjects(this.interactiveMeshes, false);
 
-    if (hits.length > 0) {
-      const hitId = hits[0]?.object.userData?.buildingId;
-      if (typeof hitId === 'string') {
-        this.callbacks.onSelectBuilding(hitId);
-        return;
-      }
+    // 建物の部品は材質ごとにまとめてあるので、棟は同じ光線を棟の殻に当て直して決める（wingSelection.ts）
+    const pick = resolveBuildingPick(hits[0], this.raycaster, (id) => this.campusRecords.get(id));
+    if (pick) {
+      this.callbacks.onSelectBuilding(pick.buildingId, pick.wingId);
+      return;
     }
     this.callbacks.onSelectBuilding(null);
   };
@@ -568,22 +578,48 @@ export class CampusScene {
     this.needsRender = true;
   }
 
+  /**
+   * 選択とカテゴリの絞り込みの見た目。selectedWingId（建物の中の棟）を渡すと、建物全体ではなくその棟だけを光らせる
+   * （棟の無い建物や、無い棟の id なら建物全体）
+   */
   setHighlightState(
     selectedId: string | null,
     activeCategory: BuildingCategory | 'all',
+    selectedWingId: string | null = null,
   ): void {
+    const rec = selectedId ? this.campusRecords.get(selectedId) : undefined;
+    const wing = rec ? findWing(rec.building, selectedWingId) : null;
     this.lastSelectedId = selectedId;
     this.lastActiveCategory = activeCategory;
-    applyBuildingVisualStates(this.campusRecords, selectedId, activeCategory);
+    this.lastSelectedWingId = wing?.id ?? null;
+    applyBuildingVisualStates(this.campusRecords, selectedId, activeCategory, this.lastSelectedWingId);
+    this.wingHighlighter.show(rec?.group, wing ? rec?.wingShells?.get(wing.id) : null);
     this.needsRender = true;
   }
 
-  focusBuilding(building: BuildingFeature): void {
-    this.cameraRig.focusBuilding(
-      building,
-      this.dataset.terrain.minElevation,
-      this.config.verticalExaggeration,
-    );
+  /** 建物に寄る。wingId（建物の中の棟）を渡すと、その棟の塊の重心へ建物より近くまで寄る */
+  focusBuilding(building: BuildingFeature, wingId: string | null = null): void {
+    const wing = findWing(building, wingId);
+    const footprint = wing ? wingFootprintCentroid(building, wing) : null;
+    if (wing && footprint) {
+      const groundY = computeVisualY(
+        building.groundY,
+        this.dataset.terrain.minElevation,
+        this.config.verticalExaggeration,
+      );
+      const ty = groundY + wing.floorsAbove * wing.floorHeightM * 0.45;
+      this.cameraRig.focusOn(
+        [footprint.centroid.x, ty, footprint.centroid.z],
+        WING_FOCUS_HORIZ_M,
+        WING_FOCUS_HEIGHT_M,
+      );
+    } else {
+      this.cameraRig.focusBuilding(
+        building,
+        this.dataset.terrain.minElevation,
+        this.config.verticalExaggeration,
+      );
+    }
     this.needsRender = true;
     this.labelsDirty = true;
     this.frustumDirty = true;
@@ -631,7 +667,12 @@ export class CampusScene {
   /** 主役の建物以外の屋根の色を、空中写真の色（aerial）とエリアの塗り分け（area）で切り替える */
   setRoofColorMode(mode: RoofColorMode): void {
     applyRoofColorMode(this.campusRecords, mode);
-    applyBuildingVisualStates(this.campusRecords, this.lastSelectedId, this.lastActiveCategory);
+    applyBuildingVisualStates(
+      this.campusRecords,
+      this.lastSelectedId,
+      this.lastActiveCategory,
+      this.lastSelectedWingId,
+    );
     this.needsRender = true;
   }
 
@@ -664,6 +705,10 @@ export class CampusScene {
     }
 
     this.routeOverlay.clear();
+    this.wingHighlighter.dispose();
+    for (const rec of this.campusRecords.values()) {
+      for (const shell of rec.wingShells?.values() ?? []) shell.dispose();
+    }
     this.cameraRig.dispose();
 
     this.scene.traverse((obj) => {

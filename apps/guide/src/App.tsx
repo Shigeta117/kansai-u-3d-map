@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CampusScene,
   findRoute,
+  findWing,
   getCampusConfig,
   loadCampusDataset,
   parseCameraParam,
@@ -59,9 +60,13 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 建物の中の棟（第3学舎の A〜D棟など）。選んでいれば、その棟だけを光らせ、建物シートをその棟に絞る
+  const [selectedWingId, setSelectedWingId] = useState<string | null>(null);
   const [initialSheetFloor, setInitialSheetFloor] = useState<number | undefined>(
     undefined,
   );
+  // 建物シートを開いたときのタブ（棟の名前で検索したら「フロア・教室」）
+  const [initialSheetTab, setInitialSheetTab] = useState<'floors' | undefined>(undefined);
   // スマホのシートを開いたときの段。地図で選んだら低い段（地図を見せたまま）、検索や「ここへ行く」以外は中の段
   const [buildingSheetSnap, setBuildingSheetSnap] = useState<SheetSnap>('half');
   const [routeSheetSnap, setRouteSheetSnap] = useState<SheetSnap>('half');
@@ -124,6 +129,10 @@ export function App() {
     () => (selectedId ? (buildingMap.get(selectedId) ?? null) : null),
     [buildingMap, selectedId],
   );
+  const selectedWing = useMemo(
+    () => findWing(selectedBuilding, selectedWingId),
+    [selectedBuilding, selectedWingId],
+  );
 
   const routeEndpointIds = useMemo(
     () =>
@@ -155,7 +164,7 @@ export function App() {
   }, [dataset, buildingMap, routeOpen, originSelection, destSelection, routeMode]);
 
   const handleSelectBuilding = useCallback(
-    (buildingId: string | null) => {
+    (buildingId: string | null, wingId?: string | null) => {
       if (pickingTarget && buildingId) {
         const picked = buildingMap.get(buildingId);
         if (picked?.walkNodeId) {
@@ -170,12 +179,14 @@ export function App() {
       }
 
       setInitialSheetFloor(undefined);
+      setInitialSheetTab(undefined);
       setBuildingSheetSnap('peek');
       setSelectedId(buildingId);
+      setSelectedWingId(wingId ?? null);
       if (buildingId) {
         const b = buildingMap.get(buildingId);
         if (b) {
-          sceneRef.current?.focusBuilding(b);
+          sceneRef.current?.focusBuilding(b, wingId ?? null);
         }
       }
     },
@@ -185,11 +196,13 @@ export function App() {
   const handleSelectSearchLocation = useCallback(
     (item: LocationSearchItem) => {
       setSelectedId(item.buildingId);
+      setSelectedWingId(item.wingId ?? null);
       setInitialSheetFloor(item.floor);
+      setInitialSheetTab(item.kind === 'building' && item.wingId ? 'floors' : undefined);
       setBuildingSheetSnap('half');
       const b = buildingMap.get(item.buildingId);
       if (b) {
-        sceneRef.current?.focusBuilding(b);
+        sceneRef.current?.focusBuilding(b, item.wingId ?? null);
       }
     },
     [buildingMap],
@@ -200,6 +213,7 @@ export function App() {
     sceneRef.current?.flyToPreset(presetId);
   }, []);
 
+  // 経路は建物の入口まで（棟を選んでいても建物の入口へ。棟ごとの入口は館内の計画の L1 で足す）
   const handleNavigateTo = useCallback((b: BuildingFeature) => {
     setDestSelection({ buildingId: b.id });
     setRouteSheetSnap('peek');
@@ -207,6 +221,7 @@ export function App() {
     setPickingTarget(null);
     if (window.innerWidth < 768) {
       setSelectedId(null);
+      setSelectedWingId(null);
     }
   }, []);
 
@@ -217,6 +232,7 @@ export function App() {
     setPickingTarget(null);
     if (window.innerWidth < 768) {
       setSelectedId(null);
+      setSelectedWingId(null);
     }
   }, []);
 
@@ -230,8 +246,10 @@ export function App() {
   const handleJumpToBuilding = useCallback(
     (targetId: string) => {
       setInitialSheetFloor(undefined);
+      setInitialSheetTab(undefined);
       setBuildingSheetSnap('half');
       setSelectedId(targetId);
+      setSelectedWingId(null);
       const b = buildingMap.get(targetId);
       if (b) {
         sceneRef.current?.focusBuilding(b);
@@ -266,6 +284,7 @@ export function App() {
           dataset={dataset}
           config={config}
           selectedId={selectedId}
+          selectedWingId={selectedWing?.id ?? null}
           activeCategory={activeCategory}
           activeRoute={activeRoute}
           lighting={lighting}
@@ -381,12 +400,18 @@ export function App() {
                   ? SENRIYAMA_FLOOR_PLANS[selectedBuilding.id]
                   : undefined
               }
+              wing={selectedWing}
               initialFloor={initialSheetFloor}
+              initialTab={initialSheetTab}
               initialSnap={buildingSheetSnap}
               onSheetHeightChange={setBuildingSheetHeight}
               allBuildings={dataset.buildings}
-              onClose={() => setSelectedId(null)}
-              onFocusBuilding={(b) => sceneRef.current?.focusBuilding(b)}
+              onClose={() => {
+                setSelectedId(null);
+                setSelectedWingId(null);
+              }}
+              onSelectWing={setSelectedWingId}
+              onFocusBuilding={(b) => sceneRef.current?.focusBuilding(b, selectedWing?.id ?? null)}
               onNavigateTo={handleNavigateTo}
               onSetAsOrigin={handleSetAsOrigin}
               onJumpToBuildingId={handleJumpToBuilding}
