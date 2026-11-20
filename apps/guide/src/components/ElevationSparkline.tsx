@@ -146,8 +146,7 @@ export function ElevationSparkline({
         })}
       </svg>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[#666F7B]">
-        <span>出発 {minE.toFixed(1)}m〜最大 {maxE.toFixed(1)}m</span>
-        <div className="flex items-center gap-2.5">
+        <div className="ml-auto flex items-center gap-2.5">
           {coords.some((c) => c.isSteps) && (
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-full border border-[#C85A3A] bg-[#FAF7F2]" />

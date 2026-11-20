@@ -5,24 +5,20 @@ import {
   Compass,
   DoorOpen,
   ExternalLink,
-  Hash,
   Layers,
   MapPin,
   Navigation,
   PlugZap,
   Route as RouteIcon,
   Search,
-  Sparkles,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CATEGORY_OPTIONS,
-  FACILITY_TAG_LABELS,
   findWing,
   getCategoryLabel,
   normalizeSearchText,
-  wingFloorsText,
   wingHasFloor,
   wingTitle,
   type BuildingFeature,
@@ -69,26 +65,17 @@ function AccessibilityNotice({ buildingId }: { buildingId?: string }) {
     <div className="rounded-xl border border-[#E3DDD1] bg-[#F5F1E8] px-3 py-2 text-[11px] leading-relaxed text-[#4B5360]">
       {official ? (
         <>
-          <p className="font-semibold text-[#1D2430]">大学のバリアフリーマップ（{OFFICIAL_ACCESS_SOURCE.asOf}）による</p>
-          <ul className="mt-1 space-y-0.5">
+          <ul className="space-y-0.5">
             <li>エレベーター: {ACCESS_LABEL[official.elevator]}</li>
-            <li>
-              自動扉の入口:{' '}
-              {official.autoDoorEntrance === 'no'
-                ? 'なし（開き戸か段差のある入口のみ。地図では車椅子は非推奨・不可の印）'
-                : ACCESS_LABEL[official.autoDoorEntrance]}
-            </li>
+            <li>自動扉の入口: {ACCESS_LABEL[official.autoDoorEntrance]}</li>
             <li>
               多機能トイレ: {ACCESS_LABEL[official.accessibleRestroom]}
               {official.restroomFloors ? ` — ${official.restroomFloors}` : ''}
             </li>
           </ul>
-          <p className="mt-1">設備は改修されている可能性があります。移動の前に大学のページで確かめてください。下の連絡通路は同じ資料の読み取りで、出典の無い出入口・連絡は載せていません。</p>
         </>
       ) : (
-        <p>
-          バリアフリー情報（段差・エレベーター・多機能トイレ）は未確認です。移動の前に大学の公式情報で確かめてください。
-        </p>
+        <p>バリアフリーの情報はありません</p>
       )}
       <a
         href={OFFICIAL_ACCESS_SOURCE.url}
@@ -96,7 +83,7 @@ function AccessibilityNotice({ buildingId }: { buildingId?: string }) {
         rel="noopener noreferrer"
         className="mt-1 inline-flex items-center gap-1 font-semibold text-[#1B365D] hover:underline"
       >
-        <span>関西大学 バリアフリーマップ（千里山キャンパス）</span>
+        <span>大学のバリアフリーマップ</span>
         <ExternalLink className="h-3 w-3 shrink-0" />
       </a>
     </div>
@@ -246,26 +233,8 @@ export function BuildingSheet({
       >
         {getCategoryLabel(target.category)}
       </span>
-      {floorPlan?.wingLabel && (
-        <span className="rounded-full border border-[#D8CFC0] bg-white px-2 py-0.5 text-[10.5px] font-bold text-[#1B365D]">
-          {floorPlan.wingLabel}
-        </span>
-      )}
-      <span className="tabular-nums rounded-full bg-[#ECE6DA] px-2 py-0.5 text-[10.5px] font-semibold text-[#4B5360]">
-        標高 {target.groundY.toFixed(1)}m / {activeWing ? wingFloorsText(activeWing) : `${target.levels}階建相当`}
-      </span>
-      {target.accessibleWalkNodeId && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#E2F4F7] px-2 py-0.5 text-[10.5px] font-bold text-[#1F7A8C]">
-          <Accessibility className="h-3 w-3" />
-          段差なし経路の候補あり（参考）
-        </span>
-      )}
     </div>
   );
-
-  const englishName = target.englishName ? (
-    <p className="text-[11px] font-medium text-[#6C7582]">{target.englishName}</p>
-  ) : null;
 
   // 見出し: 棟を選んでいれば棟の名前（例: 第3学舎 3号館 C棟）
   const title = activeWing ? wingTitle(activeWing) : target.name;
@@ -343,61 +312,16 @@ export function BuildingSheet({
               '関西大学千里山キャンパスの施設です。ルート検索でここまでの徒歩ルートと高低差・段差なし参考経路を確認できます。'}
           </p>
 
-          {floorPlan?.numberingRule && (
-            <div className="flex items-start gap-2 rounded-xl border border-[#DCE3EE] bg-[#F3F6FA] px-3 py-2 text-[11px] text-[#283B5B]">
-              <Hash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1B365D]" />
-              <div>
-                <div className="font-bold">教室番号・ナンバリング規則</div>
-                <div className="mt-0.5 text-[#3F4E68]">{floorPlan.numberingRule}</div>
-              </div>
-            </div>
-          )}
-
-          {target.architectNote && (
-            <div className="flex items-start gap-2 rounded-xl border border-[#E4D9C5] bg-[#F6EFE2] px-3 py-2 text-[11.5px] text-[#6B4C35]">
-              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B86A38]" />
-              <span>
-                <strong className="font-semibold">建築メモ：</strong>
-                {target.architectNote}
-              </span>
-            </div>
-          )}
-
-          {target.facilityTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {target.facilityTags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-[#E9E4D9] px-2.5 py-0.5 text-[10.5px] font-medium text-[#47505E]"
-                >
-                  #{FACILITY_TAG_LABELS[tag]}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
       {activeTab === 'floors' && (
         <div key="floors" className="t-tab-panel space-y-2">
-          <AccessibilityNotice buildingId={building?.id} />
           {floorPlan ? (
             <>
-              {(floorPlan.numberingRule || floorPlan.summaryNote) && (
-                <div className="rounded-xl border border-[#E5DEC9] bg-[#F5F0E6] px-3 py-2 text-[11px] leading-relaxed text-[#434B58]">
-                  {floorPlan.numberingRule && (
-                    <div className="font-bold text-[#1B365D]">
-                      番号規則: {floorPlan.numberingRule}
-                    </div>
-                  )}
-                  {floorPlan.summaryNote && (
-                    <p className="mt-0.5">{floorPlan.summaryNote}</p>
-                  )}
-                  {floorPlan.sourceUpdatedAt && (
-                    <div className="mt-1 text-[10px] text-[#6A727E]">
-                      出典: 関西大学教務ガイド KAN-CAN!（{floorPlan.sourceUpdatedAt} 更新・フロア平面図は保留）
-                    </div>
-                  )}
+              {floorPlan.numberingRule && (
+                <div className="rounded-xl border border-[#E5DEC9] bg-[#F5F0E6] px-3 py-2 text-[11px] font-bold leading-relaxed text-[#1B365D]">
+                  番号規則: {floorPlan.numberingRule}
                 </div>
               )}
 
@@ -500,7 +424,7 @@ export function BuildingSheet({
                   type="search"
                   value={roomQuery}
                   onChange={(e) => setRoomQuery(e.target.value)}
-                  placeholder="教室番号・オフィス名で絞り込み（例: D112 / 2205）"
+                  placeholder="教室番号・名前で絞り込み"
                   className="w-full bg-transparent text-[11.5px] text-[#1D2430] placeholder:text-[#8A929E] focus:outline-none"
                 />
               </div>
@@ -622,16 +546,7 @@ export function BuildingSheet({
                 ))}
               </div>
             </div>
-          ) : (
-            <div className="rounded-xl border border-[#E6DFD1] bg-white px-3 py-2.5 text-[11.5px] text-[#5F6875]">
-              最寄り歩行ネットワーク：
-              {target.accessibleWalkNodeId
-                ? '段差なし経路の候補あり（OSM 歩道データに基づく参考）'
-                : target.walkNodeId
-                  ? '一般歩行ルート接続済'
-                  : '外観表示専用スポット'}
-            </div>
-          )}
+          ) : null}
 
           {floorPlan && floorPlan.connectors.length > 0 && (
             <div>
@@ -755,7 +670,6 @@ export function BuildingSheet({
                   {title}
                 </h2>
                 {wholeBuildingRow && <div className="mt-1">{wholeBuildingRow}</div>}
-                {!nameOnly && englishName}
               </div>
               {closeButton}
             </div>
@@ -807,7 +721,6 @@ export function BuildingSheet({
       <div className="pb-3">
         {wholeBuildingRow && <div className="mb-2">{wholeBuildingRow}</div>}
         {chips}
-        {englishName && <div className="mt-1.5">{englishName}</div>}
         <div ref={tabsAnchorRef} />
         <div className="sticky top-0 z-10 bg-[#FAF7F2] pb-2.5 pt-2.5">
           {tabList(TAB_LIST_BOX)}
