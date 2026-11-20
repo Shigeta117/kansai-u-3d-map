@@ -160,6 +160,19 @@ describe('buildCentenary', () => {
           expect(p.y + s.y / 2).toBeGreaterThan(g + 3);
         }
       });
+
+      it('keeps the canopy roof level (photos) instead of following the ground, with a flat walkway under it', () => {
+        const shell = result.group.getObjectByName('centenary-canopy-shell');
+        const deck = result.group.getObjectByName('centenary-canopy-deck');
+        if (!shell || !deck) throw new Error('canopy parts missing');
+        const box = new THREE.Box3().setFromObject(shell);
+        // 高さの幅は断面の円弧と板の厚みだけ（地面の傾きに沿うと 3m 以上になる）
+        expect(box.max.y - box.min.y).toBeLessThan(1.3);
+        // 床の上面は屋根の下端より 3m 以上下で、広場（北の端）の地面より下がらない
+        const deckBox = new THREE.Box3().setFromObject(deck);
+        expect(box.min.y - deckBox.max.y).toBeGreaterThan(3);
+        expect(deckBox.max.y).toBeGreaterThanOrEqual(ground(-227.2, 408.9) - 0.5);
+      });
     });
   }
 
