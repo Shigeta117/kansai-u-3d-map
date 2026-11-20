@@ -120,6 +120,64 @@ describe('buildIbunkan', () => {
     });
   }
 
+  describe('the arched passage (OSM way 490801252, tunnel=yes)', () => {
+    /** 通路の西の口（関大前駅の側）と東の口（尚文館の側）。paths.json の道がここで終わる */
+    const WEST: [number, number] = [-101.11, -36.93];
+    const EAST: [number, number] = [-77.3, -34.96];
+
+    for (const [label, ground] of [
+      ['flat ground', (): number => GROUND_Y],
+      ['sloped ground', slopedGround],
+    ] as const) {
+      describe(`on ${label}`, () => {
+        const result = buildIbunkan({ building, groundVisualY: GROUND_Y, sampleGroundVisualY: ground });
+        result.group.updateMatrixWorld(true);
+        const dir = new THREE.Vector3(EAST[0] - WEST[0], 0, EAST[1] - WEST[1]).normalize();
+        const highFloor = Math.max(ground(...WEST), ground(...EAST));
+
+        const firstHitAlong = (offsetAlongLongAxis: number): number | null => {
+          // 長手（南北から約 8° 傾く）の向きにずらした、通路と平行な水平の線
+          const along = new THREE.Vector3(-0.1416, 0, 0.9899).multiplyScalar(offsetAlongLongAxis);
+          const origin = new THREE.Vector3(WEST[0], highFloor + 1.5, WEST[1])
+            .addScaledVector(dir, -8)
+            .add(along);
+          const ray = new THREE.Raycaster(origin, dir, 0, 40);
+          const hits = ray.intersectObject(result.group, true);
+          return hits[0]?.distance ?? null;
+        };
+
+        it('is open from the west face to the east face at walking height', () => {
+          expect(firstHitAlong(0)).toBeNull();
+        });
+
+        it('is closed (solid brick) a little north of the passage', () => {
+          const d = firstHitAlong(-15);
+          expect(d).not.toBeNull();
+          // 西の口の 8m 手前から出発して、西の面（約 8m 先）で当たる
+          expect(d!).toBeLessThan(10);
+        });
+
+        it('lays its floor from the west mouth to the east mouth, meeting the ground there', () => {
+          let floorMesh: THREE.Mesh | undefined;
+          result.group.traverse((obj) => {
+            if (obj instanceof THREE.Mesh && obj.name === 'ibunkan-passage-floor') floorMesh = obj;
+          });
+          expect(floorMesh).toBeDefined();
+          // 口の点の真上から下へ線を落とし、床（坂の両端）に当たる高さが地面とそろうか
+          for (const [mouth, inward] of [
+            [WEST, 1],
+            [EAST, -1],
+          ] as const) {
+            const origin = new THREE.Vector3(mouth[0], GROUND_Y + 40, mouth[1]).addScaledVector(dir, 0.3 * inward);
+            const hit = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0)).intersectObject(floorMesh!)[0];
+            expect(hit).toBeDefined();
+            expect(Math.abs(hit!.point.y - ground(mouth[0], mouth[1]))).toBeLessThan(0.6);
+          }
+        });
+      });
+    }
+  });
+
   it('puts the two octagonal towers at the north-east and south-east corners', () => {
     const result = buildIbunkan({ building, groundVisualY: GROUND_Y, sampleGroundVisualY: () => GROUND_Y });
     result.group.updateMatrixWorld(true);

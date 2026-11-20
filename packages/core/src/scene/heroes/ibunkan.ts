@@ -126,16 +126,52 @@ const EQUIPMENT_AREAS: readonly [number, number, number, number][] = [
 const EQUIPMENT_HEIGHT_M = 0.4;
 
 /**
- * 入口。OSM の道が建物に着く点（paths.json）: 東の面の階段 path_490797560 の上端 (-74.9, -52.9)、
- * 東の面の歩道 path_490801256 の端 (-77.3, -35.0)。
+ * 入口。OSM の道が建物に着く点（paths.json）: 東の面の階段 path_490797560 の上端 (-74.9, -52.9)。
+ * 東の面の歩道 path_490801256 の端 (-77.3, -35.0) は戸ではなく、下の連絡通路の東の口。
  * （南の階段 path_490797561 の上端は南東の塔の足元に着くが、写真で戸が確かめられないので塔には置かない）
  */
-const EAST_ENTRANCES_XZ: readonly [number, number][] = [
-  [-74.9, -52.9],
-  [-77.3, -35.0],
-];
+const EAST_ENTRANCES_XZ: readonly [number, number][] = [[-74.9, -52.9]];
 const DOOR_WIDTH_M = 2.4;
 const DOOR_HEIGHT_M = 2.8;
+
+/**
+ * 連絡通路（建物を西＝関大前駅の側から東＝尚文館の側へ貫くアーチの通路）。
+ * 位置は OSM の way 490801252（highway=footway・tunnel=yes・layer=-1）の両端で、持ち主のスクショの矢印とも合う。
+ * 両側の道（paths.json の path_423060577・path_490801256）はこの 2 点で終わり、walk-graph.json でも
+ * 2 点（n_4829911549・n_4829911548）が 23.9m の辺でつながっている。
+ *
+ * 形は持ち主の映像（2023-11-25、西から東へ歩いた 1 本と、東の口から両方向を撮った 1 本）から:
+ * - 天井は浅い円弧のヴォールト（明るい灰色のコンクリート）に、細い暗い横の目地が数 m ごと
+ * - 壁は下が白っぽいタイルの腰壁、その上がレンガで、レンガの帯に窓と黒い壁付けの灯具が交互に並ぶ。
+ *   腰壁の上端と、レンガとヴォールトの境の明るい帯は水平で、床は東へ上る坂（西の端ほど腰壁が高い）
+ * - 両方の口に、白い石張りの柱が内側へ張り出す（口は中より少し狭い）
+ * 寸法はすべて推定（映像の中の比と、東の口の外を歩く人の背丈から）:
+ * 東の口で床から迫り元まで約 3.0m・幅は中で約 10m（幅÷迫り元の高さ ≈ 3.3〜3.4）・ヴォールトの上がりは幅の 7% ほど、
+ * レンガの帯は東の口で腰壁の約 1.2 倍。坂の高さは地形（両端の地面）に合わせる
+ */
+const PASSAGE_WEST_XZ: readonly [number, number] = [-101.11, -36.93];
+const PASSAGE_EAST_XZ: readonly [number, number] = [-77.3, -34.96];
+/** 中の幅（推定） */
+const PASSAGE_WIDTH_M = 10.0;
+/** 高い方（東）の床から迫り元（ヴォールトの付け根）まで（推定） */
+const PASSAGE_SPRING_ABOVE_HIGH_FLOOR_M = 3.0;
+/** ヴォールトの上がり（推定） */
+const PASSAGE_VAULT_RISE_M = 0.7;
+/** 迫り元から下のレンガの帯の高さ。その下が腰壁のタイル（推定） */
+const PASSAGE_BRICK_BAND_M = 1.7;
+/** 口の石張りの柱: 内側への張り出しと、通路の向きの厚み（推定） */
+const PASSAGE_PIER_WIDTH_M = 1.0;
+const PASSAGE_PIER_DEPTH_M = 1.2;
+/** 壁の窓と灯具の間隔（窓 1 つと灯具 1 つで 1 区画。推定） */
+const PASSAGE_BAY_M = 4.0;
+const PASSAGE_WINDOW_WIDTH_M = 1.0;
+/** 南の壁の西寄りにある戸（映像で、西を向いて左の壁の西の口の近く）。西の端からの距離（推定） */
+const PASSAGE_DOOR_FROM_WEST_M = 4.5;
+const PASSAGE_DOOR_WIDTH_M = 1.1;
+/** 横の目地（暗い細い帯）の数 */
+const PASSAGE_RIB_COUNT = 5;
+/** 床の高さを地面から引く点の数（通路の向き） */
+const PASSAGE_FLOOR_SAMPLES = 9;
 
 /** 輪郭が使えないときの代わり（buildings.json の ibunkan） */
 const FALLBACK_POLYGON: readonly [number, number][] = [
@@ -286,6 +322,247 @@ function standard(hex: string, roughness: number, metalness = 0.02): THREE.MeshS
   return new THREE.MeshStandardMaterial({ color: hex, roughness, metalness });
 }
 
+/** 三角形を積むだけの入れ物（材質ごとに 1 つのジオメトリにまとめる） */
+class TriangleSoup {
+  readonly pos: number[] = [];
+
+  quad(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, hint: THREE.Vector3): void {
+    pushQuad(this.pos, a, b, c, d, hint);
+  }
+
+  /** 軸にそろった箱（ローカルの x = t、z = s）。[x0, x1] × [y0, y1] × [z0, z1] */
+  box(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number): void {
+    if (x1 - x0 < 1e-4 || y1 - y0 < 1e-4 || z1 - z0 < 1e-4) return;
+    const v = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
+    this.quad(v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0), v(0, 0, -1));
+    this.quad(v(x0, y0, z1), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z1), v(0, 0, 1));
+    this.quad(v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0), v(-1, 0, 0));
+    this.quad(v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0), v(1, 0, 0));
+    this.quad(v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1), v(0, 1, 0));
+    this.quad(v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1), v(0, -1, 0));
+  }
+
+  toGeometry(): THREE.BufferGeometry {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }
+}
+
+interface PassagePlan {
+  /** 通路の中心と両側の壁の s（ローカル） */
+  sc: number;
+  s0: number;
+  s1: number;
+  /** 床の高さ（t の昇順。両端は西と東の面） */
+  floor: { t: number; y: number }[];
+  minFloorY: number;
+  springY: number;
+  crownY: number;
+  tileCapY: number;
+}
+
+/**
+ * 連絡通路の寸法を決める。床は両端の地面を結ぶまっすぐな坂にし、途中で地形が床より高い所だけ持ち上げる
+ * （地形の面が床から突き出さないように）。迫り元は高い方の床から一定の高さで水平
+ */
+function planPassage(sc: number, hw: number, groundAt: (s: number, t: number) => number): PassagePlan {
+  const s0 = sc - PASSAGE_WIDTH_M / 2;
+  const s1 = sc + PASSAGE_WIDTH_M / 2;
+  const acrossS = [s0, (s0 + sc) / 2, sc, (sc + s1) / 2, s1];
+  const highestGround = (t: number): number => Math.max(...acrossS.map((s) => groundAt(s, t)));
+  const yWest = groundAt(sc, -hw - 0.5);
+  const yEast = groundAt(sc, hw + 0.5);
+  const floor: { t: number; y: number }[] = [];
+  for (let i = 0; i < PASSAGE_FLOOR_SAMPLES; i++) {
+    const f = i / (PASSAGE_FLOOR_SAMPLES - 1);
+    const t = -hw + 2 * hw * f;
+    const ramp = yWest + (yEast - yWest) * f;
+    floor.push({ t, y: Math.max(ramp, highestGround(t) + 0.05) });
+  }
+  const ys = floor.map((p) => p.y);
+  const springY = Math.max(...ys) + PASSAGE_SPRING_ABOVE_HIGH_FLOOR_M;
+  return {
+    sc,
+    s0,
+    s1,
+    floor,
+    minFloorY: Math.min(...ys),
+    springY,
+    crownY: springY + PASSAGE_VAULT_RISE_M,
+    tileCapY: springY - PASSAGE_BRICK_BAND_M,
+  };
+}
+
+function passageFloorAt(plan: PassagePlan, t: number): number {
+  const pts = plan.floor;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  if (!first || !last) return plan.minFloorY;
+  if (t <= first.t) return first.y;
+  if (t >= last.t) return last.y;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (a && b && t >= a.t && t <= b.t) return a.y + ((b.y - a.y) * (t - a.t)) / (b.t - a.t);
+  }
+  return last.y;
+}
+
+/**
+ * 連絡通路の中身（ローカルの座標で組む。x = t、z = s）。材質ごとに 1 つのジオメトリにまとめて返す。
+ * - trim: 腰壁のタイル・腰壁の笠木・迫り元の明るい帯・口の石張りの柱
+ * - brick: 両方の口の、ヴォールトの上の三角の壁（スパンドレル）
+ * - vault: ヴォールトの下面
+ * - floor: 床（坂）と、両方の口の外へ少し出した敷き
+ * - dark: レンガの帯の窓・灯具・戸・ヴォールトの横の目地
+ */
+function buildPassageGeometries(
+  plan: PassagePlan,
+  hw: number,
+): Record<'trim' | 'brick' | 'vault' | 'floor' | 'dark', THREE.BufferGeometry> {
+  const { s0, s1, sc, springY, crownY, tileCapY } = plan;
+  const v = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
+  const trim = new TriangleSoup();
+  const brick = new TriangleSoup();
+  const vault = new TriangleSoup();
+  const floor = new TriangleSoup();
+  const dark = new TriangleSoup();
+  const floorAt = (t: number): number => passageFloorAt(plan, t);
+
+  // 床。両方の口の外へ 0.6m 出して、外の道と隙間ができないようにする
+  const pts = plan.floor;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (!a || !b) continue;
+    floor.quad(v(a.t, a.y, s0), v(b.t, b.y, s0), v(b.t, b.y, s1), v(a.t, a.y, s1), v(0, 1, 0));
+  }
+  for (const [tFace, tOut] of [
+    [-hw, -hw - 0.6],
+    [hw, hw + 0.6],
+  ] as const) {
+    const y = floorAt(tFace);
+    floor.quad(v(tFace, y, s0), v(tOut, y, s0), v(tOut, y, s1), v(tFace, y, s1), v(0, 1, 0));
+    // 敷きの端から下へ垂らす縁（地面が少し低い所で、床の下が見えないように）
+    floor.quad(v(tOut, y - 1.5, s0), v(tOut, y - 1.5, s1), v(tOut, y, s1), v(tOut, y, s0), v(Math.sign(tOut), 0, 0));
+  }
+
+  // 腰壁のタイル（両側の壁の手前 3cm）。上端は水平、下端は床に沿う
+  for (const [z, nz] of [
+    [s0 + 0.03, 1],
+    [s1 - 0.03, -1],
+  ] as const) {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      if (!a || !b || Math.max(a.y, b.y) >= tileCapY) continue;
+      trim.quad(v(a.t, a.y - 0.05, z), v(b.t, b.y - 0.05, z), v(b.t, tileCapY, z), v(a.t, tileCapY, z), v(0, 0, nz));
+    }
+  }
+  // 腰壁の笠木と、迫り元の明るい帯
+  trim.box(-hw, hw, tileCapY, tileCapY + 0.12, s0, s0 + 0.16);
+  trim.box(-hw, hw, tileCapY, tileCapY + 0.12, s1 - 0.16, s1);
+  trim.box(-hw, hw, springY - 0.28, springY, s0, s0 + 0.12);
+  trim.box(-hw, hw, springY - 0.28, springY, s1 - 0.12, s1);
+  // 口の石張りの柱（両方の口の両側）
+  for (const [t0, t1] of [
+    [-hw, -hw + PASSAGE_PIER_DEPTH_M],
+    [hw - PASSAGE_PIER_DEPTH_M, hw],
+  ] as const) {
+    const yBase = Math.min(floorAt(t0), floorAt(t1)) - 0.3;
+    trim.box(t0, t1, yBase, springY, s0, s0 + PASSAGE_PIER_WIDTH_M);
+    trim.box(t0, t1, yBase, springY, s1 - PASSAGE_PIER_WIDTH_M, s1);
+  }
+
+  // ヴォールト（円弧）。弦 = 幅、上がり = PASSAGE_VAULT_RISE_M
+  const chord = s1 - s0;
+  const rise = PASSAGE_VAULT_RISE_M;
+  const radius = (chord * chord) / (8 * rise) + rise / 2;
+  const centerY = crownY - radius;
+  const half = Math.asin(chord / 2 / radius);
+  const arcN = 16;
+  const arc: { z: number; y: number }[] = [];
+  for (let i = 0; i <= arcN; i++) {
+    const ang = -half + (2 * half * i) / arcN;
+    arc.push({ z: sc + radius * Math.sin(ang), y: centerY + radius * Math.cos(ang) });
+  }
+  for (let i = 0; i < arcN; i++) {
+    const a = arc[i];
+    const b = arc[i + 1];
+    if (!a || !b) continue;
+    const mid = v(0, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    const toCenter = v(0, centerY - mid.y, sc - mid.z);
+    vault.quad(v(-hw, a.y, a.z), v(hw, a.y, a.z), v(hw, b.y, b.z), v(-hw, b.y, b.z), toCenter);
+    // 両方の口のスパンドレル（円弧の上から頂部の高さまで）
+    for (const [x, nx] of [
+      [-hw, -1],
+      [hw, 1],
+    ] as const) {
+      brick.quad(v(x, a.y, a.z), v(x, b.y, b.z), v(x, crownY + 0.02, b.z), v(x, crownY + 0.02, a.z), v(nx, 0, 0));
+    }
+    // 横の目地（ヴォールトの面より 3cm 下の、幅 15cm の暗い帯）
+    for (let k = 0; k < PASSAGE_RIB_COUNT; k++) {
+      const t = -hw + ((k + 1) * 2 * hw) / (PASSAGE_RIB_COUNT + 1);
+      const inset = (p: { z: number; y: number }): { z: number; y: number } => {
+        const dz = sc - p.z;
+        const dy = centerY - p.y;
+        const len = Math.hypot(dz, dy) || 1;
+        return { z: p.z + (dz / len) * 0.03, y: p.y + (dy / len) * 0.03 };
+      };
+      const ia = inset(a);
+      const ib = inset(b);
+      dark.quad(v(t - 0.075, ia.y, ia.z), v(t + 0.075, ia.y, ia.z), v(t + 0.075, ib.y, ib.z), v(t - 0.075, ib.y, ib.z), toCenter);
+    }
+  }
+
+  // レンガの帯の窓と灯具（区画ごとに交互）。両側の壁
+  const bandLow = tileCapY + 0.12;
+  const usable = 2 * (hw - PASSAGE_PIER_DEPTH_M);
+  const bayCount = Math.max(1, Math.floor(usable / PASSAGE_BAY_M));
+  const bayStart = -((bayCount - 1) * PASSAGE_BAY_M) / 2;
+  const windowH = Math.max(0.6, Math.min(1.3, springY - 0.28 - bandLow - 0.3));
+  const windowY = (bandLow + springY - 0.28) / 2;
+  for (const [zWall, dir] of [
+    [s0, 1],
+    [s1, -1],
+  ] as const) {
+    for (let i = 0; i < bayCount; i++) {
+      const t = bayStart + i * PASSAGE_BAY_M;
+      const zIn = zWall + dir * 0.05;
+      dark.box(
+        t - PASSAGE_WINDOW_WIDTH_M / 2,
+        t + PASSAGE_WINDOW_WIDTH_M / 2,
+        windowY - windowH / 2,
+        windowY + windowH / 2,
+        Math.min(zWall, zIn),
+        Math.max(zWall, zIn),
+      );
+      // 灯具は窓と窓の間（区画の境）、腰壁の笠木の少し上
+      const tl = t + PASSAGE_BAY_M / 2;
+      if (tl < hw - PASSAGE_PIER_DEPTH_M - 0.5) {
+        const zOut = zWall + dir * 0.24;
+        dark.box(tl - 0.14, tl + 0.14, bandLow + 0.45, bandLow + 1.0, Math.min(zWall, zOut), Math.max(zWall, zOut));
+      }
+    }
+  }
+  // 南の壁の西寄りの戸（上端は腰壁の笠木）
+  const tDoor = -hw + PASSAGE_DOOR_FROM_WEST_M;
+  const yDoor = floorAt(tDoor);
+  if (tileCapY - yDoor > 1.8) {
+    dark.box(tDoor - PASSAGE_DOOR_WIDTH_M / 2, tDoor + PASSAGE_DOOR_WIDTH_M / 2, yDoor, tileCapY, s1 - 0.08, s1 - 0.02);
+  }
+
+  return {
+    trim: trim.toGeometry(),
+    brick: brick.toGeometry(),
+    vault: vault.toGeometry(),
+    floor: floor.toGeometry(),
+    dark: dark.toGeometry(),
+  };
+}
+
 export const buildIbunkan: HeroBuilder = (ctx) => {
   const polygon = usablePolygon(ctx.building.polygon);
   const frame = frameFromPolygon(polygon);
@@ -338,13 +615,44 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
     }
   }
 
-  // 主棟（レンガの箱）
-  const bodyHeight = eaveY - bottom;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, bodyHeight, hl * 2), brickMat);
-  body.position.set(0, bottom + bodyHeight / 2, 0);
-  body.castShadow = true;
-  body.receiveShadow = true;
-  local.add(body);
+  // 連絡通路の位置（ローカル）。通路は短手（t）に沿わせ、中心の s は OSM の両端の平均
+  const passageS = (toLocal(frame, ...PASSAGE_WEST_XZ)[0] + toLocal(frame, ...PASSAGE_EAST_XZ)[0]) / 2;
+  const passage = planPassage(passageS, hw, groundAt);
+
+  // 主棟（レンガの箱）。通路の所だけ、通路の北・南・上・下（床の下）の 4 つの箱に分ける
+  const addBodyBox = (s0: number, s1: number, y0: number, y1: number): void => {
+    if (s1 - s0 < 1e-3 || y1 - y0 < 1e-3) return;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, y1 - y0, s1 - s0), brickMat);
+    box.name = 'ibunkan-body';
+    box.position.set(0, (y0 + y1) / 2, (s0 + s1) / 2);
+    box.castShadow = true;
+    box.receiveShadow = true;
+    local.add(box);
+  };
+  addBodyBox(-hl, passage.s0, bottom, eaveY);
+  addBodyBox(passage.s1, hl, bottom, eaveY);
+  addBodyBox(passage.s0, passage.s1, passage.crownY, eaveY);
+  addBodyBox(passage.s0, passage.s1, bottom, passage.minFloorY - 0.3);
+
+  // 連絡通路の中身。描画命令を増やさないよう、建物の既存の材質に割り当てる（建物ごとに材質でまとめられる）:
+  // 腰壁のタイル・石張りの柱・ヴォールトは白い見切りと同じ材質（ヴォールトは下向きの面なので暗く写る）、
+  // 床は屋根の平らな面と同じ灰色、窓・灯具・目地は紺のスレートと同じ暗い色
+  const passageGeos = buildPassageGeometries(passage, hw);
+  const passageParts: [THREE.BufferGeometry, THREE.MeshStandardMaterial, string][] = [
+    [passageGeos.trim, trimMat, 'ibunkan-passage-trim'],
+    [passageGeos.vault, trimMat, 'ibunkan-passage-vault'],
+    [passageGeos.brick, brickMat, 'ibunkan-passage-spandrel'],
+    [passageGeos.floor, roofTopMat, 'ibunkan-passage-floor'],
+    [passageGeos.dark, slateMat, 'ibunkan-passage-fixtures'],
+  ];
+  for (const [geo, mat, name] of passageParts) {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.name = name;
+    // 影の設定を建物の他の部品（主棟・屋根・塔の笠木）とそろえて、同じ材質どうしでまとまるようにする
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    local.add(mesh);
+  }
 
   // 軒の白い見切り
   const fascia = new THREE.Mesh(
@@ -413,14 +721,14 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
   equipment.instanceMatrix.needsUpdate = true;
   local.add(equipment);
 
-  // 入口（OSM の道が建物に着く点）。東の面に 2 つ。窓と同じ白い枠のガラス戸にする
+  // 入口（OSM の道が建物に着く点）。東の面に 1 つ。窓と同じ白い枠のガラス戸にする
   const doorS = EAST_ENTRANCES_XZ.map(([x, z]) => {
     const [s] = toLocal(frame, x, z);
     return Math.max(-hl + 2, Math.min(hl - 2, s));
   });
 
   // 独立した窓（白い枠＋ガラス）。東の面は柱間ごと、南の妻面は中央の 2 列。
-  // 地面より下に沈む窓と、入口に重なる窓は置かない
+  // 地面より下に沈む窓と、入口・連絡通路の口に重なる窓は置かない
   const windows: { s: number; t: number; y: number; w: number; h: number; face: 'east' | 'south' }[] = [];
   const keepWindow = (s: number, t: number, y: number): boolean =>
     y - WINDOW_HEIGHT_M / 2 - WINDOW_FRAME_M > groundAt(s, t) + 0.4;
@@ -430,6 +738,9 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
       const s = bayStart + i * WINDOW_BAY_M;
       const nearDoor = doorS.some((ds) => Math.abs(ds - s) < (DOOR_WIDTH_M + WINDOW_WIDTH_M) / 2 + 0.3);
       if (nearDoor && y - WINDOW_HEIGHT_M / 2 < groundAt(s, hw) + DOOR_HEIGHT_M + 0.3) continue;
+      const overPassage =
+        Math.abs(s - passage.sc) < (PASSAGE_WIDTH_M + WINDOW_WIDTH_M) / 2 + WINDOW_FRAME_M + 0.3;
+      if (overPassage && y - WINDOW_HEIGHT_M / 2 - WINDOW_FRAME_M < passage.crownY + 0.3) continue;
       if (keepWindow(s, hw, y)) {
         windows.push({ s, t: hw, y, w: WINDOW_WIDTH_M, h: WINDOW_HEIGHT_M, face: 'east' });
       }
@@ -526,6 +837,7 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
     cornice.rotation.y = octagonTurn;
     cornice.position.set(tw.t, corniceBottomY + TOWER_CORNICE_HEIGHT_M / 2, tw.s);
     cornice.castShadow = true;
+    cornice.receiveShadow = true;
     local.add(cornice);
 
     const dome = new THREE.Mesh(
