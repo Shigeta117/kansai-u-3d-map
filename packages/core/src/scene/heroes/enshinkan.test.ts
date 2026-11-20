@@ -142,6 +142,20 @@ describe('buildEnshinkan', () => {
     });
   });
 
+  it('keeps the drum a light grey and the ground-floor lobby a lit glass front (not a black band)', () => {
+    const luminance = (c: THREE.Color): number => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    // 上の階の色（primaryMaterials の最初 2 つ: 壁と、下端・軒の帯）。線形の明るさで 0.55 以上（前は 0.4 前後で陰に沈んだ）
+    for (const entry of result.primaryMaterials.slice(0, 2)) {
+      expect(luminance(new THREE.Color(entry.baseHex))).toBeGreaterThan(0.55);
+    }
+    const lobby = result.group.getObjectByName('enshinkan-lobby');
+    if (!(lobby instanceof THREE.Mesh)) throw new Error('lobby missing');
+    const mat = lobby.material as THREE.MeshStandardMaterial;
+    // Node では無地。ガラスは中くらいの灰青で、室内の明かりの自己発光がある
+    expect(luminance(mat.color)).toBeGreaterThan(0.08);
+    expect(luminance(mat.emissive)).toBeGreaterThan(0);
+  });
+
   it('stands 16 evenly spaced thick columns just inside the edge of the drum (small overhang, like the photo)', () => {
     const cols = result.group.getObjectByName('enshinkan-columns');
     if (!(cols instanceof THREE.InstancedMesh)) throw new Error('columns missing');
