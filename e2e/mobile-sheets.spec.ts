@@ -96,7 +96,10 @@ test.describe('スマホの下から出るシート', () => {
     await expect(sheet.getByPlaceholder(/教室番号・名前で絞り込み/)).toBeInViewport();
 
     const start = await centerOf(handle);
-    await touchDrag(page, start, { x: start.x, y: start.y + 600 }, { steps: 8, stepMs: 12 });
+    // 画面の下端の近くまで払う。CI の遅い環境では離す直前の動きの記録が途切れて勢いが 0 と測られることがあり
+    // （止めてから離した扱い）、600px だと低い段に止まった。勢いが 0 でも位置だけで閉じる所まで引く
+    const viewportHeight = page.viewportSize()?.height ?? 852;
+    await touchDrag(page, start, { x: start.x, y: viewportHeight - 4 }, { steps: 8, stepMs: 12 });
     await expect(sheet).toBeHidden();
   });
 
