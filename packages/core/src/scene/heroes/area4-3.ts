@@ -137,6 +137,8 @@ export const buildArea43: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult
     opacity: SCREEN_OPACITY,
     side: THREE.DoubleSide,
     depthWrite: false,
+    // 透明の両面を 1 回で描く（three は透明の両面を既定で 2 回に分けて描く）
+    forceSinglePass: true,
   });
 
   const addWhite = (mesh: THREE.Mesh, name: string): void => {
