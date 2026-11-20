@@ -2,15 +2,22 @@ import type { BuildingEntrance } from './indoor-types';
 import type { BuildingFeature, LocalPoint2D } from './types';
 
 /**
- * 建物の中の棟（建物の部品）。docs/indoor-plan.md 4 節・7 節。
+ * 棟（館内の単位）と、建物（OSM の輪郭）との対応。docs/indoor-plan.md 5 節・12 節・17 節。
  *
- * OSM の輪郭が 1 つの建物（屋外の入口も共有）の中に、号館・棟を部品として持たせる。第3学舎の 1〜4 号館 A〜D 棟のほか、
- * 号館ごとに輪郭が分かれていない学舎も同じ形で足せる。館内の地図（IMDF）に書き出すときは、棟ごとに building を分け、
- * venue でまとめる。
- *
- * 塊の範囲（region）は、建物の向きに沿った枠（u・v 軸）の帯や箱で表す。実際の塊は「建物の輪郭 ∩ region」で、
- * 地図の当たり判定（押した点がどの棟か）と、選んだ棟だけを光らせる殻は、この region で切り分ける
+ * - 館内の単位は棟。棟の id はキャンパスで一意（WING_ID_RULE）
+ * - 建物と棟の対応は別の表（WingBuildingLink）に持つ。学舎ごとに建物の分け方がばらばらなため
+ *   （第3学舎は 1 つの建物に A〜D 棟、第1学舎は号館ごとに別の建物、第2学舎は 1 つの建物に A棟と B棟 など）
+ * - 1 つの建物に複数の棟があるときは、対応の表に塊の範囲（region）を書く。region は建物の向きに沿った枠（u・v 軸）の
+ *   帯や箱で、実際の塊は「建物の輪郭 ∩ region」。地図の当たり判定と、選んだ棟だけを光らせる殻の切り分けに使う
+ * - 読み込み時に 2 つの表を合わせ、BuildingFeature.wings（BuildingWing の並び）にする
  */
+
+/**
+ * 棟の id の決め方（P0b の最初の形）: 学舎の id（BuildingCategory。'area3' など）＋「-」＋棟の記号の小文字
+ * （KAN-CAN! の部屋の番号の頭の文字。C301 の C）。例: 'area3-c'。建物の id（'area3'・'area1-1' など、数字で分ける）とは重ならない。
+ * 棟の記号の無い学舎（第4学舎の号館など）の決め方は P0b で決める
+ */
+export const WING_ID_RULE = /^area[1-4]-[a-z]$/;
 
 /** 枠の座標。u = (x, z)・axisU、v = (x, z)・(−axisU[1], axisU[0])（u 軸を x から z の向きへ 90° 回した軸） */
 export interface WingRegion {
@@ -23,28 +30,56 @@ export interface WingRegion {
   vMax?: number;
 }
 
-export interface BuildingWing {
-  /** 棟の id（建物の中で一意。例: 'c'） */
+/** 棟（館内の単位） */
+export interface Wing {
+  /** 棟の id（キャンパスで一意。WING_ID_RULE） */
   id: string;
-  /** 棟の名前（例: 'C棟'） */
-  name: string;
+  /** 学舎の名前（例: '第3学舎'） */
+  school: string;
   /** 号館の名前（例: '3号館'） */
   hallName?: string;
-  /** 部屋のデータ（RoomEntry.wing）での棟の名前（例: '3号館 C棟'） */
-  roomWing: string;
+  /** 棟の名前（例: 'C棟'） */
+  name: string;
   /** 地上の階の数 */
   floorsAbove: number;
   /** 地下の階の数（資料に無ければ 0） */
   floorsBelow: number;
   /** 階高（m）。推定の値なら note に書く */
   floorHeightM: number;
-  /** 塊の範囲 */
-  region: WingRegion;
   /** 棟の入口（館内の案内の L1 で足す。今は空） */
   entrances: BuildingEntrance[];
-  /** 検索で棟に当てる別名（号館・棟の名前の組み合わせは wingSearchAliases が作るので、それ以外だけ） */
+  /** 検索で棟に当てる別名（学舎・号館・棟の名前の組み合わせは wingSearchAliases が作るので、それ以外だけ） */
   aliases?: string[];
   note?: string;
+}
+
+/** 建物と棟の対応（別の表）。1 つの建物に複数の棟があるときは region で塊を分ける（無ければ建物の全体） */
+export interface WingBuildingLink {
+  wingId: string;
+  buildingId: string;
+  region?: WingRegion;
+}
+
+/** 建物に付けた棟（棟と、その建物の中の塊の範囲） */
+export interface BuildingWing extends Wing {
+  region?: WingRegion;
+}
+
+/** 棟の表と対応の表を合わせて、建物ごとの棟の並びにする（対応の表の順） */
+export function joinBuildingWings(
+  wings: readonly Wing[],
+  links: readonly WingBuildingLink[],
+): Map<string, BuildingWing[]> {
+  const byId = new Map(wings.map((w) => [w.id, w]));
+  const out = new Map<string, BuildingWing[]>();
+  for (const link of links) {
+    const wing = byId.get(link.wingId);
+    if (!wing) continue;
+    const list = out.get(link.buildingId) ?? [];
+    list.push(link.region ? { ...wing, region: link.region } : { ...wing });
+    out.set(link.buildingId, list);
+  }
+  return out;
 }
 
 type P2 = [number, number];
@@ -54,8 +89,9 @@ function toFrame(region: WingRegion, x: number, z: number): P2 {
   return [x * ax + z * az, -x * az + z * ax];
 }
 
-/** ローカル座標の点 (x, z) が棟の塊の範囲に入るか（境目の上は両方に入る） */
-export function wingRegionContains(region: WingRegion, x: number, z: number): boolean {
+/** ローカル座標の点 (x, z) が棟の塊の範囲に入るか（境目の上は両方に入る。範囲が無ければ建物の全体） */
+export function wingRegionContains(region: WingRegion | undefined, x: number, z: number): boolean {
+  if (!region) return true;
   const [u, v] = toFrame(region, x, z);
   if (region.uMin !== undefined && u < region.uMin) return false;
   if (region.uMax !== undefined && u > region.uMax) return false;
@@ -64,7 +100,7 @@ export function wingRegionContains(region: WingRegion, x: number, z: number): bo
   return true;
 }
 
-/** 地図の当たり判定: 建物の上の点 (x, z) がどの棟か（棟の無い建物や、どの棟にも入らない点は null） */
+/** 地図の当たり判定の予備: 建物の上の点 (x, z) がどの棟の範囲か（棟の無い建物や、どの棟にも入らない点は null） */
 export function findWingAt(building: Pick<BuildingFeature, 'wings'>, x: number, z: number): BuildingWing | null {
   for (const wing of building.wings ?? []) {
     if (wingRegionContains(wing.region, x, z)) return wing;
@@ -72,44 +108,41 @@ export function findWingAt(building: Pick<BuildingFeature, 'wings'>, x: number, 
   return null;
 }
 
-export function findWing(building: Pick<BuildingFeature, 'wings'> | null | undefined, wingId: string | null | undefined): BuildingWing | null {
+export function findWing(
+  building: Pick<BuildingFeature, 'wings'> | null | undefined,
+  wingId: string | null | undefined,
+): BuildingWing | null {
   if (!building || !wingId) return null;
   return building.wings?.find((w) => w.id === wingId) ?? null;
 }
 
-/** 部屋のデータの棟の名前（RoomEntry.wing）から棟を引く */
-export function findWingForRoom(building: Pick<BuildingFeature, 'wings'>, roomWing: string | undefined): BuildingWing | null {
-  if (!roomWing) return null;
-  return building.wings?.find((w) => w.roomWing === roomWing) ?? null;
-}
-
 /** 号館と棟の名前（例: '3号館 C棟'） */
-export function wingLabel(wing: BuildingWing): string {
+export function wingLabel(wing: Wing): string {
   return wing.hallName ? `${wing.hallName} ${wing.name}` : wing.name;
 }
 
 /** 見出しの名前（例: '第3学舎 3号館 C棟'） */
-export function wingTitle(building: Pick<BuildingFeature, 'shortName'>, wing: BuildingWing): string {
-  return `${building.shortName} ${wingLabel(wing)}`;
+export function wingTitle(wing: Wing): string {
+  return `${wing.school} ${wingLabel(wing)}`;
 }
 
 /** 階の数の表記（例: '地上 10 階'・'地下 1 階・地上 4 階'） */
-export function wingFloorsText(wing: BuildingWing): string {
+export function wingFloorsText(wing: Wing): string {
   const above = `地上 ${wing.floorsAbove} 階`;
   return wing.floorsBelow > 0 ? `地下 ${wing.floorsBelow} 階・${above}` : above;
 }
 
 /** その棟にある階か（地下は負の数。0 階は無い） */
-export function wingHasFloor(wing: BuildingWing, floor: number): boolean {
+export function wingHasFloor(wing: Wing, floor: number): boolean {
   if (floor === 0) return false;
   return floor >= -wing.floorsBelow && floor <= wing.floorsAbove;
 }
 
 /**
- * 検索で棟に当てる名前。号館・棟の名前の組み合わせ（'C棟'・'3号館'・'3号館C棟'・'C棟（3号館）'・
- * '第3学舎C棟'・'第3学舎3号館'・'第3学舎3号館C棟'）と、棟の別名
+ * 検索で棟に当てる名前。学舎・号館・棟の名前の組み合わせ（'C棟'・'第3学舎C棟'・'3号館'・'第3学舎3号館'・
+ * '3号館C棟'・'第3学舎3号館C棟'・'C棟（3号館）'）と、棟の別名
  */
-export function wingSearchAliases(building: Pick<BuildingFeature, 'shortName'>, wing: BuildingWing): string[] {
+export function wingSearchAliases(wing: Wing): string[] {
   const out = new Set<string>();
   const add = (s: string): void => {
     if (s.trim()) out.add(s);
@@ -117,7 +150,7 @@ export function wingSearchAliases(building: Pick<BuildingFeature, 'shortName'>, 
   const parts = wing.hallName ? [wing.name, wing.hallName, `${wing.hallName}${wing.name}`] : [wing.name];
   for (const p of parts) {
     add(p);
-    add(`${building.shortName}${p}`);
+    add(`${wing.school}${p}`);
   }
   if (wing.hallName) add(`${wing.name}（${wing.hallName}）`);
   for (const a of wing.aliases ?? []) add(a);
@@ -181,7 +214,7 @@ export function wingFootprintCentroid(
   building: Pick<BuildingFeature, 'polygon' | 'holes'>,
   wing: Pick<BuildingWing, 'region'>,
 ): { area: number; centroid: LocalPoint2D } | null {
-  const region = wing.region;
+  const region: WingRegion = wing.region ?? { axisU: [1, 0] };
   const [ax, az] = region.axisU;
   const frameRing = (ring: readonly P2[]): P2[] => ring.map(([x, z]) => toFrame(region, x, z));
   const outer = areaAndCentroid(clipRingToRegion(frameRing(building.polygon), region));

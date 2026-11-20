@@ -14,6 +14,11 @@ export * from './domain/search';
 export * from './data/loadCampusData';
 export { SENRIYAMA_CONFIG } from './data/campuses/senriyama/config';
 export { SENRIYAMA_LANDMARKS } from './data/campuses/senriyama/landmarks';
+export {
+  AREA3_WING_IDS,
+  SENRIYAMA_WING_BUILDINGS,
+  SENRIYAMA_WINGS,
+} from './data/campuses/senriyama/wings';
 
 // 3D scene builders & orchestration
 export { SCENE_PALETTE } from './scene/palette';

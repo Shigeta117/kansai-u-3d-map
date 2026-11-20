@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { wingFootprintCentroid, wingRegionContains } from '../../../domain/wings';
+import { WING_ID_RULE, wingFootprintCentroid, wingRegionContains } from '../../../domain/wings';
 import type { BuildingFeature } from '../../../domain/types';
 import { buildArea3 } from '../../../scene/heroes/area3';
 import { applyBuildingWings } from '../../loadCampusData';
-import { AREA3_AXIS_U, SENRIYAMA_BUILDING_WINGS } from './wings';
+import { AREA3_AXIS_U, AREA3_WING_IDS, SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './wings';
 
 const buildings = applyBuildingWings(
   JSON.parse(
@@ -47,15 +47,32 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
   const wings = area3.wings ?? [];
 
   it('attaches the 4 wings to area3 only, with the KAN-CAN! floor counts', () => {
-    expect(Object.keys(SENRIYAMA_BUILDING_WINGS)).toEqual(['area3']);
     expect(buildings.filter((b) => b.wings).map((b) => b.id)).toEqual(['area3']);
-    expect(wings.map((w) => [w.id, w.hallName, w.name, w.roomWing, w.floorsBelow, w.floorsAbove])).toEqual([
-      ['a', '1号館', 'A棟', '1号館 A棟', 1, 4],
-      ['b', '2号館', 'B棟', '2号館 B棟', 0, 5],
-      ['c', '3号館', 'C棟', '3号館 C棟', 0, 10],
-      ['d', '4号館', 'D棟', '4号館 D棟', 0, 5],
+    expect(wings.map((w) => [w.id, w.school, w.hallName, w.name, w.floorsBelow, w.floorsAbove])).toEqual([
+      ['area3-a', '第3学舎', '1号館', 'A棟', 1, 4],
+      ['area3-b', '第3学舎', '2号館', 'B棟', 0, 5],
+      ['area3-c', '第3学舎', '3号館', 'C棟', 0, 10],
+      ['area3-d', '第3学舎', '4号館', 'D棟', 0, 5],
     ]);
-    for (const w of wings) expect(w.entrances).toEqual([]);
+    for (const w of wings) {
+      expect(w.entrances).toEqual([]);
+      expect(w.region).toBeDefined();
+    }
+  });
+
+  it('keeps the wing table and the building link table consistent (ids unique and follow the rule)', () => {
+    const ids = SENRIYAMA_WINGS.map((w) => w.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(WING_ID_RULE);
+    expect(Object.values(AREA3_WING_IDS)).toEqual(ids.filter((id) => id.startsWith('area3-')));
+    const buildingIds = new Set(buildings.map((b) => b.id));
+    for (const link of SENRIYAMA_WING_BUILDINGS) {
+      expect(ids).toContain(link.wingId);
+      expect(buildingIds.has(link.buildingId)).toBe(true);
+    }
+    // 1 つの棟は 1 つの建物に対応する
+    const linked = SENRIYAMA_WING_BUILDINGS.map((l) => l.wingId);
+    expect(new Set(linked).size).toBe(linked.length);
   });
 
   it('splits the outline into the 4 wings with no gap and no overlap', () => {
@@ -78,7 +95,7 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
       }
     }
     expect(inside).toBeGreaterThan(3000);
-    for (const id of ['a', 'b', 'c', 'd']) expect(counts.get(id) ?? 0).toBeGreaterThan(300);
+    for (const id of Object.values(AREA3_WING_IDS)) expect(counts.get(id) ?? 0).toBeGreaterThan(300);
     // 塊の面積の和は、輪郭の面積から中庭を引いた値
     const total = wings.reduce((sum, w) => sum + (wingFootprintCentroid(area3, w)?.area ?? 0), 0);
     const expected = ringArea(area3.polygon) - (area3.holes ?? []).reduce((s, h) => s + ringArea(h), 0);
@@ -92,10 +109,10 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
       if (!fc) throw new Error(`${id} has no footprint`);
       return frameOf(fc.centroid.x, fc.centroid.z);
     };
-    const [cu] = c('c');
-    const [au] = c('a');
-    const [bu, bv] = c('b');
-    const [du, dv] = c('d');
+    const [cu] = c(AREA3_WING_IDS.c);
+    const [au] = c(AREA3_WING_IDS.a);
+    const [bu, bv] = c(AREA3_WING_IDS.b);
+    const [du, dv] = c(AREA3_WING_IDS.d);
     expect(cu).toBeLessThan(bu - 15);
     expect(au).toBeGreaterThan(bu + 15);
     expect(Math.abs(bu - du)).toBeLessThan(3);
@@ -130,11 +147,20 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
         expect(wingIds.some((id) => inWing(id, p.x, p.z)), `${name} vertex ${i}`).toBe(true);
       }
     };
+    const { a, b, c, d } = AREA3_WING_IDS;
     for (const name of ['area3-tower-base', 'area3-tower-step', 'area3-tower-main', 'area3-tower-slender', 'area3-vestibule']) {
-      expectIn(name, ['c']);
+      expectIn(name, [c]);
     }
-    expectIn('area3-wing-a', ['a']);
+    expectIn('area3-wing-a', [a]);
     // B と D の 1 つの塊（中庭を挟む）は、B と D の範囲に収まる
-    expectIn('area3-wing-bd', ['b', 'd']);
+    expectIn('area3-wing-bd', [b, d]);
+    // 塔の部品には C棟の印がある（東の面のフィンと文字は B・D の範囲の上に張り出すので、範囲ではなく印で C棟にする）
+    for (const name of ['area3-tower-main', 'area3-fins', 'area3-fin-glass', 'area3-fin-lintel-east', 'area3-letter-lines', 'area3-antenna']) {
+      expect(hero.group.getObjectByName(name)?.userData.wingId, name).toBe(c);
+    }
+    expect(hero.group.getObjectByName('area3-wing-a')?.userData.wingId).toBe(a);
+    for (const name of ['area3-wing-bd', 'area3-penthouses', 'area3-link-bd']) {
+      expect(hero.group.getObjectByName(name)?.userData.wingId, name).toBeUndefined();
+    }
   });
 });

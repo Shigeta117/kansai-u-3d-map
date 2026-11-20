@@ -1,7 +1,8 @@
-import type { BuildingWing } from '../../../domain/wings';
+import type { Wing, WingBuildingLink } from '../../../domain/wings';
 
 /**
- * 千里山キャンパスの建物の中の棟（docs/indoor-plan.md 7 節）。読み込み時に BuildingFeature.wings に付ける。
+ * 千里山キャンパスの棟（館内の単位）の表と、建物との対応の表（docs/indoor-plan.md 5 節・12 節・17 節）。
+ * 読み込み時に合わせて BuildingFeature.wings に付ける。棟の id の決め方は domain/wings.ts の WING_ID_RULE。
  *
  * 第3学舎（area3）: OSM の輪郭は 1 つ（屋外の入口も共有）なので建物は 1 つのまま、1〜4 号館 A〜D 棟を部品にする。
  * 棟の割り当てと階の数は KAN-CAN! の学舎・教室一覧と第3学舎エリアの図（持ち主の手書きの割り当て 2026-11-20 で確かめた）。
@@ -32,67 +33,87 @@ export const AREA3_WING_BOUNDS = {
 /** 階高（推定。主役のモデルの FLOOR_HEIGHT_M と同じ） */
 const AREA3_FLOOR_HEIGHT_M = 3.9;
 
-const AREA3_WINGS: BuildingWing[] = [
+/** 第3学舎の棟の id（部屋のデータ RoomEntry.wingId と主役のモデルの部品の印に使う） */
+export const AREA3_WING_IDS = { a: 'area3-a', b: 'area3-b', c: 'area3-c', d: 'area3-d' } as const;
+
+/** 棟の表 */
+export const SENRIYAMA_WINGS: readonly Wing[] = [
   {
-    id: 'a',
-    name: 'A棟',
+    id: AREA3_WING_IDS.a,
+    school: '第3学舎',
     hallName: '1号館',
-    roomWing: '1号館 A棟',
+    name: 'A棟',
     floorsAbove: 4,
     floorsBelow: 1,
     floorHeightM: AREA3_FLOOR_HEIGHT_M,
-    region: { axisU: AREA3_AXIS_U, uMin: AREA3_WING_BOUNDS.aWestU },
     entrances: [],
     note: '東の奥（新関西大学会館の側）。地階にカフェソシオ。B棟と D棟を結ぶ 5 階の通路はこの棟の屋上に載る（地図では A棟の範囲に入る）',
   },
   {
-    id: 'b',
-    name: 'B棟',
+    id: AREA3_WING_IDS.b,
+    school: '第3学舎',
     hallName: '2号館',
-    roomWing: '2号館 B棟',
+    name: 'B棟',
     floorsAbove: 5,
     floorsBelow: 0,
     floorHeightM: AREA3_FLOOR_HEIGHT_M,
+    entrances: [],
+    note: '中庭の南の帯（関西大学会館の側の手前）',
+  },
+  {
+    id: AREA3_WING_IDS.c,
+    school: '第3学舎',
+    hallName: '3号館',
+    name: 'C棟',
+    floorsAbove: 10,
+    floorsBelow: 0,
+    floorHeightM: AREA3_FLOOR_HEIGHT_M,
+    entrances: [],
+    note: '西端の塔（縦のフィンと「関西大学」の文字）。西門の新アクセス路の到着点。6〜10 階は研究室',
+  },
+  {
+    id: AREA3_WING_IDS.d,
+    school: '第3学舎',
+    hallName: '4号館',
+    name: 'D棟',
+    floorsAbove: 5,
+    floorsBelow: 0,
+    floorHeightM: AREA3_FLOOR_HEIGHT_M,
+    entrances: [],
+    note: '中庭の北の帯（第3学舎連絡デッキの側）。1〜2 階にソシオAV大ホール、4 階に屋上広場（位置は未確認）',
+  },
+];
+
+/** 建物と棟の対応の表（第3学舎は 1 つの建物に 4 棟。塊の範囲は上の枠と境目で切る） */
+export const SENRIYAMA_WING_BUILDINGS: readonly WingBuildingLink[] = [
+  {
+    wingId: AREA3_WING_IDS.a,
+    buildingId: 'area3',
+    region: { axisU: AREA3_AXIS_U, uMin: AREA3_WING_BOUNDS.aWestU },
+  },
+  {
+    wingId: AREA3_WING_IDS.b,
+    buildingId: 'area3',
     region: {
       axisU: AREA3_AXIS_U,
       uMin: AREA3_WING_BOUNDS.towerEastU,
       uMax: AREA3_WING_BOUNDS.aWestU,
       vMin: AREA3_WING_BOUNDS.bdSplitV,
     },
-    entrances: [],
-    note: '中庭の南の帯（関西大学会館の側の手前）',
   },
   {
-    id: 'c',
-    name: 'C棟',
-    hallName: '3号館',
-    roomWing: '3号館 C棟',
-    floorsAbove: 10,
-    floorsBelow: 0,
-    floorHeightM: AREA3_FLOOR_HEIGHT_M,
+    wingId: AREA3_WING_IDS.c,
+    buildingId: 'area3',
     region: { axisU: AREA3_AXIS_U, uMax: AREA3_WING_BOUNDS.towerEastU },
-    entrances: [],
-    note: '西端の塔（縦のフィンと「関西大学」の文字）。西門の新アクセス路の到着点。6〜10 階は研究室',
   },
   {
-    id: 'd',
-    name: 'D棟',
-    hallName: '4号館',
-    roomWing: '4号館 D棟',
-    floorsAbove: 5,
-    floorsBelow: 0,
-    floorHeightM: AREA3_FLOOR_HEIGHT_M,
+    wingId: AREA3_WING_IDS.d,
+    buildingId: 'area3',
     region: {
       axisU: AREA3_AXIS_U,
       uMin: AREA3_WING_BOUNDS.towerEastU,
       uMax: AREA3_WING_BOUNDS.aWestU,
       vMax: AREA3_WING_BOUNDS.bdSplitV,
     },
-    entrances: [],
-    note: '中庭の北の帯（第3学舎連絡デッキの側）。1〜2 階にソシオAV大ホール、4 階に屋上広場（位置は未確認）',
   },
 ];
-
-export const SENRIYAMA_BUILDING_WINGS: Readonly<Record<string, readonly BuildingWing[]>> = {
-  area3: AREA3_WINGS,
-};

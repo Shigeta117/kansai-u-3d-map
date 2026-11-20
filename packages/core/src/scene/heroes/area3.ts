@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AREA3_AXIS_U, AREA3_WING_BOUNDS } from '../../data/campuses/senriyama/wings';
+import { AREA3_AXIS_U, AREA3_WING_BOUNDS, AREA3_WING_IDS } from '../../data/campuses/senriyama/wings';
 import { minGroundUnder } from './shared';
 import type { HeroBuildContext, HeroBuilder, HeroBuildResult } from './types';
 
@@ -466,6 +466,9 @@ function buildLetterBoardGeometry(boards: readonly LetterBoardPlacement[]): THRE
   return geo;
 }
 
+/** C棟（塔）の部品の名前 */
+const C_WING_PARTS = /^area3-(tower-|emblem|antenna|fin|letter|vestibule|entrance-canopy)/;
+
 // ---------------------------------------------------------------------------
 
 export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult => {
@@ -772,6 +775,11 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
       child.computeBoundingBox();
       child.computeBoundingSphere();
     }
+    // 棟の印（選んだ棟を光らせる殻を切り出すときに使う。部品をまとめる前に読む）。塔の東の面のフィンと文字は
+    // B・D棟の屋上の上に 1.4m 張り出すので、塊の範囲ではなく印で C棟にする。印の無い部品（B と D の 1 つの塊・
+    // 屋上の機械室・B と D を結ぶ通路）は塊の範囲で切り分ける
+    if (C_WING_PARTS.test(child.name)) child.userData.wingId = AREA3_WING_IDS.c;
+    else if (child.name === 'area3-wing-a') child.userData.wingId = AREA3_WING_IDS.a;
   }
 
   return {

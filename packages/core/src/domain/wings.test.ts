@@ -3,7 +3,8 @@ import type { BuildingFeature } from './types';
 import {
   findWing,
   findWingAt,
-  findWingForRoom,
+  joinBuildingWings,
+  WING_ID_RULE,
   wingFloorsText,
   wingFootprintCentroid,
   wingHasFloor,
@@ -12,12 +13,12 @@ import {
   wingSearchAliases,
   wingTitle,
   type BuildingWing,
+  type Wing,
 } from './wings';
 
-/** 東西 40m・南北 20m の建物を、東西の真ん中で西棟と東棟に分ける（枠は回さない） */
-function makeWing(partial: Partial<BuildingWing> & Pick<BuildingWing, 'id' | 'name' | 'region'>): BuildingWing {
+function makeWing(partial: Partial<Wing> & Pick<Wing, 'id' | 'name'>): Wing {
   return {
-    roomWing: partial.name,
+    school: 'テスト学舎',
     floorsAbove: 4,
     floorsBelow: 0,
     floorHeightM: 3.9,
@@ -26,19 +27,14 @@ function makeWing(partial: Partial<BuildingWing> & Pick<BuildingWing, 'id' | 'na
   };
 }
 
-const WEST = makeWing({ id: 'w', name: '西棟', hallName: '1号館', region: { axisU: [1, 0], uMax: 20 } });
-const EAST = makeWing({
-  id: 'e',
-  name: '東棟',
-  hallName: '2号館',
-  roomWing: '2号館 東棟',
-  floorsAbove: 6,
-  floorsBelow: 1,
+/** 東西 40m・南北 20m の建物を、東西の真ん中で西棟と東棟に分ける（枠は回さない） */
+const WEST: BuildingWing = { ...makeWing({ id: 'area9-w', name: '西棟', hallName: '1号館' }), region: { axisU: [1, 0], uMax: 20 } };
+const EAST: BuildingWing = {
+  ...makeWing({ id: 'area9-e', name: '東棟', hallName: '2号館', floorsAbove: 6, floorsBelow: 1 }),
   region: { axisU: [1, 0], uMin: 20 },
-});
+};
 
-const BUILDING: Pick<BuildingFeature, 'shortName' | 'polygon' | 'holes' | 'wings'> = {
-  shortName: 'テスト館',
+const BUILDING: Pick<BuildingFeature, 'polygon' | 'holes' | 'wings'> = {
   polygon: [
     [0, 0],
     [40, 0],
@@ -48,10 +44,33 @@ const BUILDING: Pick<BuildingFeature, 'shortName' | 'polygon' | 'holes' | 'wings
   wings: [WEST, EAST],
 };
 
-describe('棟（建物の部品）', () => {
-  it('tells which wing a point on the building is in (the hit test mark)', () => {
-    expect(findWingAt(BUILDING, 5, 10)?.id).toBe('w');
-    expect(findWingAt(BUILDING, 35, 10)?.id).toBe('e');
+describe('棟（館内の単位）と建物との対応', () => {
+  it('joins the wing table and the building link table (one building can hold several wings, or a wing is a whole building)', () => {
+    const wings = [makeWing({ id: 'area9-a', name: 'A棟' }), makeWing({ id: 'area9-b', name: 'B棟' }), makeWing({ id: 'area8-c', name: 'C棟' })];
+    const joined = joinBuildingWings(wings, [
+      { wingId: 'area9-a', buildingId: 'big', region: { axisU: [1, 0], uMax: 0 } },
+      { wingId: 'area9-b', buildingId: 'big', region: { axisU: [1, 0], uMin: 0 } },
+      { wingId: 'area8-c', buildingId: 'small' },
+      { wingId: 'missing', buildingId: 'small' },
+    ]);
+    expect(joined.get('big')?.map((w) => w.id)).toEqual(['area9-a', 'area9-b']);
+    expect(joined.get('big')?.[1]?.region?.uMin).toBe(0);
+    expect(joined.get('small')?.map((w) => w.id)).toEqual(['area8-c']);
+    // 範囲の無い棟は建物の全体
+    expect(joined.get('small')?.[0]?.region).toBeUndefined();
+    expect(findWingAt({ wings: joined.get('small') }, 1e6, -1e6)?.id).toBe('area8-c');
+  });
+
+  it('keeps wing ids apart from building ids (学舎の id ＋ 棟の記号)', () => {
+    expect(WING_ID_RULE.test('area3-c')).toBe(true);
+    expect(WING_ID_RULE.test('area3')).toBe(false);
+    expect(WING_ID_RULE.test('area1-1')).toBe(false);
+    expect(WING_ID_RULE.test('c')).toBe(false);
+  });
+
+  it('tells which wing region a point on the building is in', () => {
+    expect(findWingAt(BUILDING, 5, 10)?.id).toBe('area9-w');
+    expect(findWingAt(BUILDING, 35, 10)?.id).toBe('area9-e');
     expect(findWingAt({ wings: undefined }, 5, 10)).toBeNull();
   });
 
@@ -62,19 +81,19 @@ describe('棟（建物の部品）', () => {
     expect(wingRegionContains(region, 10, -10)).toBe(true); // u = 14.1、v = 0
     expect(wingRegionContains(region, 5, -5)).toBe(false); // u = 7.1
     expect(wingRegionContains(region, 13.54, -6.46)).toBe(false); // u = 14.1、v = 5
+    expect(wingRegionContains(undefined, 1e6, 1e6)).toBe(true);
   });
 
-  it('finds wings by id and by the room data wing name', () => {
-    expect(findWing(BUILDING, 'e')).toBe(EAST);
+  it('finds wings by id', () => {
+    expect(findWing(BUILDING, 'area9-e')).toBe(EAST);
     expect(findWing(BUILDING, 'x')).toBeNull();
-    expect(findWing(null, 'e')).toBeNull();
-    expect(findWingForRoom(BUILDING, '2号館 東棟')).toBe(EAST);
-    expect(findWingForRoom(BUILDING, undefined)).toBeNull();
+    expect(findWing(null, 'area9-e')).toBeNull();
+    expect(findWing(BUILDING, null)).toBeNull();
   });
 
-  it('names the wing with its hall: 「テスト館 1号館 西棟」', () => {
+  it('names the wing with its school and hall: 「テスト学舎 1号館 西棟」', () => {
     expect(wingLabel(WEST)).toBe('1号館 西棟');
-    expect(wingTitle(BUILDING, WEST)).toBe('テスト館 1号館 西棟');
+    expect(wingTitle(WEST)).toBe('テスト学舎 1号館 西棟');
     expect(wingFloorsText(WEST)).toBe('地上 4 階');
     expect(wingFloorsText(EAST)).toBe('地下 1 階・地上 6 階');
   });
@@ -87,14 +106,14 @@ describe('棟（建物の部品）', () => {
     expect(wingHasFloor(WEST, -1)).toBe(false);
   });
 
-  it('makes search names from the hall and the wing name', () => {
-    expect(wingSearchAliases(BUILDING, WEST)).toEqual([
+  it('makes search names from the school, the hall and the wing name', () => {
+    expect(wingSearchAliases(WEST)).toEqual([
       '西棟',
-      'テスト館西棟',
+      'テスト学舎西棟',
       '1号館',
-      'テスト館1号館',
+      'テスト学舎1号館',
       '1号館西棟',
-      'テスト館1号館西棟',
+      'テスト学舎1号館西棟',
       '西棟（1号館）',
     ]);
   });
@@ -118,8 +137,9 @@ describe('棟（建物の部品）', () => {
     };
     const east = wingFootprintCentroid(withHole, EAST);
     expect(east?.area).toBeCloseTo(400 - 50, 6);
-    // (400·30 − 50·22.5) / 350
     expect(east?.centroid.x).toBeCloseTo((400 * 30 - 50 * 22.5) / 350, 6);
-    expect(wingFootprintCentroid(BUILDING, makeWing({ id: 'x', name: 'x', region: { axisU: [1, 0], uMin: 100 } }))).toBeNull();
+    expect(wingFootprintCentroid(BUILDING, { region: { axisU: [1, 0], uMin: 100 } })).toBeNull();
+    // 範囲の無い棟は建物の全体
+    expect(wingFootprintCentroid(BUILDING, {})?.area).toBeCloseTo(800, 6);
   });
 });
