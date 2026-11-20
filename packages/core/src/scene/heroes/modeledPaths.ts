@@ -6,4 +6,5 @@
 export const HERO_MODELED_PATH_IDS: ReadonlySet<string> = new Set([
   'path_490803027', // 凜風館の正面の大階段（Y 字路へ下りる）
   'path_423060514', // 総合図書館の正面の大階段
+  'path_1259556097', // 凜風館の裏の大階段（KUシンフォニーホールの専用モデルが作る）
 ]);
