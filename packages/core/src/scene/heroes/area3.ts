@@ -54,11 +54,28 @@ const VESTIBULE = { u0: -306.5, u1: WEST_FACE_U, v0: 166.5, v1: 169.7 } as const
 /** アクセス道の屋根の終点（structures.json の access-west-canopy の T 字の端、u ≈ -312.3） */
 const ACCESS_CANOPY_END_U = -312.6;
 
+// --- 棟の割り当て（KAN-CAN! の第3学舎エリアの図と、持ち主の手書きの割り当て 2026-11-20） ---
+/**
+ * 3号館 C棟 = 西端の塔（上の塊）。1号館 A棟 = 東の奥（新関西大学会館の側）、2号館 B棟 = 南の手前、
+ * 4号館 D棟 = 北（第3学舎連絡デッキの側）。B棟と D棟は中庭の南と北の帯。
+ * A棟の西の端は、輪郭の北の面の段（点 33・34、u = -240.3）と中庭の東の端（u ≈ -240.7）にそろえる
+ * （南の面の切れ込み u = -239.4〜-236.9 もこの近く）
+ */
+const A_WEST_U = -240.3;
+/**
+ * B棟と D棟を結ぶ 5 階の通路（持ち主: A棟は 4 階までだが、B と D を結ぶ 5 階の通路がある）。
+ * 位置は、A棟の屋上のうち中庭の東の端に沿う帯（2023 年の映像で、この通路から中庭越しに塔を撮っている）。
+ * 幅は南の面の切れ込みの東の端（u = -236.9）までの 3.4m とした（推定）
+ */
+const BD_LINK = { u0: A_WEST_U, u1: -236.9, v0: 152.3, v1: 163.7 } as const;
+
 // --- 塔の段（写真で数えた階数と、面の幅に対する割合） ---
 /**
  * 西の面の北寄りは低く、フィンの面の左肩が 2 段下がる（2012 年の写真。2022 年の写真でも 1 段目が見える）。
  * フィンの部分は面の幅の約 6 割で南寄り。その北（写真の左）の段の上端はフィンの下端より 1 階ほど高く（8 階）、
- * さらに北の端の上端はフィンの下端とそろう（7 階。2012 年の写真で、フィンの下端の線の延長に乗る）
+ * さらに北の端の上端はフィンの下端とそろう（7 階。2012 年の写真で、フィンの下端の線の延長に乗る）。
+ * 2023 年の持ち主の映像でも、西の面（新アクセス路から）と東の面（A棟の上から）の両方で、フィンの北隣に
+ * フィンの上端より 1〜2 階低い段が写る（8 階の段）。7 階の段は持ち主の映像では確かめられていない
  */
 const STEP_NORTH_V = 150.5;
 const MAIN_TOWER_NORTH_V = 157.4;
@@ -66,9 +83,12 @@ const MAIN_TOWER_NORTH_V = 157.4;
 const SLENDER = { u0: -292.3, u1: TOWER_EAST_U, v0: 168.0, v1: TOWER_SOUTH_V } as const;
 
 const FLOOR_HEIGHT_M = 3.9;
+/** 3号館 C棟（塔）: 10 階（KAN-CAN! 学舎・教室一覧。6〜10 階は研究室） */
 const TOWER_FLOORS = 10;
-/** 雁行する棟（5 階） */
-const LOW_FLOORS = 5;
+/** 2号館 B棟・4号館 D棟: 5 階（KAN-CAN!。D棟は 4 階に屋上広場があるが、位置が分からないので形にしない） */
+const BD_FLOORS = 5;
+/** 1号館 A棟: 地階＋地上 4 階（KAN-CAN!）。地階は 1 階の床より下の無地の基礎として見える */
+const A_FLOORS = 4;
 /** 西の塊の土台（北の端に見える 2 段目、7 階） */
 const BASE_FLOORS = 7;
 /** 左肩の 1 段目（8 階） */
@@ -417,7 +437,8 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
     [CHAMFER_U, CHAMFER_V],
     [WEST_FACE_U, CHAMFER_V],
   ];
-  const lowTopY = yAtFloor(LOW_FLOORS) + PARAPET_M;
+  const bdTopY = yAtFloor(BD_FLOORS) + PARAPET_M;
+  const aTopY = yAtFloor(A_FLOORS) + PARAPET_M;
   const baseTopY = yAtFloor(BASE_FLOORS) + BASE_PARAPET_M;
   addPrism('area3-tower-base', towerBaseRing, [], baseTopY, towerWallMat);
 
@@ -545,18 +566,31 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   canopy.castShadow = true;
   frame.add(canopy);
 
-  // --- 7. 雁行する棟（5 階。輪郭のうち塔の東。中庭の穴は輪郭どおり） ---
+  // --- 7. 雁行する棟（輪郭のうち塔の東。中庭の穴は輪郭どおり）。棟ごとの階数は KAN-CAN! の学舎・教室一覧 ---
+  // 2号館 B棟（南）と 4号館 D棟（北）は 5 階、その東の 1号館 A棟は地上 4 階。B と D を結ぶ 5 階の通路は A棟の屋上に載せる
   const outerFrame = polygon.map(([x, z]) => toFrame(x, z));
-  const wingRing = clipRingByU(outerFrame, TOWER_EAST_U, true);
+  const eastOfTower = clipRingByU(outerFrame, TOWER_EAST_U, true);
+  const bdRing = clipRingByU(eastOfTower, A_WEST_U, false);
+  const aRing = clipRingByU(outerFrame, A_WEST_U, true);
   const holesFrame = (ctx.building.holes ?? [])
     .map((h) => h.map(([x, z]) => toFrame(x, z)))
-    .filter((h) => h.length >= 3 && h.every(([u]) => u > TOWER_EAST_U));
-  const wingTopY = lowTopY;
-  if (wingRing.length >= 3) {
-    addPrism('area3-wing', wingRing, holesFrame, wingTopY, wingWallMat);
+    .filter((h) => h.length >= 3 && h.every(([u]) => u > TOWER_EAST_U && u < A_WEST_U));
+  if (bdRing.length >= 3) {
+    addPrism('area3-wing-bd', bdRing, holesFrame, bdTopY, wingWallMat);
   }
+  if (aRing.length >= 3) {
+    addPrism('area3-wing-a', aRing, [], aTopY, wingWallMat);
+  }
+  addPrism(
+    'area3-link-bd',
+    rect(BD_LINK.u0, BD_LINK.u1, BD_LINK.v0, BD_LINK.v1),
+    [],
+    bdTopY,
+    wingWallMat,
+    aTopY,
+  );
 
-  // 屋上の機械室（2012 年の写真で、雁行の区画の継ぎ目あたりに灰色の箱が 2〜3 個）
+  // 屋上の機械室（2012 年の写真で、雁行の区画の継ぎ目あたりに灰色の箱が 2〜3 個）。載る棟の屋上の高さに置く
   const penthouses: [number, number, number, number][] = [
     [-279, -271, 166.5, 172.5],
     [-259, -249, 168.0, 175.0],
@@ -565,7 +599,8 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   const ph = new THREE.InstancedMesh(unitBox, penthouseMat, penthouses.length);
   ph.name = 'area3-penthouses';
   penthouses.forEach(([u0, u1, v0, v1], i) => {
-    dummy.position.set((u0 + u1) / 2, wingTopY + 1.4, (v0 + v1) / 2);
+    const roofY = (u0 + u1) / 2 > A_WEST_U ? aTopY : bdTopY;
+    dummy.position.set((u0 + u1) / 2, roofY + 1.4, (v0 + v1) / 2);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(u1 - u0, 3.2, v1 - v0);
     dummy.updateMatrix();
