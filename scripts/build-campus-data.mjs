@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { tsImport } from 'tsx/esm/api';
 import { buildExpresswayData } from './lib/expressway-data.mjs';
+import { buildGroundsData } from './lib/grounds-data.mjs';
 import { buildStationFacilities } from './lib/station-data.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +22,9 @@ const EXCLUDED_CANOPY_BUILDING_IDS = new Set([
   1100978545,
   1493876596,
 ]);
+
+// 建物の箱にせず、GroundsBuilder がグラウンドの一部として描く OSM の建物（千里山中央グラウンドの観客席）
+const GROUND_STRUCTURE_BUILDING_IDS = new Set([805366951]);
 
 // 公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）の番号つきの一覧で名前を確かめた建物（OSM の osmId → 名前など）。
 // OSM の輪郭と地図のイラストの位置・形が合う物だけ（突き合わせの記録は docs/DATA_SOURCES.md 5 節）。
@@ -846,6 +850,10 @@ async function main() {
     EXPRESSWAY_PROFILE_WINDOWS,
   } = await tsImport('../packages/core/src/data/campuses/senriyama/expressway.ts', import.meta.url);
   const expresswayMath = await tsImport('../packages/core/src/domain/expressway.ts', import.meta.url);
+  const { SENRIYAMA_GROUNDS_SPEC } = await tsImport(
+    '../packages/core/src/data/campuses/senriyama/grounds.ts',
+    import.meta.url,
+  );
   // 駅舎は TransportBuilder（StationBuilder）が駅の一部として描くので、周辺の建物から外す
   const stationBuildingWayIds = new Set(KANDAIMAE_STATION_SPEC.buildings.map((b) => b.osmWayId));
 
@@ -934,6 +942,7 @@ async function main() {
     }
     if (
       EXCLUDED_CANOPY_BUILDING_IDS.has(el.id) ||
+      GROUND_STRUCTURE_BUILDING_IDS.has(el.id) ||
       stationBuildingWayIds.has(el.id) ||
       el.tags.building === 'roof'
     ) {
@@ -1237,9 +1246,10 @@ async function main() {
     } else if (
       t.leisure === 'pitch' ||
       t.leisure === 'track' ||
-      t.leisure === 'sports_centre' ||
       t.landuse === 'recreation_ground'
     ) {
+      // leisure=sports_centre（千里山中央グラウンドの敷地の全体。観客席・斜面・木を含む）は塗らない。
+      // トラックとフィールドは GroundsBuilder が structures.grounds から描く
       kind = 'sports-pitch';
     } else if (
       t.landuse === 'grass' ||
@@ -1320,6 +1330,16 @@ async function main() {
     },
     math: expresswayMath,
   });
+  // グラウンド（陸上のトラック・直線の走路・野球場・テニスコート）。寸法・線の位置は推定
+  structures.grounds = buildGroundsData({
+    spec: SENRIYAMA_GROUNDS_SPEC,
+    ringOf: (wayId) => wayToRing(wayMap.get(wayId)),
+    sampleElevation: (x, z) => sampleElevation(terrain, x, z),
+  });
+  console.log(
+    `Grounds: ${structures.grounds.map((g) => `${g.id}(${g.kind}, ${g.elevation}m)`).join(', ')}`,
+  );
+
   structures.tunnelPortals = expressway.portals;
   structures.expressways = expressway.carriageways;
   structures.expresswayPiers = expressway.piers;

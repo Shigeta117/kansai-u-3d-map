@@ -26,6 +26,7 @@ import {
 } from './DioramaBaseBuilder';
 import { carveTerrainForExpressways } from './ExpresswayBuilder';
 import { buildFoliageGroup } from './FoliageBuilder';
+import { buildGroundsGroup, carveTerrainForGrounds } from './GroundsBuilder';
 import { LightingRig } from './LightingRig';
 import { RouteOverlay } from './RouteOverlay';
 import { buildTerrainGroup } from './TerrainBuilder';
@@ -171,8 +172,12 @@ export class CampusScene {
       options.freeCamera ?? false,
     );
 
-    // 表示用の地形: 名神高速の地上の区間の路面の下にかかる格子を下げる（データの地形は変えない）
-    const terrain = carveTerrainForExpressways(dataset.terrain, dataset.structures);
+    // 表示用の地形: 名神高速の地上の区間の路面の下にかかる格子を下げ、グラウンドの下をグラウンドの面の高さにならす
+    // （データの地形は変えない）
+    const terrain = carveTerrainForGrounds(
+      carveTerrainForExpressways(dataset.terrain, dataset.structures),
+      dataset.structures,
+    );
 
     const terrainGroup = buildTerrainGroup(
       terrain,
@@ -192,6 +197,10 @@ export class CampusScene {
     this.campusRecords = buildingsResult.campusRecords;
     this.interactiveMeshes = buildingsResult.interactiveMeshes;
     this.animatedRotors = buildingsResult.animatedRotors;
+
+    // グラウンド（陸上のトラック・野球場・テニスコート）。面・網の柵・外野のフェンスの 3 つのメッシュ
+    const groundsGroup = buildGroundsGroup(dataset.structures, dataset.buildings, terrain, config);
+    this.scene.add(groundsGroup);
 
     const bridgesGroup = buildStructuresBridgesGroup(
       dataset.structures,
