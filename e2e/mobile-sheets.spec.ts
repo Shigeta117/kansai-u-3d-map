@@ -34,10 +34,22 @@ async function touchDrag(page: Page, from: Point, to: Point, opts: { steps?: num
   await cdp.detach();
 }
 
+/**
+ * 要素の中心。シートの開閉や段の移動のアニメーションの途中で測ると、指を置く位置がずれて
+ * 地図をつかんでしまう（全体をまとめて回して重いときに揺れた）。位置が 2 回続けて同じになるまで待つ
+ */
 async function centerOf(locator: Locator): Promise<Point> {
-  const box = await locator.boundingBox();
-  if (!box) throw new Error('要素が画面に無い');
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  let prev: { x: number; y: number; width: number; height: number } | null = null;
+  for (let i = 0; i < 40; i++) {
+    const box = await locator.boundingBox();
+    if (!box) throw new Error('要素が画面に無い');
+    if (prev && Math.abs(prev.x - box.x) < 0.5 && Math.abs(prev.y - box.y) < 0.5 && Math.abs(prev.height - box.height) < 0.5) {
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    prev = box;
+    await locator.page().waitForTimeout(60);
+  }
+  throw new Error('要素の位置が落ち着かない');
 }
 
 async function pickPlace(page: Page, role: '出発' | '到着', query: string, name: string) {
