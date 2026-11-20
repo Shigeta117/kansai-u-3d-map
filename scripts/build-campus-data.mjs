@@ -400,8 +400,10 @@ function buildStructuresData(nodeMap, wayMap, terrain, origin) {
   const northGround = sampleElevation(terrain, northLoc.x, northLoc.z);
   const zSpan = westLoc.z - northLoc.z;
 
+  // 第3学舎連絡デッキの幅は推定: 持ち主の 2023 年の映像（IMG_6436_018）で、壁の内側の床の幅がカメラの高さの約 2.8 倍
+  // （カメラの高さ 1.4〜1.6m → 3.9〜4.5m、壁の高さ 1.9m との比からは約 4.1m）。内側 4.1m ＋ 両側の壁の厚み 0.25m
   const shureiDefs = [
-    { wayId: 423060539, id: 'bridge-shurei-west', name: '第3学舎連絡デッキ', width: 3.4 },
+    { wayId: 423060539, id: 'bridge-shurei-west', name: '第3学舎連絡デッキ', width: 4.6 },
     { wayId: 423060540, id: 'bridge-shurei-south', name: '新関西大学会館 南棟デッキ', width: 3.6 },
     { wayId: 423060541, id: 'bridge-shurei-north', name: '秀麗橋（南棟〜北棟・法文坂方面）', width: 3.6 },
   ];
