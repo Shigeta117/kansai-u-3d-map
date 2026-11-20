@@ -14,7 +14,8 @@ import {
 
 /**
  * 第3学舎連絡デッキの屋根と壁（public/data/senriyama の実データで確かめる）。
- * 屋根は道路（path_158856536）の上をまたぐ区間にあり、第3学舎の側の区間には無い
+ * 屋根と壁は南棟のデッキとの合流点から道路（path_158856536）の上をまたいで第3学舎の側の端まで続き、
+ * 階段の合流点で屋根が途切れて南の壁が開く。第3学舎へ入る短い橋の口では南の壁だけが開く（持ち主の 2023 年の映像）
  */
 const dataDir = path.resolve(process.cwd(), 'public/data/senriyama');
 const readJson = <T>(name: string): T =>
@@ -65,6 +66,23 @@ describe('第3学舎連絡デッキの屋根と壁', () => {
     }
   }
 
+  const hitsAt = (obj: THREE.Object3D, x: number, z: number): number =>
+    new THREE.Raycaster(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0)).intersectObject(obj).length;
+  /** デッキの頂点 i と i+1 の間の点（t は 0〜1）と、その所の南向き・北向きの横の向き */
+  const along = (i: number, t: number): { p: P2; south: P2 } => {
+    const a = bridge.points[i]!;
+    const b = bridge.points[i + 1]!;
+    const dx = b[0] - a[0];
+    const dz = b[2] - a[2];
+    const len = Math.hypot(dx, dz);
+    // デッキは東西に延びるので、横の向きのうち z が正の方が南
+    const n: P2 = [-dz / len, dx / len];
+    const south: P2 = n[1] > 0 ? n : [-n[0], -n[1]];
+    return { p: [a[0] + dx * t, a[2] + dz * t], south };
+  };
+  /** 壁の厚みの真ん中（デッキの中心線から横へ） */
+  const wallOffset = bridge.width / 2 - 0.12;
+
   it('finds the road crossing under the deck', () => {
     expect(under).not.toBeNull();
   });
@@ -100,22 +118,46 @@ describe('第3学舎連絡デッキの屋根と壁', () => {
     expect(`#${mat.color.getHexString()}`).not.toBe('#9ed0e0');
   });
 
-  it('raises tall concrete walls on both sides of the covered section', () => {
+  it('raises tall concrete walls on both sides of the deck above the road', () => {
     if (!under || !(walls instanceof THREE.Mesh)) throw new Error('missing');
-    const box = new THREE.Box3().setFromObject(walls);
-    expect(box.max.y - deckY).toBeGreaterThan(DECK_WALL_HEIGHT_M - 0.3);
-    expect(box.max.y - deckY).toBeLessThan(DECK_WALL_HEIGHT_M + 0.3);
-    // 道路の上の点を含む
-    expect(under[0]).toBeGreaterThan(box.min.x);
-    expect(under[0]).toBeLessThan(box.max.x);
+    const { south } = along(2, 0.5);
+    for (const sign of [1, -1]) {
+      const x = under[0] + south[0] * wallOffset * sign;
+      const z = under[1] + south[1] * wallOffset * sign;
+      const hits = new THREE.Raycaster(new THREE.Vector3(x, deckY + 30, z), new THREE.Vector3(0, -1, 0)).intersectObject(walls);
+      expect(hits.length).toBeGreaterThan(0);
+      const top = hits[0]!.point.y - deckY;
+      expect(top).toBeGreaterThan(DECK_WALL_HEIGHT_M - 0.3);
+      expect(top).toBeLessThan(DECK_WALL_HEIGHT_M + 0.3);
+    }
   });
 
-  it('leaves the area3 end of the deck uncovered', () => {
-    if (!(roof instanceof THREE.Mesh)) throw new Error('missing');
-    const p = bridge.points[0]!;
-    const q = bridge.points[1]!;
-    const mid: P2 = [(p[0] + q[0]) / 2, (p[2] + q[2]) / 2];
-    const ray = new THREE.Raycaster(new THREE.Vector3(mid[0], 200, mid[1]), new THREE.Vector3(0, -1, 0));
-    expect(ray.intersectObject(roof).length).toBe(0);
+
+  it('continues the roof and walls to the area3 end of the deck', () => {
+    if (!(roof instanceof THREE.Mesh) || !(walls instanceof THREE.Mesh)) throw new Error('missing');
+    const { p, south } = along(0, 0.5);
+    expect(hitsAt(roof, p[0], p[1])).toBeGreaterThan(0);
+    expect(hitsAt(walls, p[0] + south[0] * wallOffset, p[1] + south[1] * wallOffset)).toBeGreaterThan(0);
+    expect(hitsAt(walls, p[0] - south[0] * wallOffset, p[1] - south[1] * wallOffset)).toBeGreaterThan(0);
+  });
+
+  it('breaks the roof and opens the south wall where the stairs join, keeping the north wall', () => {
+    if (!(roof instanceof THREE.Mesh) || !(walls instanceof THREE.Mesh)) throw new Error('missing');
+    const stairs = DECK_ROOF_SECTIONS[0]!.roofGaps[0]!.at;
+    const { south } = along(1, 1);
+    expect(hitsAt(roof, stairs[0], stairs[1])).toBe(0);
+    expect(hitsAt(walls, stairs[0] + south[0] * wallOffset, stairs[1] + south[1] * wallOffset)).toBe(0);
+    expect(hitsAt(walls, stairs[0] - south[0] * wallOffset, stairs[1] - south[1] * wallOffset)).toBeGreaterThan(0);
+  });
+
+  it('opens the south wall at the bridge into area3 but keeps the roof over it', () => {
+    if (!(roof instanceof THREE.Mesh) || !(walls instanceof THREE.Mesh)) throw new Error('missing');
+    const intoArea3 = structures.bridges.find((b) => b.id === 'bridge-490793070');
+    if (!intoArea3) throw new Error('bridge-490793070 missing');
+    const joint = intoArea3.points[intoArea3.points.length - 1]!;
+    const { south } = along(0, 1);
+    expect(hitsAt(roof, joint[0], joint[2])).toBeGreaterThan(0);
+    expect(hitsAt(walls, joint[0] + south[0] * wallOffset, joint[2] + south[1] * wallOffset)).toBe(0);
+    expect(hitsAt(walls, joint[0] - south[0] * wallOffset, joint[2] - south[1] * wallOffset)).toBeGreaterThan(0);
   });
 });

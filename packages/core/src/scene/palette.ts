@@ -27,7 +27,9 @@ export const SCENE_PALETTE = {
   landcover: {
     'campus-ground': '#EFE8DA',
     lawn: '#89B468',
-    'sports-pitch': '#CC8A60',
+    // 塗り分けのまま残るグラウンド（千里山北広場・一中の北の運動場）は、空中写真では人工芝の緑。
+    // トラック・野球場・テニスコートは GroundsBuilder が上に面を描く
+    'sports-pitch': '#5F9150',
     forest: '#639257',
     water: '#6DA7BA',
   } satisfies Record<LandcoverKind, string>,

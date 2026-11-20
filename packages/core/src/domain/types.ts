@@ -29,6 +29,8 @@ export type LandmarkSculptStyle =
   | 'main-gate'
   | 'west-gate'
   | 'station-platform'
+  /** グラウンド・広場など、地面そのものが目印の場所（目印の台を置かない） */
+  | 'open-space'
   | 'standard';
 
 export type FacilityTag =
@@ -279,6 +281,79 @@ export interface CampusStructuresData {
   tunnelPortals: TunnelPortalFeature[];
   expressways?: ExpresswayCarriagewayFeature[];
   expresswayPiers?: ExpresswayPierFeature[];
+  grounds?: GroundFeature[];
+}
+
+/** 陸上のトラック: 標準の 400m のトラック（直線と半円）を内側のフィールドの向きに合わせたもの（推定） */
+export interface GroundTrackDetail {
+  /** トラックの中心と、直線の向き（単位ベクトル） */
+  center: [number, number];
+  axis: [number, number];
+  straightM: number;
+  innerRadiusM: number;
+  lanes: number;
+  laneWidthM: number;
+  /** 内側の人工芝のフィールドの輪郭（OSM） */
+  pitch: [number, number][];
+  /** サッカーのコートの線の長さと幅（m） */
+  fieldLengthM: number;
+  fieldWidthM: number;
+}
+
+/** 野球場: 本塁・両翼のポール・外野のフェンスの位置と寸法（推定） */
+export interface GroundBaseballDetail {
+  home: [number, number];
+  leftPole: [number, number];
+  rightPole: [number, number];
+  /** 外野のフェンス（左翼のポールから右翼のポールへ） */
+  fence: [number, number][];
+  infieldRadiusM: number;
+  moundDistanceM: number;
+  baseDistanceM: number;
+  warningTrackM: number;
+  fenceHeightM: number;
+}
+
+/** 観客席: 後ろから前へ下がる座席の面（前の縁・後ろの縁は axis に直角な向きの座標 v。高さは推定） */
+export interface GroundGrandstandDetail {
+  axis: [number, number];
+  vFront: number;
+  vBack: number;
+  frontElevation: number;
+  backElevation: number;
+  /** 側面の壁の下端（地面の下に隠れる高さ） */
+  bottomElevation: number;
+  seatHex: string;
+  aisleHex: string;
+}
+
+/** テニスコート: コートの中心と長い方向、面の色、網の柵の高さ（推定） */
+export interface GroundTennisDetail {
+  courts: { center: [number, number]; axis: [number, number] }[];
+  surfaceHex: string;
+  courtHex: string;
+  fenceHeightM: number;
+  /** 屋上のコートの建物の id（建物の屋根の上に置く） */
+  roofOf?: string;
+}
+
+/**
+ * グラウンドの平らな面 1 つ（OSM の輪郭から。線・寸法は推定）。
+ * 地面のグラウンドは elevation の高さの平らな面で、表示ではその高さに地形をならす
+ */
+export interface GroundFeature {
+  id: string;
+  name?: string;
+  kind: 'athletics-track' | 'track-straight' | 'grandstand' | 'baseball' | 'tennis';
+  /** 面の輪郭（ローカル座標、閉じない） */
+  polygon: [number, number][];
+  /** 面の標高（m）。輪郭の中の地形の中央値。屋上のコートでは使わない */
+  elevation: number;
+  track?: GroundTrackDetail;
+  straight?: { lanes: number };
+  grandstand?: GroundGrandstandDetail;
+  baseball?: GroundBaseballDetail;
+  tennis?: GroundTennisDetail;
 }
 
 /** 駅のホーム・駅舎・上屋（OSM の輪郭。高さは推定） */
