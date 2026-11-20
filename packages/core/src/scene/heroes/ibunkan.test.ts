@@ -199,4 +199,36 @@ describe('buildIbunkan', () => {
     // ドームは主棟の屋根より高い
     expect(north!.y).toBeGreaterThan(GROUND_Y + 15);
   });
+
+  it('keeps the tower window strips narrow grey stone (not wide white bands) and the wall window frames thin', () => {
+    const result = buildIbunkan({ building, groundVisualY: GROUND_Y, sampleGroundVisualY: () => GROUND_Y });
+    const boxes = meshesOf(result).filter(
+      (mesh): mesh is THREE.InstancedMesh => mesh instanceof THREE.InstancedMesh && mesh.geometry instanceof THREE.BoxGeometry,
+    );
+    const scaleOf = (mesh: THREE.InstancedMesh, i: number): THREE.Vector3 => {
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      const s = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      mesh.getMatrixAt(i, m);
+      m.decompose(p, q, s);
+      return s;
+    };
+    const hexOf = (mesh: THREE.Mesh): string => (mesh.material as THREE.MeshStandardMaterial).color.getHexString();
+    // 塔の縦枠: 2 塔 × 8 面、背の高い板（高さ 10m 超）
+    const strips = boxes.find((mesh) => mesh.count === 16 && scaleOf(mesh, 0).y > 10);
+    if (!strips) throw new Error('tower strips missing');
+    // 白（見切りの #E2DED6）ではなく灰色の石
+    expect(hexOf(strips)).not.toBe('e2ded6');
+    const c = (strips.material as THREE.MeshStandardMaterial).color;
+    expect(Math.max(c.r, c.g, c.b)).toBeLessThan(0.5);
+    for (let i = 0; i < strips.count; i++) expect(scaleOf(strips, i).x).toBeLessThanOrEqual(0.85);
+    // 壁の窓の白い枠（見切りと同じ材質の、窓の数だけ並ぶ板）。枠の見付けは 0.1m 以下
+    const frames = boxes.find((mesh) => hexOf(mesh) === 'e2ded6' && mesh.count > 50);
+    if (!frames) throw new Error('window frames missing');
+    const s = scaleOf(frames, 0);
+    const frameWidth = Math.max(s.x, s.z);
+    expect((frameWidth - 1.2) / 2).toBeGreaterThan(0);
+    expect((frameWidth - 1.2) / 2).toBeLessThanOrEqual(0.1);
+  });
 });

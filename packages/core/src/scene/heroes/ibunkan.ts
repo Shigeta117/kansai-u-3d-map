@@ -32,6 +32,11 @@ const DORMER_HEX = '#ECEAE4';
 const EQUIPMENT_HEX = '#AFAEA6';
 /** 塔の縦長窓のガラス。Ibunkan-2.JPG では空を映して明るい青灰（中央値 #597584） */
 const TOWER_GLASS_HEX = '#62778A';
+/**
+ * 塔の縦長窓の枠（石張りの縁と、階ごとのガラスの間の板・上のアーチ）。Ibunkan-2.JPG で塔の笠木と同じ灰色の石
+ * （日向で #A9A7A2 前後）。白（軒の見切りの色）にすると、塔に白い太い縦帯が立って見えた（2 回目のレビュー）
+ */
+const TOWER_STRIP_STONE_HEX = '#A8A59F';
 const ANTENNA_HEX = '#D6D6D2';
 
 /** 底を、輪郭の下（と塔の下）のいちばん低い地面からさらに下ろす深さ (m) */
@@ -64,7 +69,11 @@ const EAVE_FASCIA_OVERHANG_M = 0.25;
  */
 const WINDOW_WIDTH_M = 1.2;
 const WINDOW_HEIGHT_M = 1.6;
-const WINDOW_FRAME_M = 0.18;
+/**
+ * 窓の白い枠の見付け。KansaiUV1.JPG の東の面で、枠は窓の幅の 1 割に満たない細い線（約 0.08m と読んだ。推定）。
+ * 前の 0.18m は太かった（2 回目のレビュー）
+ */
+const WINDOW_FRAME_M = 0.08;
 const WINDOW_BAY_M = 2.8;
 const WINDOW_ROW_COUNT = 4;
 const FLOOR_PITCH_M = 3.3;
@@ -107,12 +116,13 @@ const ANTENNA_HEIGHT_M = 3.6;
 const TOWER_INSET_FROM_END_M = 1.9;
 const TOWER_INSET_FROM_EAST_M = 3.5;
 /**
- * 塔の各面の縦長窓の列。Ibunkan.jpg・Ibunkan-2.JPG で、白っぽい灰色の縦枠（幅約 1.1m）の中に、
- * 明るい青灰のガラスが階ごとに区切られて縦に並び、上端に小さな半円のアーチ。上端は笠木の少し下、
- * 下は足元まで
+ * 塔の各面の縦長窓の列。Ibunkan.jpg・Ibunkan-2.JPG で、灰色の石の縦枠の中に、明るい青灰のガラスが階ごとに
+ * 区切られて縦に並び、上端に小さな半円のアーチ。上端は笠木の少し下、下は足元まで。
+ * 幅は Ibunkan-2.JPG の正面の面（約 3.1m に 265px）で枠が約 70px・ガラスが約 45px なので、枠 0.8m・ガラス 0.52m
+ * （前は 1.1m・0.6m で、枠の縁が太く見えた）
  */
-const TOWER_STRIP_WIDTH_M = 1.1;
-const TOWER_STRIP_GLASS_WIDTH_M = 0.6;
+const TOWER_STRIP_WIDTH_M = 0.8;
+const TOWER_STRIP_GLASS_WIDTH_M = 0.52;
 const TOWER_STRIP_TOP_BELOW_CORNICE_M = 0.5;
 const TOWER_PANE_HEIGHT_M = 2.3;
 
@@ -589,6 +599,8 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
   const dormerMat = standard(DORMER_HEX, 0.75);
   const equipmentMat = standard(EQUIPMENT_HEX, 0.85);
   const towerGlassMat = standard(TOWER_GLASS_HEX, 0.45, 0.05);
+  // 塔の縦枠とアーチだけの材質（どちらもインスタンスなので、材質を分けても描画命令は増えない）
+  const towerStoneMat = standard(TOWER_STRIP_STONE_HEX, 0.8);
   const antennaMat = standard(ANTENNA_HEX, 0.5, 0.3);
 
   // 軒の高さの基準は、重心の地面と東の面の中ほどの地面の高い方。KansaiUV1.JPG で東の面に窓が 4 段見えるので、
@@ -788,8 +800,8 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
   const corniceTopY = corniceBottomY + TOWER_CORNICE_HEIGHT_M;
   const stripTopY = corniceBottomY - TOWER_STRIP_TOP_BELOW_CORNICE_M;
   const flatRadius = TOWER_RADIUS_M * Math.cos(Math.PI / 8);
-  // 縦枠（白）は各面に 1 本ずつ。ガラスは階ごとに区切る（上から、床の高さの間隔で）
-  const stripFrames = new THREE.InstancedMesh(unitBox, trimMat, towers.length * 8);
+  // 縦枠（灰色の石）は各面に 1 本ずつ。ガラスは階ごとに区切る（上から、床の高さの間隔で）
+  const stripFrames = new THREE.InstancedMesh(unitBox, towerStoneMat, towers.length * 8);
   const paneSlots: number[] = [];
   for (let y = stripTopY - 0.3 - TOWER_PANE_HEIGHT_M / 2; y > bottom; y -= FLOOR_PITCH_M) paneSlots.push(y);
   const stripGlass = new THREE.InstancedMesh(
@@ -797,7 +809,7 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
     towerGlassMat,
     Math.max(1, towers.length * 8 * paneSlots.length),
   );
-  // 縦枠の上の半円のアーチ（白）。円柱を倒して上半分だけ使う
+  // 縦枠の上の半円のアーチ（灰色の石）。円柱を倒して上半分だけ使う
   const archGeo = new THREE.CylinderGeometry(
     TOWER_STRIP_WIDTH_M / 2,
     TOWER_STRIP_WIDTH_M / 2,
@@ -809,7 +821,7 @@ export const buildIbunkan: HeroBuilder = (ctx) => {
     Math.PI,
   );
   archGeo.rotateX(Math.PI / 2);
-  const arches = new THREE.InstancedMesh(archGeo, trimMat, towers.length * 8);
+  const arches = new THREE.InstancedMesh(archGeo, towerStoneMat, towers.length * 8);
   const yAxis = new THREE.Vector3(0, 1, 0);
   let si = 0;
   let pi = 0;
