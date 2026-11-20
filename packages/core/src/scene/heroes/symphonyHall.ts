@@ -76,16 +76,17 @@ const WINDOW = { u0: 1.0, u1: 2.0, y0: 5.0, y1: 5.8 } as const;
 /**
  * 大階段（OSM の steps way 1259556097: 下端 (128.37, −41.37)・上端 (154.06, −13.7)。ローカルで u 0.4 → 38.1、v 約 31.4〜32.2）。
  * 凜風館の側の縁は凜風館の輪郭の北東の辺（u 0.4 で v 37.9、u 38.1 で v 34.3）、ホールの側の縁は手すり壁。
- * 段: 1 段 0.15m・踏み面 0.38m の 8 段を 5 回、間に 4.6m の踊り場（段の数・高さは推定。映像で数えた約 30 段より上が
- * 写っていないので、凜風館の 2 階の高さほどの 6.0m とした）
+ * 段: 1 段 0.15m・踏み面 0.38m の 10 段を 4 回、間に 3.0m の踊り場、上に凜風館の北東の棟までの広い踊り場
+ * （段の数・高さは推定。映像 IMG_6413_000 で道から続けて約 30 段が見え、それより上は写っていないので、
+ * 凜風館の 2 階の高さほどの 6.0m とした）
  */
 const STAIR_U0 = 0.4;
 const STAIR_U_END = 38.7;
-const STAIR_FLIGHTS = 5;
-const STEPS_PER_FLIGHT = 8;
+const STAIR_FLIGHTS = 4;
+const STEPS_PER_FLIGHT = 10;
 const RISER_M = 0.15;
 const TREAD_M = 0.38;
-const LANDING_M = 4.6;
+const LANDING_M = 3.0;
 const PARAPET_V = 25.2;
 const PARAPET_HALF_M = 0.15;
 const PARAPET_ABOVE_STEP_M = 1.0;
@@ -285,11 +286,12 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
       vc + PLANTER_HALF_M,
     );
   }
-  // 段の上の花壇（1 回の上りを前後 2 つに分け、それぞれ上り切った段の高さ +0.6m）
+  // 段の上の花壇（1 回の上り 10 段を前後 5 段ずつに分け、それぞれ上り切った段の高さ +0.6m）。
+  // 映像 IMG_6413_000・003 では最初の上り（約 8〜10 段）は全幅の段で、花壇はその上の踊り場から始まる
   const steps = treads.filter((t) => t.kind === 'step');
-  for (let i = 0; i + 3 < steps.length; i += 4) {
+  for (let i = STEPS_PER_FLIGHT; i + 4 < steps.length; i += 5) {
     const a = steps[i];
-    const b = steps[i + 3];
+    const b = steps[i + 4];
     if (!a || !b) continue;
     const mid = (a.u0 + b.u1) / 2;
     const vc = (STAIR_V0 + stairOuterV(mid)) / 2 - 0.6;
