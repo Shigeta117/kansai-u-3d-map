@@ -1,7 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import type { BuildingFeature } from '../../domain/types';
-import { buildRimpukan } from './rimpukan';
+import { sampleElevation } from '../../domain/projection';
+import type { BuildingFeature, TerrainGrid } from '../../domain/types';
+import { RIMPUKAN_DECK_M, RIMPUKAN_GROUND_REF, buildRimpukan } from './rimpukan';
 
 const RIMPUKAN_POLYGON: [number, number][] = [
   [99, 24],
@@ -249,5 +252,175 @@ describe('buildRimpukan', () => {
         expect(new THREE.Box3().setFromObject(obj).min.y).toBeLessThanOrEqual(lowest - 0.5 + 1e-6);
       }
     });
+  });
+});
+
+/** メッシュの頂点をワールド座標で集める */
+function worldVertices(mesh: THREE.Mesh): THREE.Vector3[] {
+  const pos = mesh.geometry.getAttribute('position');
+  const out: THREE.Vector3[] = [];
+  for (let i = 0; i < pos.count; i++) {
+    out.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(mesh.matrixWorld));
+  }
+  return out;
+}
+
+/** 点から輪郭の辺までのいちばん近い距離 */
+function distToOutline(x: number, z: number, poly: readonly [number, number][]): number {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]!;
+    const b = poly[(i + 1) % poly.length]!;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)));
+    best = Math.min(best, Math.hypot(a[0] + dx * t - x, a[1] + dz * t - z));
+  }
+  return best;
+}
+
+function insidePolygon(x: number, z: number, poly: readonly [number, number][]): boolean {
+  let ins = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i]!;
+    const [xj, zj] = poly[j]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins;
+  }
+  return ins;
+}
+
+describe('buildRimpukan: the upper floors (owner 2026-11-20 and the 2017 aerial photo)', () => {
+  const groundVisualY = 12.5;
+  const result = buildRimpukan({
+    building: createRimpukanFeature(),
+    groundVisualY,
+    sampleGroundVisualY: () => groundVisualY,
+  });
+  result.group.updateMatrixWorld(true);
+  const mesh = (name: string): THREE.Mesh => {
+    const obj = result.group.getObjectByName(name);
+    if (!(obj instanceof THREE.Mesh)) throw new Error(`${name} missing`);
+    return obj;
+  };
+  const deckY = groundVisualY + RIMPUKAN_DECK_M;
+  const roofY = groundVisualY + 16.6;
+
+  it('tops the brown 2nd-3rd floor walls at the 3rd-floor roof (12.4m) and the roof garden at 16.6m', () => {
+    expect(RIMPUKAN_DECK_M).toBeCloseTo(12.4, 6);
+    const walls = worldVertices(mesh('rimpukan-body-walls')).map((p) => p.y);
+    expect(Math.max(...walls)).toBeCloseTo(deckY, 5);
+    for (const p of worldVertices(mesh('rimpukan-terrace-floor'))) expect(p.y).toBeCloseTo(deckY, 5);
+    for (const p of worldVertices(mesh('rimpukan-roof-soil'))) expect(p.y).toBeCloseTo(roofY, 5);
+  });
+
+  it('runs the solar fence along the outline on the 3rd-floor roof, open where the back stairs arrive', () => {
+    const fence = worldVertices(mesh('rimpukan-solar-fence'));
+    expect(fence.length).toBeGreaterThan(0);
+    for (const p of fence) {
+      expect(p.y).toBeGreaterThanOrEqual(deckY - 1e-6);
+      expect(p.y).toBeLessThanOrEqual(deckY + 1.5 + 1e-6);
+      // 柵の内の面は輪郭から 0.15m（角の留めで最大 0.33m）内側
+      expect(distToOutline(p.x, p.z, RIMPUKAN_POLYGON)).toBeLessThan(0.5);
+    }
+    // 大階段の上端が着く口（輪郭の切り欠き〜北東の棟の北西の面の途中）と、デッキのまわりには太陽光パネルが無い
+    for (const [x, z] of [
+      [153.3, -13.1],
+      [156.7, -16.1],
+      [180.0, -32.0],
+      [160.0, 0.0],
+    ] as const) {
+      const near = fence.filter((p) => Math.hypot(p.x - x, p.z - z) < 0.8);
+      expect(near).toHaveLength(0);
+    }
+    // 西の長い辺（輪郭の (101, 9) → (108, −8)）の両端に太陽光パネルの柵の角がある
+    for (const [x, z] of [
+      [101, 9],
+      [108, -8],
+    ] as const) {
+      expect(fence.some((p) => Math.hypot(p.x - x, p.z - z) < 0.5)).toBe(true);
+    }
+  });
+
+  it('sets the 4th floor and the roof garden back from the 1st-3rd floor outline (one size smaller)', () => {
+    const upper = worldVertices(mesh('rimpukan-upper-walls'));
+    for (const p of upper) {
+      expect(insidePolygon(p.x, p.z, RIMPUKAN_POLYGON)).toBe(true);
+      expect(p.y).toBeGreaterThanOrEqual(deckY - 1e-6);
+      expect(p.y).toBeLessThanOrEqual(roofY + 1e-6);
+    }
+    // 西の長い辺（輪郭の (101, 9) → (108, −8) の中ほど）からは 6m 以上奥
+    const westMid: [number, number] = [104.5, 0.5];
+    const nearestWest = Math.min(...upper.map((p) => Math.hypot(p.x - westMid[0], p.z - westMid[1])));
+    expect(nearestWest).toBeGreaterThan(6);
+    // 北東の棟（輪郭の (169, −20)〜(200, −35)）の上には 4 階が無い
+    expect(upper.every((p) => p.x < 150)).toBe(true);
+  });
+
+  it('plants the roof garden on the 4th-floor roof and a row of cherry trees on the west terrace', () => {
+    const trunks = result.group.getObjectByName('rimpukan-sakura-trunks');
+    if (!(trunks instanceof THREE.InstancedMesh)) throw new Error('trunks missing');
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    let garden = 0;
+    let terrace = 0;
+    for (let i = 0; i < trunks.count; i++) {
+      trunks.getMatrixAt(i, m);
+      p.setFromMatrixPosition(m);
+      if (Math.abs(p.y - roofY) < 1e-6) garden++;
+      else if (Math.abs(p.y - deckY) < 1e-6) {
+        terrace++;
+        // テラスの列は西の側（4 階より西、輪郭の中）
+        expect(p.x).toBeLessThan(126);
+        expect(insidePolygon(p.x, p.z, RIMPUKAN_POLYGON)).toBe(true);
+      } else throw new Error(`tree at an unexpected height ${p.y}`);
+    }
+    expect(garden).toBeGreaterThanOrEqual(45);
+    expect(terrace).toBeGreaterThanOrEqual(8);
+    expect(terrace).toBeLessThanOrEqual(20);
+  });
+
+  it('climbs from the deck to the roof garden by the stairs along the south-east edge (OSM steps way 423060533)', () => {
+    const stairs = worldVertices(mesh('rimpukan-upper-stair'));
+    const ys = stairs.map((v) => v.y);
+    expect(Math.min(...ys)).toBeCloseTo(deckY, 5);
+    expect(Math.max(...ys)).toBeCloseTo(roofY, 5);
+    // 南東の辺（(167.36, −5.88) → (142.34, 14.74)）から内へ 1〜13m の帯で、辺の上の距離 16〜29m
+    const ax = 167.36;
+    const az = -5.88;
+    const len = Math.hypot(142.34 - ax, 14.74 - az);
+    const ux = (142.34 - ax) / len;
+    const uz = (14.74 - az) / len;
+    for (const v of stairs) {
+      const s2 = (v.x - ax) * ux + (v.z - az) * uz;
+      const t = (v.x - ax) * -uz + (v.z - az) * ux;
+      expect(s2).toBeGreaterThan(16);
+      expect(s2).toBeLessThan(29);
+      expect(t).toBeGreaterThan(0.9);
+      expect(t).toBeLessThan(13);
+    }
+  });
+
+  it('lays the timber deck at the top of the back stairs, just above the 3rd-floor roof', () => {
+    const deck = worldVertices(mesh('rimpukan-deck'));
+    for (const v of deck) expect(v.y).toBeCloseTo(deckY + 0.03, 5);
+    const xs = deck.map((v) => v.x);
+    const zs = deck.map((v) => v.z);
+    // 大階段の上端（(154.06, −13.7)）の南東
+    expect(Math.min(...xs)).toBeLessThan(154);
+    expect(Math.max(...xs)).toBeGreaterThan(160);
+    expect(Math.min(...zs)).toBeLessThan(-14);
+  });
+});
+
+describe('RIMPUKAN_GROUND_REF (public/data/senriyama の実データ)', () => {
+  const dataDir = path.resolve(process.cwd(), 'public/data/senriyama');
+  const terrain = JSON.parse(fs.readFileSync(path.join(dataDir, 'terrain.json'), 'utf8')) as TerrainGrid;
+  const buildings = JSON.parse(fs.readFileSync(path.join(dataDir, 'buildings.json'), 'utf8')) as BuildingFeature[];
+
+  it('is the centroid of Rimpukan, where the data build samples groundY', () => {
+    const b = buildings.find((x) => x.id === 'rimpukan');
+    if (!b) throw new Error('rimpukan missing');
+    expect(Math.hypot(b.centroid.x - RIMPUKAN_GROUND_REF[0], b.centroid.z - RIMPUKAN_GROUND_REF[1])).toBeLessThan(0.05);
+    expect(Math.abs(sampleElevation(terrain, RIMPUKAN_GROUND_REF[0], RIMPUKAN_GROUND_REF[1]) - b.groundY)).toBeLessThan(0.01);
   });
 });
