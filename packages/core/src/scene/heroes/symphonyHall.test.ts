@@ -216,4 +216,30 @@ describe('buildSymphonyHall', () => {
     const topY = Math.max(...pts.map((p) => p.y));
     expect(topY).toBeCloseTo(slope(RIMPUKAN_GROUND_REF[0], RIMPUKAN_GROUND_REF[1]) + RIMPUKAN_DECK_M, 5);
   });
+
+  it('keeps the entrance on the north-west face, along the main street (path_423060527)', () => {
+    const openings = meshes.get('seishikan-4-openings');
+    expect(openings).toBeTruthy();
+    if (!openings) return;
+    const door = worldVertices(openings)
+      .map((p) => {
+        const [u, v] = frameToLocal(frame, p.x, p.z);
+        return { u, v, y: p.y };
+      })
+      .filter((p) => p.u < 0);
+    // 戸口は北西の面（u ≈ 0）の上、床から 2.6m
+    expect(door.length).toBeGreaterThan(0);
+    for (const p of door) expect(p.u).toBeCloseTo(-0.03, 3);
+    expect(Math.max(...door.map((p) => p.y))).toBeCloseTo(groundVisualY + 2.6, 5);
+    // メインストリート（吹田市道。凜風館の西を北へ上り、ホールの北西の面の前を通る）の区間 (121.5, −48.5) → (135.0, −63.9) は
+    // 北西の面と平行で、面から北西へ 8〜12m
+    for (const [x, z] of [
+      [121.5, -48.5],
+      [135.0, -63.9],
+    ] as const) {
+      const [u] = frameToLocal(frame, x, z);
+      expect(u).toBeLessThan(-7);
+      expect(u).toBeGreaterThan(-12);
+    }
+  });
 });
