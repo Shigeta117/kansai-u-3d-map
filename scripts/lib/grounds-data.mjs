@@ -118,6 +118,84 @@ function insetConvex(poly, d) {
   return out;
 }
 
+/** 線分 p→q と線分 a→b の交点（p→q の上の割合 t と点）。交わらなければ null */
+function segmentHit(p, q, a, b) {
+  const rx = q[0] - p[0];
+  const rz = q[1] - p[1];
+  const sx = b[0] - a[0];
+  const sz = b[1] - a[1];
+  const den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-12) return null;
+  const t = ((a[0] - p[0]) * sz - (a[1] - p[1]) * sx) / den;
+  const u = ((a[0] - p[0]) * rz - (a[1] - p[1]) * rx) / den;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { t, point: [p[0] + rx * t, p[1] + rz * t] };
+}
+
+/**
+ * 単純な多角形 poly から凸の多角形 cut の中を引く（観客席の輪郭から建物の輪郭を外す）。
+ * 輪郭どうしが 2 点で交わる場合（cut が poly の縁の一部をえぐる場合）だけを扱う:
+ * poly の縁のうち cut の中に入る区間を、cut の縁（poly の中を通る側）に置き換える。
+ * 交わらなければ poly をそのまま返す。それ以外の交わり方（cut が poly を分ける・中に収まる）は例外にする
+ */
+export function subtractConvex(poly, cut) {
+  const hits = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    for (let j = 0; j < cut.length; j++) {
+      const h = segmentHit(p, q, cut[j], cut[(j + 1) % cut.length]);
+      if (h) hits.push({ i, t: h.t, j, point: h.point });
+    }
+  }
+  if (hits.length === 0) {
+    if (cut.some((c) => pointInPolygon(c[0], c[1], poly))) {
+      throw new Error('subtractConvex: the cut lies inside the polygon');
+    }
+    return poly;
+  }
+  if (hits.length !== 2) throw new Error(`subtractConvex: expected 2 crossings, got ${hits.length}`);
+  hits.sort((a, b) => a.i - b.i || a.t - b.t);
+  const [h1, h2] = hits;
+  // poly を h1 から h2 へたどる区間の途中の点が cut の中なら、その区間を捨てて h2 → … → h1 を残す
+  const mid =
+    h1.i === h2.i
+      ? [
+          poly[h1.i][0] + (poly[(h1.i + 1) % poly.length][0] - poly[h1.i][0]) * ((h1.t + h2.t) / 2),
+          poly[h1.i][1] + (poly[(h1.i + 1) % poly.length][1] - poly[h1.i][1]) * ((h1.t + h2.t) / 2),
+        ]
+      : poly[(h1.i + 1) % poly.length];
+  const [from, to] = pointInPolygon(mid[0], mid[1], cut) ? [h2, h1] : [h1, h2];
+  const kept = [from.point];
+  // from と to が同じ辺の上で from が手前なら、間に角は無い
+  if (!(from.i === to.i && from.t < to.t)) {
+    for (let k = (from.i + 1) % poly.length; ; k = (k + 1) % poly.length) {
+      kept.push(poly[k]);
+      if (k === to.i) break;
+    }
+  }
+  kept.push(to.point);
+  // to から from へ cut の縁でつなぐ。前向き（to.j+1 … from.j）と後ろ向き（to.j … from.j+1）のうち、
+  // 角が全部 poly の中にある方
+  const n = cut.length;
+  const forward = [];
+  const backward = [];
+  if (to.j !== from.j) {
+    for (let j = (to.j + 1) % n; ; j = (j + 1) % n) {
+      forward.push(cut[j]);
+      if (j === from.j) break;
+    }
+    for (let j = to.j; ; j = (j - 1 + n) % n) {
+      backward.push(cut[j]);
+      if (j === (from.j + 1) % n) break;
+    }
+  }
+  const allInside = (pts) => pts.every((c) => pointInPolygon(c[0], c[1], poly));
+  const bridge = to.j === from.j ? [] : allInside(forward) ? forward : allInside(backward) ? backward : null;
+  if (bridge === null) throw new Error('subtractConvex: no side of the cut runs inside the polygon');
+  return [...kept, ...bridge];
+}
+
 /** 輪郭の中の地形の標高の中央値（2m ごとに調べる） */
 function medianElevationInside(poly, sampleElevation) {
   const xs = poly.map((p) => p[0]);
@@ -209,7 +287,13 @@ export function buildGroundsData({ spec, ringOf, sampleElevation }) {
   // 後ろの縁の高さは後ろの縁の下の地面のいちばん高い所から
   {
     const st = spec.grandstand;
-    const polygon = need(st.wayId, 'grandstand');
+    // 隣の建物の輪郭（空中写真の通路の幅だけ外へ広げた物）にかかる部分は切る（OSM の観客席の輪郭は
+    // 第4学舎3号館の東の角の下に入っている）
+    let polygon = need(st.wayId, 'grandstand');
+    for (const clear of st.keepClearOf ?? []) {
+      const building = convexHull(need(clear.wayId, 'grandstand clearance'));
+      polygon = subtractConvex(polygon, insetConvex(building, -clear.clearanceM));
+    }
     const track = grounds[0];
     const axis = track.track.axis;
     const vdir = [-axis[1], axis[0]];

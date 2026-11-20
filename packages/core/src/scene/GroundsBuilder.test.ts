@@ -6,7 +6,7 @@ import { SENRIYAMA_CONFIG } from '../data/campuses/senriyama/config';
 import { computeVisualY, sampleElevation } from '../domain/projection';
 import type { BuildingFeature, CampusStructuresData, GroundFeature, TerrainGrid } from '../domain/types';
 import { buildGroundsGroup, carveTerrainForGrounds, groundPlateY } from './GroundsBuilder';
-import { AREA43_ROOF_DECK_M } from './heroes/area4-3';
+import { AREA43_ROOF_DECK_M, buildArea43 } from './heroes/area4-3';
 
 /** グラウンド（public/data/senriyama の実データで確かめる） */
 const dataDir = path.resolve(process.cwd(), 'public/data/senriyama');
@@ -115,6 +115,38 @@ describe('グラウンドのデータ', () => {
     expect(byId('tennis-area4-3-roof').tennis!.roofOf).toBe('area4-3');
   });
 
+  it('keeps the grandstand clear of 第4学舎3号館 and the walkway in front of it (5m)', () => {
+    const stand = byId('ground-central-stand').polygon as P2[];
+    const hall = buildings.find((b) => b.id === 'area4-3')!.polygon as P2[];
+    // 観客席の頂点は 3号館の中に無く、3号館の角も観客席の中に無い
+    for (const p of stand) expect(inside(p, hall)).toBe(false);
+    for (const p of hall) expect(inside(p, stand)).toBe(false);
+    // 観客席の縁の上の点（0.5m おき）は、3号館の輪郭から 4.9m 以上離れている
+    const distToHall = (p: P2): number => {
+      let best = Infinity;
+      for (let i = 0; i < hall.length; i++) {
+        const a = hall[i]!;
+        const b = hall[(i + 1) % hall.length]!;
+        const dx = b[0] - a[0];
+        const dz = b[1] - a[1];
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (dx * dx + dz * dz)));
+        best = Math.min(best, Math.hypot(a[0] + dx * t - p[0], a[1] + dz * t - p[1]));
+      }
+      return best;
+    };
+    let nearest = Infinity;
+    for (let i = 0; i < stand.length; i++) {
+      const a = stand[i]!;
+      const b = stand[(i + 1) % stand.length]!;
+      const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.5);
+      for (let k = 0; k <= n; k++) {
+        nearest = Math.min(nearest, distToHall([a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n]));
+      }
+    }
+    expect(nearest).toBeGreaterThan(4.9);
+    expect(nearest).toBeLessThan(5.5);
+  });
+
   it('drops the roof penthouse of 第4学舎3号館 for the rooftop courts', () => {
     expect(buildings.find((b) => b.id === 'area4-3')?.sculptStyle).toBe('standard');
   });
@@ -205,6 +237,32 @@ describe('グラウンドの造形', () => {
     const y = groundPlateY(roof, buildingsById, terrain.minElevation, exag)!;
     expect(y - deckY).toBeGreaterThan(0.02);
     expect(y - deckY).toBeLessThan(0.1);
+  });
+
+  it('stands 第4学舎3号館 on the ground next to the grandstand: the wall reaches below the seats and the ground at its foot', () => {
+    const b = buildingsById.get('area4-3')!;
+    const sample = (x: number, z: number): number => computeVisualY(sampleElevation(carved, x, z), terrain.minElevation, exag);
+    const hero = buildArea43({
+      building: b,
+      groundVisualY: computeVisualY(b.groundY, terrain.minElevation, exag),
+      sampleGroundVisualY: sample,
+    });
+    hero.group.updateMatrixWorld(true);
+    const body = hero.group.getObjectByName('area4-3-body') as THREE.Mesh;
+    const bottom = new THREE.Box3().setFromObject(body).min.y;
+    // 観客席の座席の面のいちばん高い所（後ろの縁）より下まで壁がある
+    const st = byId('ground-central-stand').grandstand!;
+    expect(bottom).toBeLessThan(computeVisualY(st.backElevation, terrain.minElevation, exag));
+    // 輪郭の辺の上（1m おき）の、表示の地面（ならした地形）より下まで壁がある（壁の下にすき間が無い）
+    const poly = b.polygon as P2[];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i]!;
+      const q = poly[(i + 1) % poly.length]!;
+      const n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]));
+      for (let k = 0; k <= n; k++) {
+        expect(bottom).toBeLessThan(sample(p[0] + ((q[0] - p[0]) * k) / n, p[1] + ((q[1] - p[1]) * k) / n));
+      }
+    }
   });
 
   it('does not put a net fence on the roof of 第4学舎3号館 (the hero model has its own translucent screen)', () => {
