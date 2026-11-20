@@ -93,7 +93,7 @@ test.describe('スマホの下から出るシート', () => {
     await expect(sheet).toHaveAttribute('data-snap', 'full');
     await sheet.getByRole('tab', { name: 'フロア・教室' }).tap();
     // 高い段では教室の一覧まで見える
-    await expect(sheet.getByPlaceholder(/教室番号・オフィス名で絞り込み/)).toBeInViewport();
+    await expect(sheet.getByPlaceholder(/教室番号・名前で絞り込み/)).toBeInViewport();
 
     const start = await centerOf(handle);
     await touchDrag(page, start, { x: start.x, y: start.y + 600 }, { steps: 8, stepMs: 12 });

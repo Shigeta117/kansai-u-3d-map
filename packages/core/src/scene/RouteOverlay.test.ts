@@ -22,6 +22,7 @@ function route(): RouteResult {
     usesBridge: true,
     usesShureiBridge: true,
     usesEscalator: false,
+    escalatorUses: [],
     isStepFree: true,
     maxSlopeRatio: 0.02,
     steepSegmentsM: 0,

@@ -49,6 +49,9 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(sheet.getByText('第1学舎 D棟 2階 ↔ E棟 1階 の連絡通路')).toBeVisible();
     // 以前の出典の無い連絡（全部「2F」の表記）と出入口が出ていない
     await expect(sheet.getByText(/2F/)).toHaveCount(0);
+    // バリアフリーの箱は 3 行とリンク 1 つだけ（注記・最寄り歩行ネットワークの箱は出さない）
+    await expect(sheet.getByRole('link', { name: '大学のバリアフリーマップ' })).toBeVisible();
+    await expect(sheet.getByText(/最寄り歩行ネットワーク|改修されている可能性/)).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('access-tab.png') });
   });
 
@@ -85,11 +88,9 @@ test.describe('案内アプリの代表フロー', () => {
     const stepFree = modes.getByRole('radio', { name: /段差フリー/ });
     // 初期モードは「坂ひかえめ」
     await expect(gentle).toBeChecked();
-    await expect(panel.getByText('標高データから選んだ参考ルートです。')).toBeVisible();
 
     await shortest.click();
     await expect(shortest).toBeChecked();
-    await expect(panel.getByText('標高データから選んだ参考ルートです。')).toHaveCount(0);
     await expect(distance).toHaveText(/^\d+m$/);
 
     await stepFree.click();
@@ -103,5 +104,34 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(gentle).toBeChecked();
     await expect(panel.getByText(/情報の無い段差/)).toHaveCount(0);
     await expect(distance).toHaveText(/^\d+m$/);
+  });
+  test('経路: 第3学舎から関大前駅への下りはエスカレーターの朝の注意が出て、逆の上りだけでは出ない', async ({ page }) => {
+    await page.getByRole('button', { name: 'ルート案内' }).click();
+    const panel = page.getByRole('complementary', { name: 'キャンパス内徒歩ルート案内' });
+    await expect(panel).toBeVisible();
+    const note = panel.getByTestId('escalator-rush-note');
+
+    await pickPlace(page, '出発', '第3学舎', '第3学舎');
+    await pickPlace(page, '到着', '関大前', '関大前');
+    await expect(panel.getByTestId('route-distance')).toHaveText(/^\d+m$/);
+    // 既定は畳んだチップだけ。押すと 1 行の説明が出る
+    await expect(note).toHaveText(/朝は上りのみ/);
+    await expect(note).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel.getByText(/8:00〜11:00/)).toHaveCount(0);
+    await panel.screenshot({ path: test.info().outputPath('escalator-chip-closed.png') });
+    await note.click();
+    await expect(note).toHaveAttribute('aria-expanded', 'true');
+    await expect(panel.getByText('授業日 8:00〜11:00 は 2 台とも上り。下りは階段です。')).toBeVisible();
+    await panel.screenshot({ path: test.info().outputPath('escalator-chip-open.png') });
+
+    // 出発と到着を入れ替えると上りだけになり、注意は出ない
+    await panel.getByRole('button', { name: /入れ替え/ }).click();
+    await expect(panel.getByText('屋外エスカレーター利用')).toBeVisible();
+    await expect(note).toHaveCount(0);
+
+    // 段差フリーはエスカレーターを通さない
+    await panel.getByRole('radiogroup', { name: 'ルート探索モード' }).getByRole('radio', { name: /段差フリー/ }).click();
+    await expect(panel.getByText('屋外エスカレーター利用')).toHaveCount(0);
+    await expect(note).toHaveCount(0);
   });
 });

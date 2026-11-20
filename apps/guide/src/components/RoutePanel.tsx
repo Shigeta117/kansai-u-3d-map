@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import {
   STEEP_SLOPE_RATIO,
+  usesRushHourDownEscalator,
   type BuildingFeature,
   type BuildingFloorPlan,
   type RouteMode,
@@ -53,25 +54,21 @@ interface RoutePanelProps {
 const MODE_OPTIONS: {
   id: RouteMode;
   label: string;
-  desc: string;
   activeClass: string;
 }[] = [
   {
     id: 'shortest',
     label: '最短',
-    desc: '距離優先',
     activeClass: 'bg-[#C85A3A] text-white shadow-xs',
   },
   {
     id: 'gentle',
     label: '坂ひかえめ',
-    desc: 'ｴｽｶﾚｰﾀｰ・橋優先',
     activeClass: 'bg-[#2B8A6E] text-white shadow-xs',
   },
   {
     id: 'step-free',
     label: '段差フリー',
-    desc: '階段・エスカレータ無し',
     activeClass: 'bg-[#1F7A8C] text-white shadow-xs',
   },
 ];
@@ -114,6 +111,8 @@ export function RoutePanel({
   // 開いたときは呼び出し元の指定。前回の値と比べて描画中に直す（React の「前の props を覚える」作法）
   const routeKey = route ? `${route.mode}:${route.fromId}:${route.toId}` : null;
   const [seenRouteKey, setSeenRouteKey] = useState(routeKey);
+  // 朝は上りのみのエスカレーターの注意は、既定で畳んでおく（チップを押すと 1 行の説明）
+  const [rushNoteOpen, setRushNoteOpen] = useState(false);
   const [seenPicking, setSeenPicking] = useState(pickingTarget);
   const [seenOpen, setSeenOpen] = useState(open);
   let nextSnap = snap;
@@ -242,64 +241,15 @@ export function RoutePanel({
                 {opt.id === 'shortest' && <Footprints className="h-3 w-3" />}
                 <span>{opt.label}</span>
               </div>
-              <div
-                className={`mt-0.5 text-[9.5px] ${
-                  active ? 'text-white/90' : 'text-[#6A727E]'
-                }`}
-              >
-                {opt.desc}
-              </div>
             </button>
           );
         })}
-      </div>
-
-      {/* Curated Quick Presets */}
-      <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
-        <span className="shrink-0 text-[10px] font-semibold text-[#666F7B]">
-          おすすめ試走:
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            onChangeOrigin({ buildingId: 'kandaimae-station' });
-            onChangeDest({ buildingId: 'area3' });
-          }}
-          className="t-interactive shrink-0 rounded-full border border-[#DFD8CA] bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[#2E3643] hover:bg-[#EFE9DC]"
-        >
-          関大前→第3学舎
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onChangeOrigin({ buildingId: 'area3' });
-            onChangeDest({ buildingId: 'area1-1' });
-          }}
-          className="t-interactive shrink-0 rounded-full border border-[#DFD8CA] bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[#2E3654] hover:bg-[#EFE9DC]"
-        >
-          第3学舎→第1学舎（秀麗橋）
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onChangeOrigin({ buildingId: 'main-gate' });
-            onChangeDest({ buildingId: 'rimpukan' });
-          }}
-          className="t-interactive shrink-0 rounded-full border border-[#DFD8CA] bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[#2E3643] hover:bg-[#EFE9DC]"
-        >
-          正門→凜風館
-        </button>
       </div>
 
       {/* Mode-specific Reference Notes */}
       {mode === 'step-free' && (
         <p className="rounded-xl border border-[#C7E2E7] bg-[#EEF7F9] px-3 py-2 text-[11px] leading-relaxed text-[#1E5663]">
           OpenStreetMap の階段・エスカレーターの情報だけで選んだ参考ルートです。情報の無い段差・工事・エレベーターの運用時間は反映していません。
-        </p>
-      )}
-      {mode === 'gentle' && (
-        <p className="rounded-xl border border-[#CDE3DA] bg-[#EFF7F3] px-3 py-1.5 text-[11px] leading-relaxed text-[#225C49]">
-          標高データから選んだ参考ルートです。
         </p>
       )}
 
@@ -342,12 +292,28 @@ export function RoutePanel({
                 高架デッキ経由
               </span>
             ) : null}
-            {route.usesEscalator && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F6EE] px-2.5 py-0.5 text-[10.5px] font-bold text-[#217058]">
-                <TrendingUp className="h-3 w-3" />
-                屋外エスカレーター利用
-              </span>
-            )}
+            {route.usesEscalator &&
+              (usesRushHourDownEscalator(route) ? (
+                <button
+                  type="button"
+                  data-testid="escalator-rush-note"
+                  aria-expanded={rushNoteOpen}
+                  aria-controls="escalator-rush-detail"
+                  onClick={() => setRushNoteOpen((open) => !open)}
+                  className="t-interactive inline-flex items-center gap-1 rounded-full bg-[#FEF3DF] px-2.5 py-0.5 text-[10.5px] font-bold text-[#9A4E10]"
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  エスカレーター 朝は上りのみ
+                  <ChevronDown
+                    className={`h-3 w-3 transition-transform duration-150 ${rushNoteOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F6EE] px-2.5 py-0.5 text-[10.5px] font-bold text-[#217058]">
+                  <TrendingUp className="h-3 w-3" />
+                  屋外エスカレーター利用
+                </span>
+              ))}
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold tabular-nums ${
                 route.maxSlopeRatio > STEEP_SLOPE_RATIO
@@ -360,12 +326,18 @@ export function RoutePanel({
             </span>
           </div>
 
+          {usesRushHourDownEscalator(route) && rushNoteOpen && (
+            <p id="escalator-rush-detail" className="-mt-1 px-1 text-[11px] text-[#6B4A12]">
+              授業日 8:00〜11:00 は 2 台とも上り。下りは階段です。
+            </p>
+          )}
+
           <div
             key={routePopKey}
             className="t-number-pop grid grid-cols-[0.88fr_0.82fr_1.3fr] gap-2 rounded-xl border border-[#E3DDD1] bg-white px-3 py-2.5"
           >
             <div>
-              <div className="text-[10.5px] text-[#666F7B]">徒歩目安</div>
+              <div className="text-[10.5px] text-[#666F7B]">時間</div>
               <div
                 data-testid="route-minutes"
                 className="tabular-nums whitespace-nowrap text-[16px] font-bold text-[#1D2430]"
@@ -383,7 +355,7 @@ export function RoutePanel({
               </div>
             </div>
             <div>
-              <div className="text-[10.5px] text-[#666F7B]">累積上り / 階段</div>
+              <div className="text-[10.5px] text-[#666F7B]">上り / 階段</div>
               <div className="tabular-nums flex flex-wrap items-baseline gap-x-1 text-[12.5px] font-bold text-[#1D2430]">
                 <span className="whitespace-nowrap">+{route.elevationGainM.toFixed(1)}m</span>
                 <span className="text-[#B8B0A0]">/</span>
@@ -398,11 +370,11 @@ export function RoutePanel({
             </div>
           </div>
 
-          {route.steepSegmentsM > 0 && (
+          {route.mode === 'step-free' && route.steepSegmentsM > 0 && (
             <div className="flex items-start gap-2 rounded-xl border border-[#E6BE82] bg-[#FEF6E8] px-3 py-2 text-[11px] leading-relaxed font-medium text-[#8A460E]">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#C46A17]" />
               <span className="tabular-nums">
-                車いすの目安（8.3%）を超える坂が約 {Math.max(1, Math.round(route.steepSegmentsM))} m あります
+                急な坂 約 {Math.max(1, Math.round(route.steepSegmentsM))}m（8.3% 超）
               </span>
             </div>
           )}
@@ -469,10 +441,7 @@ export function RoutePanel({
                 <h2 className="text-[14px] font-bold text-[#1D2430]">
                   キャンパスルート案内
                 </h2>
-                <p className="text-[10.5px] text-[#666F7B]">
-                  高架デッキ（秀麗橋）・坂・段差フリーを考慮
-                </p>
-              </div>
+                </div>
             </div>
             <button
               type="button"
