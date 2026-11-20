@@ -582,7 +582,8 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     keywords: ['誠之館', 'KUシンフォニーホール', 'シンフォニー', '課外活動', 'サークル'],
     approxCoord: { lat: 34.774955, lon: 135.512099 },
     osmNameAliases: ['誠之館4号館', 'KUシンフォニーホール'],
-    description: '本格的な音響設備を備えたKUシンフォニーホールと学生クラブ活動室が入る施設。',
+    description:
+      '旧特別講堂（1962年）を2006年に改修したホール。小山に差し込むように建ち、凜風館との間の大階段に面する。上に厚い庇が深く張り出す。',
     defaultLevels: 4,
     labelPriority: 5,
   },
@@ -599,7 +600,7 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     approxCoord: { lat: 34.776053, lon: 135.511831 },
     osmNameAliases: ['千里山中央体育館', 'Gymnasium-Senriyama Central'],
     description:
-      '1994年竣工のメインアリーナや武道場を備える大型体育館。式典や体育授業、クラブ活動の中心。',
+      '1994年竣工の地上3階の体育館。2階にメインアリーナ、1階にサブアリーナ2面、3階に室内ランニングレーン。かまぼこ形の大屋根と「中央体育館」の看板の庇が目印。',
     sculptStyle: 'gym-arena',
     defaultLevels: 3,
     labelPriority: 3,
