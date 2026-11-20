@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { AREA3_AXIS_U, AREA3_WING_BOUNDS } from '../../data/campuses/senriyama/wings';
 import { minGroundUnder } from './shared';
 import type { HeroBuildContext, HeroBuilder, HeroBuildResult } from './types';
 
@@ -25,9 +26,12 @@ import type { HeroBuildContext, HeroBuilder, HeroBuildResult } from './types';
 
 type P2 = [number, number];
 
-/** 南の長い辺（輪郭の点 7→8）の向き。u 軸（東北東）と v 軸（南南東、南面の外向き） */
-const AXIS_U: P2 = [0.94101, -0.33837];
-const AXIS_V: P2 = [0.33837, 0.94101];
+/**
+ * 南の長い辺（輪郭の点 7→8）の向き。u 軸（東北東）と v 軸（南南東、南面の外向き）。
+ * 棟の塊の範囲（data/campuses/senriyama/wings.ts）と同じ枠
+ */
+const AXIS_U: P2 = AREA3_AXIS_U;
+const AXIS_V: P2 = [-AXIS_U[1], AXIS_U[0]];
 /** 枠の group の回転。ローカルの +X が AXIS_U、+Z が AXIS_V になる角度 */
 const FRAME_ROT_Y = Math.atan2(-AXIS_U[1], AXIS_U[0]);
 
@@ -39,8 +43,8 @@ function toFrame(x: number, z: number): P2 {
 }
 
 // --- 輪郭から読んだ寸法（u, v。単位 m） ---
-/** 塔の塊と雁行する棟の境目（輪郭の点 8・9 の u） */
-const TOWER_EAST_U = -284.3;
+/** 塔の塊と雁行する棟の境目（輪郭の点 8・9 の u）。C棟の範囲の東の端 */
+const TOWER_EAST_U = AREA3_WING_BOUNDS.towerEastU;
 /** 塔の西の面（輪郭の点 0・1・4） */
 const WEST_FACE_U = -301.7;
 /** 塔の北の面（輪郭の点 0・36） */
@@ -62,7 +66,7 @@ const ACCESS_CANOPY_END_U = -312.6;
  * A棟の西の端は、輪郭の北の面の段（点 33・34、u = -240.3）と中庭の東の端（u ≈ -240.7）にそろえる
  * （南の面の切れ込み u = -239.4〜-236.9 もこの近く）
  */
-const A_WEST_U = -240.3;
+const A_WEST_U = AREA3_WING_BOUNDS.aWestU;
 /**
  * B棟と D棟を結ぶ 5 階の通路（持ち主: A棟は 4 階までだが、B と D を結ぶ 5 階の通路がある）。
  * 位置は、A棟の屋上のうち中庭の東の端に沿う帯（2023 年の映像で、この通路から中庭越しに塔を撮っている）。

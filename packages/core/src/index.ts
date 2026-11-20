@@ -1,6 +1,7 @@
 // Domain types & schemas
 export * from './domain/types';
 export * from './domain/indoor-types';
+export * from './domain/wings';
 
 // Domain logic
 export * from './domain/campus-registry';

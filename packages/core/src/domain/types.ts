@@ -1,3 +1,5 @@
+import type { BuildingWing } from './wings';
+
 export type CampusId = 'senriyama';
 
 export type BuildingCategory =
@@ -167,6 +169,11 @@ export interface BuildingFeature {
   levels: number;
   walkNodeId: string | null;
   accessibleWalkNodeId: string | null;
+  /**
+   * 建物の中の棟（号館・棟。docs/indoor-plan.md 4 節）。輪郭が 1 つの建物を、棟ごとに選べるようにする。
+   * 読み込み時に data/campuses/<キャンパス>/wings.ts から付ける（buildings.json には無い）
+   */
+  wings?: BuildingWing[];
 }
 
 export type LandcoverKind =

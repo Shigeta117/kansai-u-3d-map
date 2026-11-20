@@ -89,6 +89,8 @@ export interface LocationSearchItem {
   category: BuildingCategory;
   floor?: number;
   wing?: string;
+  /** 建物の中の棟（BuildingWing.id）。棟の名前の検索と、棟を持つ部屋で入る。選ぶとその棟を選んだ状態で開く */
+  wingId?: string;
   roomCode?: string;
   groundY: number;
   walkNodeId: string | null;
