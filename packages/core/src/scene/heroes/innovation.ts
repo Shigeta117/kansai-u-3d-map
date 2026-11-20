@@ -99,7 +99,7 @@ const COLORS = {
   backGlass: '#97A9AE', // ルーバーの奥のガラスと窓の枠（灰青。写真では組の間から明るく見える）
   warmGlass: '#5B544B', // 1 階のカフェのガラス（Node では無地。ブラウザでは室内の明かりの模様を描く）。看板は作らない
   warmGlow: '#24190C', // 室内の明かり（ごく弱い自己発光）
-  glassBox: '#B3C3C8', // 明るい灰青のガラス（銀の方立てで割る）
+  glassBox: '#B3C3C8', // 明るい灰青のガラス（銀の方立てで割る）。Node の無地の代わり（ブラウザでは中の見える模様を描く）
   fin: '#A3CEC5', // 淡い青緑のガラスのルーバー
   silver: '#D2D6D8',
   steel: '#565B61',
@@ -152,6 +152,78 @@ function createCafeGlassTexture(faceWidthM: number): THREE.CanvasTexture | null 
   return tex;
 }
 
+/**
+ * ガラスの箱の面の模様（ブラウザだけ。Node では null）。Commons の 2 枚では、透明なガラス越しに各階の床の縁・
+ * 白い天井と照明・階段の斜めの手すりが見え、上の方は空を映して明るい。一様な青灰にすると不透明な板に見えた
+ * （2 回目のレビュー）。1 枚 = 面 1 つの全体（4 層。床の高さは levels と同じ割合）。色をそのまま描くので、材質の color は白にする
+ */
+function createGlassBoxTexture(levelFractions: readonly number[]): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const w = 128;
+  const h = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d');
+  if (!g) return null;
+  // 空の映り込み（上ほど明るい）
+  const sky = g.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#EEF2F3');
+  sky.addColorStop(0.5, '#D3DCDF');
+  sky.addColorStop(1, '#BCC7CA');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, w, h);
+  const yOf = (f: number): number => Math.round(h * (1 - f));
+  for (let i = 0; i + 1 < levelFractions.length; i++) {
+    const floor = levelFractions[i] ?? 0;
+    const ceil = levelFractions[i + 1] ?? 1;
+    const y0 = yOf(ceil);
+    const y1 = yOf(floor);
+    // 階の中（奥の室内）: 天井の近くは白く明るく、床の近くは少し暗い
+    const room = g.createLinearGradient(0, y0, 0, y1);
+    room.addColorStop(0, 'rgba(246, 246, 240, 0.6)');
+    room.addColorStop(0.6, 'rgba(190, 198, 200, 0.1)');
+    room.addColorStop(1, 'rgba(130, 140, 144, 0.25)');
+    g.fillStyle = room;
+    g.fillRect(0, y0, w, y1 - y0);
+    // 天井の照明（暖色の小さな点。決まった並び）
+    g.fillStyle = 'rgba(252, 238, 200, 0.95)';
+    for (const x of [0.16, 0.42, 0.68, 0.9]) g.fillRect(Math.round(x * w) - 4, y0 + 5, 8, 3);
+    // 階段の斜めの手すりと段の裏（階ごとに向きを変える折り返し）
+    const left = i % 2 === 0;
+    const xa = left ? 0.08 : 0.58;
+    const xb = left ? 0.52 : 0.08;
+    // 段の裏（斜めの帯）と、その上の明るい手すり
+    const ax = Math.round(xa * w);
+    const bx = Math.round(xb * w);
+    g.fillStyle = 'rgba(112, 124, 130, 0.8)';
+    g.beginPath();
+    g.moveTo(ax, y1 - 3);
+    g.lineTo(bx, y0 + 9);
+    g.lineTo(bx, y0 + 15);
+    g.lineTo(ax, y1 + 3);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(240, 242, 242, 0.95)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(ax, y1 - 10);
+    g.lineTo(bx, y0 + 2);
+    g.stroke();
+  }
+  // 各階の床の縁（ガラスの奥の灰色の帯）
+  g.fillStyle = '#8E989C';
+  for (const f of levelFractions) {
+    const y = yOf(f);
+    g.fillRect(0, Math.max(0, y - 2), w, 4);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult => {
   const group = new THREE.Group();
   group.name = 'innovation-hero';
@@ -187,7 +259,15 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
   };
   const warmGlassFrontMat = cafeGlassMat(PANEL_U1 - LONG_U0);
   const warmGlassSideMat = cafeGlassMat(BACK_V - FRONT_V - GROUND_FLOOR_SETBACK_M);
-  const glassBoxMat = mat(COLORS.glassBox, 0.15, 0.1);
+  const glassH0 = ROOF_M;
+  const glassBoxTex = createGlassBoxTexture(
+    [0.1, GROUND_FLOOR_M, GROUND_FLOOR_M + UPPER_FLOOR_M, GROUND_FLOOR_M + 2 * UPPER_FLOOR_M, glassH0 - 0.12].map(
+      (y) => y / glassH0,
+    ),
+  );
+  const glassBoxHex = glassBoxTex ? '#FFFFFF' : COLORS.glassBox;
+  const glassBoxMat = mat(glassBoxHex, 0.15, 0.1);
+  glassBoxMat.map = glassBoxTex;
   const finMat = mat(COLORS.fin, 0.25, 0.05);
   const silverMat = mat(COLORS.silver, 0.4, 0.3);
   const steelMat = mat(COLORS.steel, 0.5, 0.25);
@@ -475,7 +555,7 @@ export const buildInnovation: HeroBuilder = (ctx: HeroBuildContext): HeroBuildRe
     primaryMaterials: [
       { mat: panelMat, baseHex: COLORS.panel },
       { mat: finMat, baseHex: COLORS.fin },
-      { mat: glassBoxMat, baseHex: COLORS.glassBox },
+      { mat: glassBoxMat, baseHex: glassBoxHex },
     ],
     animated: [],
   };
