@@ -1,5 +1,6 @@
 import type {
   ElevationSample,
+  EscalatorUse,
   LocalPoint3D,
   RouteMode,
   RouteResult,
@@ -80,6 +81,19 @@ class MinHeap {
 
 /** Wheelchair reference slope threshold (1/12 ≈ 8.33%) */
 export const STEEP_SLOPE_RATIO = 1 / 12;
+
+/** エスカレーターの向きは辺の両端の高さの差で決める（OSM に向きは無い） */
+const ESCALATOR_FLAT_DELTA_M = 0.05;
+
+export function escalatorDirection(deltaY: number): EscalatorUse['direction'] {
+  if (Math.abs(deltaY) < ESCALATOR_FLAT_DELTA_M) return 'flat';
+  return deltaY > 0 ? 'up' : 'down';
+}
+
+/** 朝のラッシュ時に使えなくなる下りのエスカレーターを通る経路か（注意として出す。経路は変えない） */
+export function usesRushHourDownEscalator(route: Pick<RouteResult, 'escalatorUses'>): boolean {
+  return route.escalatorUses.some((u) => u.rushHourUpOnly && u.direction === 'down');
+}
 
 export function computeEdgeCost(edge: WalkEdge, mode: RouteMode): number {
   const baseDist = Math.max(0.1, edge.dist);
@@ -170,6 +184,7 @@ export function findRoute(
       usesBridge: false,
       usesShureiBridge: false,
       usesEscalator: false,
+      escalatorUses: [],
       isStepFree: true,
       maxSlopeRatio: 0,
       steepSegmentsM: 0,
@@ -250,6 +265,7 @@ export function findRoute(
   let usesBridge = false;
   let usesShureiBridge = false;
   let usesEscalator = false;
+  const escalatorUses: EscalatorUse[] = [];
   let maxSlopeRatio = 0;
   let steepSegmentsM = 0;
 
@@ -280,7 +296,14 @@ export function findRoute(
       usesBridge = true;
       usesShureiBridge = true;
     }
-    if (edge.isEscalator) usesEscalator = true;
+    if (edge.isEscalator) {
+      usesEscalator = true;
+      escalatorUses.push({
+        edgeIndex: i,
+        direction: escalatorDirection(edge.deltaY),
+        rushHourUpOnly: edge.rushHourUpOnly === true,
+      });
+    }
     const absSlope = Math.abs(edge.slope);
     maxSlopeRatio = Math.max(maxSlopeRatio, absSlope);
     if (absSlope > STEEP_SLOPE_RATIO) {
@@ -315,6 +338,7 @@ export function findRoute(
     usesBridge,
     usesShureiBridge,
     usesEscalator,
+    escalatorUses,
     isStepFree: stepsCount === 0 && !usesEscalator,
     maxSlopeRatio,
     steepSegmentsM,

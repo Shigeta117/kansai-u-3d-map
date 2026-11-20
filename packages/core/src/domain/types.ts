@@ -419,6 +419,11 @@ export interface WalkEdge {
   isBridge: boolean;
   isShureiBridge?: boolean;
   isEscalator: boolean;
+  /**
+   * 朝のラッシュ時に全機が上りになる運用があるエスカレーター（西門〜第3学舎の新アクセス路の 2 台。
+   * 持ち主の確認、2026-11-20）。OSM にエスカレーターの向きの情報は無い。
+   */
+  rushHourUpOnly?: boolean;
 }
 
 export interface WalkGraph {
@@ -466,6 +471,16 @@ export interface ElevationSample {
   isEscalator: boolean;
 }
 
+/** 経路が通るエスカレーター 1 区間（向きは辺の両端の高さで決める） */
+export interface EscalatorUse {
+  /** `RouteResult.points` の区間の番号（points[index] → points[index + 1]） */
+  edgeIndex: number;
+  /** 'flat' は両端の高さの差が 0.05m 未満（向きを言えない） */
+  direction: 'up' | 'down' | 'flat';
+  /** 朝のラッシュ時に全機が上りになる運用がある（下りが階段になる） */
+  rushHourUpOnly: boolean;
+}
+
 export interface RouteResult {
   mode: RouteMode;
   fromId: string;
@@ -479,6 +494,8 @@ export interface RouteResult {
   usesBridge: boolean;
   usesShureiBridge: boolean;
   usesEscalator: boolean;
+  /** 通るエスカレーターの区間を、通る順に。無ければ空 */
+  escalatorUses: EscalatorUse[];
   isStepFree: boolean;
   maxSlopeRatio: number;
   steepSegmentsM: number;

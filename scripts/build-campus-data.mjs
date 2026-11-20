@@ -623,6 +623,7 @@ function buildWalkGraphAndPaths(
     if (dist < 0.2) return;
     const deltaAB = b.y - a.y;
     const shureiFlag = flags.isShureiBridge ? { isShureiBridge: true } : {};
+    const rushFlag = flags.rushHourUpOnly ? { rushHourUpOnly: true } : {};
     adjacency[aId].push({
       to: bId,
       dist: Number(dist.toFixed(2)),
@@ -632,6 +633,7 @@ function buildWalkGraphAndPaths(
       isBridge: flags.isBridge,
       ...shureiFlag,
       isEscalator: flags.isEscalator,
+      ...rushFlag,
     });
     adjacency[bId].push({
       to: aId,
@@ -642,6 +644,7 @@ function buildWalkGraphAndPaths(
       isBridge: flags.isBridge,
       ...shureiFlag,
       isEscalator: flags.isEscalator,
+      ...rushFlag,
     });
   };
 
@@ -682,7 +685,15 @@ function buildWalkGraphAndPaths(
           shureiNodeIds.add(na.id);
           shureiNodeIds.add(nb.id);
         }
-        addEdge(na.id, nb.id, { isSteps, isBridge, isShureiBridge, isEscalator });
+        addEdge(na.id, nb.id, {
+          isSteps,
+          isBridge,
+          isShureiBridge,
+          isEscalator,
+          // 新アクセス路のエスカレーター 2 台は朝のラッシュ時に全機上りになる（持ち主の確認、2026-11-20）。
+          // OSM では 1 本の way（923172458）に載っている。ほかのエスカレーターの運用は未確認
+          rushHourUpOnly: isEscalator && NEW_ACCESS_WAY_IDS.includes(el.id),
+        });
       }
     }
 

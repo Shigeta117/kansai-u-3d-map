@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import {
   STEEP_SLOPE_RATIO,
+  usesRushHourDownEscalator,
   type BuildingFeature,
   type BuildingFloorPlan,
   type RouteMode,
@@ -359,6 +360,15 @@ export function RoutePanel({
               最大勾配 {Math.round(route.maxSlopeRatio * 100)}%
             </span>
           </div>
+
+          {usesRushHourDownEscalator(route) && (
+            <p
+              data-testid="escalator-rush-note"
+              className="rounded-xl border border-[#EBD9B4] bg-[#FDF7EA] px-3 py-1.5 text-[11px] leading-relaxed text-[#6B4A12]"
+            >
+              西門の新アクセス路のエスカレーターは、朝のラッシュ時は 2 台とも上りになり、下りは階段になります（持ち主の確認、2026-11-20）。この経路は下りでエスカレーターを使います。
+            </p>
+          )}
 
           <div
             key={routePopKey}
