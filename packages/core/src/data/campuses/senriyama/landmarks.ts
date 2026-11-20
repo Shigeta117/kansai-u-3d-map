@@ -95,7 +95,8 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     approxCoord: { lat: 34.774965, lon: 135.510456 },
     osmNameAliases: ['尚文館'],
     description:
-      '2000年竣工の現代的な大学院・研究拠点。周囲の芝生広場や動線に馴染む清潔感あるライトトーンのタイル・パネル外観を持つ。',
+      // 外観は持ち主の 2023 年の映像（IMG_6318・6319）で確かめた
+      '2000年竣工の現代的な大学院・研究拠点。れんがの外壁に白い枠の窓が並び、最上階のガラスの帯の上に弧を描く屋根がかかる。',
     defaultLevels: 5,
     labelPriority: 6,
   },
