@@ -127,11 +127,12 @@ describe('SENRIYAMA_FLOOR_PLANS official KAN-CAN integrity', () => {
         expect(fl.elevator).toBe('unknown');
         expect(fl.accessibleRestroom).toBe('unknown');
       }
-      for (const ent of plan.entrances) {
-        expect(ent.access).toBe('unknown');
-      }
+      // 出典の無い出入口は持たない（docs/indoor-plan.md の P0a）
+      expect(plan.entrances).toEqual([]);
       for (const conn of plan.connectors) {
-        expect(conn.access).toBe('unknown');
+        // 連絡は出典つきの物だけ。段差の有無は資料に書かれている物だけを yes/no にする
+        expect(conn.source).toMatch(/バリアフリーマップ/);
+        expect(conn.access).not.toBe('yes');
       }
       for (const room of plan.rooms) {
         expect(room.access ?? 'unknown').toBe('unknown');
@@ -141,5 +142,43 @@ describe('SENRIYAMA_FLOOR_PLANS official KAN-CAN integrity', () => {
         expect('capacity' in room).toBe(false);
       }
     }
+  });
+});
+
+describe('SENRIYAMA_FLOOR_PLANS sourced connectors (P0a)', () => {
+  const plans = Object.values(SENRIYAMA_FLOOR_PLANS);
+  const all = plans.flatMap((plan) => plan.connectors.map((conn) => ({ plan, conn })));
+
+  it('keeps one id per connector and lists it on both buildings it joins', () => {
+    const byId = new Map<string, { plan: (typeof plans)[number]; conn: (typeof all)[number]['conn'] }[]>();
+    for (const item of all) byId.set(item.conn.id, [...(byId.get(item.conn.id) ?? []), item]);
+    for (const [id, items] of byId) {
+      const conn = items[0]!.conn;
+      expect(items.every((item) => item.conn === conn), id).toBe(true);
+      expect(items.map((item) => item.plan.buildingId).sort(), id).toEqual(
+        [conn.fromBuildingId, conn.toBuildingId].sort(),
+      );
+    }
+  });
+
+  it('matches the barrier-free map: A-D 1F with stairs, B-C 2F, D 2F-E 1F, area4 2-4 at B1 and 1-3F', () => {
+    const ids = new Set(all.map((item) => item.conn.id));
+    expect([...ids].sort()).toEqual(
+      [
+        'bf-area1-ad-1f',
+        'bf-area1-bc-2f',
+        'bf-area1-de',
+        'bf-area4-24-1f',
+        'bf-area4-24-2f',
+        'bf-area4-24-3f',
+        'bf-area4-24-b1',
+      ].sort(),
+    );
+    const ad = all.find((item) => item.conn.id === 'bf-area1-ad-1f')!.conn;
+    expect([ad.fromFloor, ad.toFloor, ad.access]).toEqual([1, 1, 'no']);
+    const de = all.find((item) => item.conn.id === 'bf-area1-de')!.conn;
+    expect([de.fromBuildingId, de.fromFloor, de.toBuildingId, de.toFloor]).toEqual(['area1-4', 2, 'area1-5', 1]);
+    // 以前の出典の無い 12 件（全部 2 階 ↔ 2 階）が戻っていない
+    expect(all.some((item) => item.conn.id.startsWith('conn-'))).toBe(false);
   });
 });
