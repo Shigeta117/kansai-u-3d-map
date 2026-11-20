@@ -8,6 +8,7 @@ import {
   pushBox,
   pushWallStrip,
 } from './localFrame';
+import { RIMPUKAN_DECK_M, RIMPUKAN_GROUND_REF } from './rimpukan';
 import { minGroundUnder } from './shared';
 import type { HeroBuilder } from './types';
 
@@ -18,10 +19,11 @@ import type { HeroBuilder } from './types';
  * 根拠にしたもの:
  * - AR KANDAI（関西大学 なにわ大阪研究センター）の村野藤吾の建築の地図: 小山に荒々しく建物を挿入したような配置。
  *   打放しの粗野な意匠だったが 2006 年に改修。側面の調光室の凸部の意匠がポイント
- * - 持ち主の 2023 年の映像（凜風館の裏の大階段 IMG_6413・6414）: 道から南東へ上る茶色のタイルの幅広い大階段。
- *   中ほどに花壇の箱が段々に並び、階段は左右 2 列に分かれる。ホールの側は斜めに上るベージュの手すり壁と、
+ * - 持ち主の 2023 年の映像（凜風館の裏の大階段 IMG_6413・6414、上り切った所 IMG_6416）: 道から南東へ上る茶色のタイルの
+ *   幅広い大階段。中ほどに花壇の箱が段々に並び、階段は左右 2 列に分かれる。ホールの側は斜めに上るベージュの手すり壁と、
  *   その奥のツタの土手（小山）。土手の上にベージュの平らな壁（小さな窓）が建ち、上端に厚い庇が深く張り出す
- *   （IMG_6413_004 の左上）。反対の側は凜風館の茶色の縦縞の壁
+ *   （IMG_6413_004 の左上）。反対の側は凜風館の茶色の縦縞の壁。上り切ると凜風館の 3 階の屋根の上のデッキ
+ *   （持ち主の確認 2026-11-20「大階段の上のデッキは 4 階部分（3 階上）」）
  * - 持ち主の写真（夜、凜風館の裏の階段から。未保存。docs/visual-research/symphony-hall.md の初めの記録）:
  *   上に深い梁が並ぶ厚いコンクリートの庇が大きく張り出す。壁はベージュ
  * - 国土地理院の空中写真（2017 年 4 月）: 屋根は明るい灰色の長方形で、長手の向きに細い筋（約 3.2m おき）が並ぶ。
@@ -68,7 +70,12 @@ const RIB_WIDTH_M = 0.45;
 
 /** 北西の面の張り出し（OSM の輪郭。AR KANDAI の「側面の調光室の凸部」と推定）。上端は推定 */
 const BAY = { u0: -4.0, u1: 0.05, v0: 7.26, v1: 13.88, top: 7.6 } as const;
-/** 入口（公式の地図のイラストで道の側の面の階段寄りに暗い戸口。位置と大きさは推定） */
+/**
+ * 入口。持ち主の確認（2026-11-20）「入口はメインストリート沿い」。メインストリート（paths.json の吹田市道 path_423060527。
+ * 正門から凜風館の前の Y 字路を通り、凜風館の西を北へ上って体育館へ向かう道。docs/visual-research/main-street-video.md）は、
+ * ホールの北西の面の前を面と平行に通る（区間 (121.5, −48.5) → (135.0, −63.9)、面から 8〜12m）ので、北西の面に置く。
+ * 面の中の位置は公式の地図のイラスト（道の側の面の階段寄りに大きな暗い戸口）から。位置と大きさは推定
+ */
 const DOOR = { v0: 15.6, v1: 19.2, top: 2.6 } as const;
 /** 南西の面の小さな窓（映像 IMG_6414_000 で西の角の近くの高い所） */
 const WINDOW = { u0: 1.0, u1: 2.0, y0: 5.0, y1: 5.8 } as const;
@@ -76,17 +83,18 @@ const WINDOW = { u0: 1.0, u1: 2.0, y0: 5.0, y1: 5.8 } as const;
 /**
  * 大階段（OSM の steps way 1259556097: 下端 (128.37, −41.37)・上端 (154.06, −13.7)。ローカルで u 0.4 → 38.1、v 約 31.4〜32.2）。
  * 凜風館の側の縁は凜風館の輪郭の北東の辺（u 0.4 で v 37.9、u 38.1 で v 34.3）、ホールの側の縁は手すり壁。
- * 段: 1 段 0.15m・踏み面 0.38m の 10 段を 4 回、間に 3.0m の踊り場、上に凜風館の北東の棟までの広い踊り場
- * （段の数・高さは推定。映像 IMG_6413_000 で道から続けて約 30 段が見え、それより上は写っていないので、
- * 凜風館の 2 階の高さほどの 6.0m とした）
+ * 上端は凜風館の 3 階の屋根（4 階の床。凜風館の 1 階の床から RIMPUKAN_DECK_M）のデッキで、北東の棟の北西の面
+ * （u ≈ 38.1〜38.8）に突き当たる。下端（道）からの高さを、1 段 0.155m 以下の段に割る（実際の地形で約 71 段）。
+ * 段の割り付け（推定）: 道から全幅の 8 段（映像 IMG_6413_000・003）、その上は 5 回の上りに等しく分け、間に 1.6m の踊り場、
+ * 上に凜風館の北東の棟までの 4.0m の踊り場（デッキへ続く）
  */
 const STAIR_U0 = 0.4;
 const STAIR_U_END = 38.7;
-const STAIR_FLIGHTS = 4;
-const STEPS_PER_FLIGHT = 10;
-const RISER_M = 0.15;
-const TREAD_M = 0.38;
-const LANDING_M = 3.0;
+const STAIR_RISER_MAX_M = 0.155;
+const STAIR_FIRST_FLIGHT = 8;
+const STAIR_FLIGHTS = 6;
+const STAIR_LANDING_M = 1.6;
+const STAIR_TOP_LANDING_M = 4.0;
 const PARAPET_V = 25.2;
 const PARAPET_HALF_M = 0.15;
 const PARAPET_ABOVE_STEP_M = 1.0;
@@ -95,8 +103,14 @@ const STAIR_V0 = PARAPET_V + PARAPET_HALF_M;
 function stairOuterV(u: number): number {
   return 37.9 - ((u - 0.4) * (37.9 - 34.3)) / (38.1 - 0.4) - 0.2;
 }
-/** 花壇の箱（映像）: 幅 2.4m、段の上 0.6〜0.85m。列の中心は階段の中ほどより少しホール寄り（推定） */
+/**
+ * 花壇の箱（映像）: 幅 2.4m、段の上 0.6〜0.85m。列の中心は階段の幅の中ほどより 1.5m ホール寄り（IMG_6413_000 で
+ * 花壇の列は階段の幅の左から約 4 割。推定）。段の上の箱は 4 段ぶんの長さで 7 段ごと（箱の間に段が見える）
+ */
 const PLANTER_HALF_M = 1.2;
+const PLANTER_TOWARD_HALL_M = 1.5;
+const PLANTER_STEPS = 4;
+const PLANTER_EVERY_STEPS = 7;
 
 /** ツタの土手（小山）: 壁ぎわの高さは段の高さ +1.8m（西の角でも 2.4m 以上）、手すり壁の側は段 +0.9m（推定） */
 const BANK_MIN_M = 2.4;
@@ -127,20 +141,32 @@ interface StairTread {
   kind: 'step' | 'landing';
 }
 
-function stairTreads(): StairTread[] {
+/** 階段の段と踊り場。rise は下端（道）から上端（凜風館のデッキ）までの高さ */
+export function stairTreads(rise: number): StairTread[] {
+  const risers = Math.max(STAIR_FIRST_FLIGHT + STAIR_FLIGHTS - 1, Math.ceil(rise / STAIR_RISER_MAX_M - 1e-6));
+  const riser = rise / risers;
+  // 1 回目の上りは STAIR_FIRST_FLIGHT 段、残りを (STAIR_FLIGHTS − 1) 回に等しく（端数は下の上りから 1 段ずつ）
+  const rest = risers - STAIR_FIRST_FLIGHT;
+  const restFlights = STAIR_FLIGHTS - 1;
+  const flights = [
+    STAIR_FIRST_FLIGHT,
+    ...Array.from({ length: restFlights }, (_, i) => Math.floor(rest / restFlights) + (i < rest % restFlights ? 1 : 0)),
+  ];
+  const run = STAIR_U_END - STAIR_TOP_LANDING_M - STAIR_U0 - (STAIR_FLIGHTS - 1) * STAIR_LANDING_M;
+  const tread = run / risers;
   const out: StairTread[] = [];
   let u = STAIR_U0;
-  let level = 0;
-  for (let f = 0; f < STAIR_FLIGHTS; f++) {
-    for (let s = 0; s < STEPS_PER_FLIGHT; s++) {
-      out.push({ u0: u, u1: u + TREAD_M, top: level + RISER_M * (s + 1), kind: 'step' });
-      u += TREAD_M;
+  let n = 0;
+  flights.forEach((count, f) => {
+    for (let s = 0; s < count; s++) {
+      n++;
+      out.push({ u0: u, u1: u + tread, top: riser * n, kind: 'step' });
+      u += tread;
     }
-    level += RISER_M * STEPS_PER_FLIGHT;
-    const end = f < STAIR_FLIGHTS - 1 ? u + LANDING_M : STAIR_U_END;
-    out.push({ u0: u, u1: end, top: level, kind: 'landing' });
+    const end = f < flights.length - 1 ? u + STAIR_LANDING_M : STAIR_U_END;
+    out.push({ u0: u, u1: end, top: riser * n, kind: 'landing' });
     u = end;
-  }
+  });
   return out;
 }
 
@@ -179,6 +205,12 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
   const ref = groundAt(-1.0, DEPTH_M / 2);
   /** 階段の下端の地面。段・手すり壁・土手の高さの基準 */
   const stairRef = groundAt(STAIR_U0, 31.4);
+  /**
+   * 階段の上端＝凜風館の 3 階の屋根のデッキ。凜風館の 1 階の床（buildings.json の groundY は重心の地形の標高）は、
+   * 同じ地形を凜風館の重心で引き直して求める
+   */
+  const deckY = ctx.sampleGroundVisualY(RIMPUKAN_GROUND_REF[0], RIMPUKAN_GROUND_REF[1]) + RIMPUKAN_DECK_M;
+  const stairRise = Math.max(1.0, deckY - stairRef);
 
   const wallMat = new THREE.MeshStandardMaterial({ color: COLORS.wall, roughness: 0.86, metalness: 0.02 });
   const slabMat = new THREE.MeshStandardMaterial({ color: COLORS.slab, roughness: 0.9, metalness: 0.02 });
@@ -254,7 +286,7 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
   );
 
   // ── 大階段（段・踊り場は地面の下から立ち上げる箱。凜風館の側は凜風館の壁に接する） ──
-  const treads = stairTreads();
+  const treads = stairTreads(stairRise);
   for (const t of treads) {
     const v1 = stairOuterV((t.u0 + t.u1) / 2);
     const base =
@@ -271,11 +303,11 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
   }
   pushWallStrip(wall, parapetPts, PARAPET_V - PARAPET_HALF_M, PARAPET_V + PARAPET_HALF_M);
 
-  // 花壇の箱（階段の中ほどに段々に並ぶ。上面は緑）
+  // 花壇の箱（階段の中ほどに段々に並ぶ。上面は緑）。上の踊り場（デッキへ続く所）には置かない
   for (const t of treads) {
-    if (t.kind !== 'landing' || t.u1 - t.u0 < 2) continue;
+    if (t.kind !== 'landing' || t.u1 - t.u0 < 1.2 || t.u1 >= STAIR_U_END) continue;
     const mid = (t.u0 + t.u1) / 2;
-    const vc = (STAIR_V0 + stairOuterV(mid)) / 2 - 0.6;
+    const vc = (STAIR_V0 + stairOuterV(mid)) / 2 - PLANTER_TOWARD_HALL_M;
     pushBox(
       { sides: brick, top: ivy },
       t.u0 + 0.4,
@@ -286,20 +318,21 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
       vc + PLANTER_HALF_M,
     );
   }
-  // 段の上の花壇（1 回の上り 10 段を前後 5 段ずつに分け、それぞれ上り切った段の高さ +0.6m）。
-  // 映像 IMG_6413_000・003 では最初の上り（約 8〜10 段）は全幅の段で、花壇はその上の踊り場から始まる
+  // 段の上の花壇（4 段ぶんの箱、それぞれ上り切った段の高さ +0.6m）。映像 IMG_6413_000・003 では最初の上り（約 8 段）は
+  // 全幅の段で、花壇はその上の踊り場から始まる。上の方（IMG_6416_007〜013）は全幅の段なので、上の踊り場の 6m 手前で止める
   const steps = treads.filter((t) => t.kind === 'step');
-  for (let i = STEPS_PER_FLIGHT; i + 4 < steps.length; i += 5) {
+  const planterEndU = STAIR_U_END - STAIR_TOP_LANDING_M - 6.0;
+  for (let i = STAIR_FIRST_FLIGHT; i + PLANTER_STEPS - 1 < steps.length; i += PLANTER_EVERY_STEPS) {
     const a = steps[i];
-    const b = steps[i + 4];
-    if (!a || !b) continue;
+    const b = steps[i + PLANTER_STEPS - 1];
+    if (!a || !b || b.u1 > planterEndU) continue;
     const mid = (a.u0 + b.u1) / 2;
-    const vc = (STAIR_V0 + stairOuterV(mid)) / 2 - 0.6;
+    const vc = (STAIR_V0 + stairOuterV(mid)) / 2 - PLANTER_TOWARD_HALL_M;
     pushBox(
       { sides: brick, top: ivy },
       a.u0 + 0.05,
       b.u1 - 0.05,
-      stairRef + a.top - RISER_M - 0.2,
+      stairRef + (steps[i - 1]?.top ?? 0) - 0.2,
       stairRef + b.top + 0.6,
       vc - PLANTER_HALF_M,
       vc + PLANTER_HALF_M,
@@ -314,6 +347,16 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
   const parapetSide = (u: number): number => {
     if (u < STAIR_U0) return BANK_AT_PARAPET_M * Math.max(0, Math.min(1, (u - BANK_FADE_U) / (STAIR_U0 - BANK_FADE_U)));
     return stairLevelAt(treads, u) + BANK_AT_PARAPET_M;
+  };
+  /**
+   * 土手の高さの上限（階段の下端からの m）。階段の上の方は屋根の板より高くなるので、屋根の下（梁の下端の 0.3m 下）と
+   * 庇の縁のすぐ外（板の下面の 0.3m 上）で止める。その上は手すり壁が土留めの壁になる。屋根の外はデッキの 0.3m 下まで
+   */
+  const bankCap = (u: number, v: number): number => {
+    if (u > ROOF_U1 + 0.5) return stairRise - 0.3;
+    const under = u < ROOF_STEP_U ? frontUnder : mainUnder;
+    if (v <= DEPTH_M + 0.6) return under - BEAM_DEPTH_M - 0.3 - stairRef;
+    return under + 0.3 - stairRef;
   };
   const bankY = (u: number, v: number, h: number): number => {
     const g = groundAt(u, v);
@@ -350,10 +393,10 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
 
   // A: 南西の壁ぎわから手すり壁まで（西の角の外から凜風館の北東の棟まで）
   const bankUs = range(BANK_FADE_U, 38.5, 0.8);
-  const bankVs = [WALL_V1 - 0.5, WALL_V1, 22.2, 23.7, PARAPET_V];
+  const bankVs = [WALL_V1 - 0.5, WALL_V1, 22.2, DEPTH_M + 0.6, 23.7, PARAPET_V];
   const bankH = (u: number, v: number): number => {
     const k = Math.max(0, Math.min(1, (v - WALL_V1) / (PARAPET_V - WALL_V1)));
-    return wallSide(u) + (parapetSide(u) - wallSide(u)) * k;
+    return Math.min(wallSide(u) + (parapetSide(u) - wallSide(u)) * k, bankCap(u, v));
   };
   const bankYs = heightfield(bankUs, bankVs, bankH);
   // 西の角の外で見える土手の縁（壁の側と手すり壁より手前の道の側）を地面の下まで垂らす
@@ -382,7 +425,7 @@ export const buildSymphonyHall: HeroBuilder = (ctx) => {
   // B: 南東の端の小山（ホールの南東の面から凜風館の北東の棟まで。北東へ地面まで下りる）
   heightfield(range(HILL_U0, HILL_U1, 1.0), range(HILL_V0, WALL_V1 - 0.5, 1.2), (u, v) => {
     const k = Math.max(0, Math.min(1, (v - HILL_V0) / (WALL_V1 - 0.5 - HILL_V0)));
-    return wallSide(Math.min(u, 38.5)) * k;
+    return Math.min(wallSide(Math.min(u, 38.5)) * k, bankCap(u, v));
   });
 
   addBucketMesh(local, wall, wallMat, 'seishikan-4-walls', true);
