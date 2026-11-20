@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import { tsImport } from 'tsx/esm/api';
 import { buildExpresswayData } from './lib/expressway-data.mjs';
+import { buildGroundsData } from './lib/grounds-data.mjs';
 import { buildStationFacilities } from './lib/station-data.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +21,37 @@ const EXCLUDED_CANOPY_BUILDING_IDS = new Set([
   624590002,
   1100978545,
   1493876596,
+]);
+
+// 建物の箱にせず、GroundsBuilder がグラウンドの一部として描く OSM の建物（千里山中央グラウンドの観客席）
+const GROUND_STRUCTURE_BUILDING_IDS = new Set([805366951]);
+
+// 公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）の番号つきの一覧で名前を確かめた建物（OSM の osmId → 名前など）。
+// OSM の輪郭と地図のイラストの位置・形が合う物だけ（突き合わせの記録は docs/DATA_SOURCES.md 5 節）。
+// 目印（landmarks.ts）に一致した建物は目印の名前が優先する。keywords は名前に足す検索語（OSM の名前など）
+// - inCampus: 地図に番号つきで載る関連施設（一中・一高・秀麗館・秀麗寮）を、キャンパスの建物として扱う（ラベル・検索）
+// - levels: 階数の推定（OSM に無く、既定の 4 階では明らかに高すぎる物だけ）
+const OFFICIAL_MAP_BUILDINGS = new Map([
+  // 2-1: 第2学舎1号館は A棟・B棟。B棟は A棟（円い天窓の棟）の北東の端に付く箱
+  ['way_423067212', { name: '第2学舎 1号館 B棟', keywords: ['第2学舎1号館', 'B棟'] }],
+  // 実-1〜6: 第4学舎第1〜6実験棟（OSM の名前は「第N実験棟」）
+  ['way_423067247', { name: '第4学舎 第1実験棟', keywords: ['第1実験棟', '実験棟'] }],
+  ['way_423067250', { name: '第4学舎 第2実験棟', keywords: ['第2実験棟', '実験棟'] }],
+  ['way_423067248', { name: '第4学舎 第3実験棟', keywords: ['第3実験棟', '実験棟'] }],
+  ['way_423067249', { name: '第4学舎 第4実験棟', keywords: ['第4実験棟', '実験棟'] }],
+  ['way_423067251', { name: '第4学舎 第5実験棟', keywords: ['第5実験棟', '実験棟'] }],
+  ['way_423067254', { name: '第4学舎 第6実験棟', keywords: ['第6実験棟', '実験棟'] }],
+  // 24: 弓道場。OSM は sport=archery の名前の無い建物（芝の矢道を囲む L 字の屋根）。地図・空中写真とも低い屋根なので平屋（推定）
+  ['way_490258123', { name: '弓道場', keywords: ['弓道', 'Kyudo Range'], levels: 1 }],
+  // 26: 誠之館2・3号館（関西大学共済会事務局）。地図では 4 つの箱の群に 26 の番号が 1 つ。番号が載るのは OSM の「誠之館　2号館旧館」。
+  // どの箱が 3 号館かは地図から分からないので、名前の無い 2 つ（way 624589994・624589992）は直さない
+  ['way_624589997', { name: '誠之館2・3号館（関西大学共済会事務局）', keywords: ['誠之館2号館旧館', '誠之館3号館', '関西大学共済会'] }],
+  ['way_423067245', { name: '誠之館2号館', keywords: ['誠之館2・3号館', '関西大学共済会事務局'] }],
+  // 39〜41・19: 名前は OSM のままで地図と同じ
+  ['way_497645752', { name: '関西大学第一高等学校', keywords: ['一高', '関大一高'], inCampus: true }],
+  ['way_497645756', { name: '関西大学第一中学校', keywords: ['一中', '関大一中'], inCampus: true }],
+  ['way_497645754', { name: '秀麗館', keywords: ['中学・高校の体育館'], inCampus: true }],
+  ['rel_10704520', { name: '学生国際交流館・秀麗寮', keywords: ['秀麗寮', '留学生', '寮'], inCampus: true }],
 ]);
 
 // OSM way IDs forming the Shurei Bridge / Area 3 elevated pedestrian deck
@@ -400,8 +432,10 @@ function buildStructuresData(nodeMap, wayMap, terrain, origin) {
   const northGround = sampleElevation(terrain, northLoc.x, northLoc.z);
   const zSpan = westLoc.z - northLoc.z;
 
+  // 第3学舎連絡デッキの幅は推定: 持ち主の 2023 年の映像（IMG_6436_018）で、壁の内側の床の幅がカメラの高さの約 2.8 倍
+  // （カメラの高さ 1.4〜1.6m → 3.9〜4.5m、壁の高さ 1.9m との比からは約 4.1m）。内側 4.1m ＋ 両側の壁の厚み 0.25m
   const shureiDefs = [
-    { wayId: 423060539, id: 'bridge-shurei-west', name: '第3学舎連絡デッキ', width: 3.4 },
+    { wayId: 423060539, id: 'bridge-shurei-west', name: '第3学舎連絡デッキ', width: 4.6 },
     { wayId: 423060540, id: 'bridge-shurei-south', name: '新関西大学会館 南棟デッキ', width: 3.6 },
     { wayId: 423060541, id: 'bridge-shurei-north', name: '秀麗橋（南棟〜北棟・法文坂方面）', width: 3.6 },
   ];
@@ -816,6 +850,10 @@ async function main() {
     EXPRESSWAY_PROFILE_WINDOWS,
   } = await tsImport('../packages/core/src/data/campuses/senriyama/expressway.ts', import.meta.url);
   const expresswayMath = await tsImport('../packages/core/src/domain/expressway.ts', import.meta.url);
+  const { SENRIYAMA_GROUNDS_SPEC } = await tsImport(
+    '../packages/core/src/data/campuses/senriyama/grounds.ts',
+    import.meta.url,
+  );
   // 駅舎は TransportBuilder（StationBuilder）が駅の一部として描くので、周辺の建物から外す
   const stationBuildingWayIds = new Set(KANDAIMAE_STATION_SPEC.buildings.map((b) => b.osmWayId));
 
@@ -904,6 +942,7 @@ async function main() {
     }
     if (
       EXCLUDED_CANOPY_BUILDING_IDS.has(el.id) ||
+      GROUND_STRUCTURE_BUILDING_IDS.has(el.id) ||
       stationBuildingWayIds.has(el.id) ||
       el.tags.building === 'roof'
     ) {
@@ -950,16 +989,20 @@ async function main() {
         rb.tags.building !== 'university' &&
         !String(rb.tags.name ?? '').includes('関西大学'));
 
-    const inCampus =
+    const osmInCampus =
       (inUnivPoly ||
         rb.tags.building === 'university' ||
         rb.tags.operator === 'Kansai University') &&
       !isSchoolSouth;
+    // 公式の地図でキャンパスの建物として扱う物も、高さは OSM から決めた扱いのまま（形を変えない）
+    const official = OFFICIAL_MAP_BUILDINGS.get(rb.osmId);
 
     candidateBuildings.push({
       ...rb,
       centroid,
-      inCampus,
+      inCampus: official?.inCampus ?? osmInCampus,
+      osmInCampus,
+      official,
     });
   }
 
@@ -1024,6 +1067,7 @@ async function main() {
 
     const rawName =
       lm?.name ??
+      cb.official?.name ??
       cb.tags.name ??
       cb.tags['name:ja'] ??
       cb.tags['name:en'] ??
@@ -1035,8 +1079,9 @@ async function main() {
         ? inferCampusCategory(cb.tags, cb.centroid)
         : 'surrounding';
 
-    const levels = parseLevels(cb.tags, lm?.defaultLevels ?? (inCampus ? 4 : 2));
-    const height = computeBuildingHeight(cb.tags, levels, inCampus, cb.osmId);
+    const shapeInCampus = Boolean(lm) || cb.osmInCampus;
+    const levels = cb.official?.levels ?? parseLevels(cb.tags, lm?.defaultLevels ?? (shapeInCampus ? 4 : 2));
+    const height = computeBuildingHeight(cb.tags, levels, shapeInCampus, cb.osmId);
 
     const groundY = Number(
       sampleElevation(terrain, cb.centroid.x, cb.centroid.z).toFixed(2),
@@ -1072,13 +1117,15 @@ async function main() {
       inCampus,
       faculties: lm?.faculties ?? [],
       facilityTags: lm?.facilityTags ?? [],
-      keywords: lm?.keywords ?? (rawName ? [rawName] : []),
+      keywords:
+        lm?.keywords ??
+        (cb.official ? [rawName, ...cb.official.keywords] : rawName ? [rawName] : []),
       description:
         lm?.description ??
         (inCampus ? `${rawName}（千里山キャンパス内施設）` : ''),
       architectNote: lm?.architectNote,
       sculptStyle: lm?.sculptStyle ?? 'standard',
-      labelPriority: lm?.labelPriority ?? (inCampus && cb.tags.name ? 7 : 99),
+      labelPriority: lm?.labelPriority ?? (inCampus && (cb.tags.name || cb.official) ? 7 : 99),
       isQuickOrigin: lm?.isQuickOrigin ?? false,
       polygon: cb.polygon,
       holes: cb.holes,
@@ -1199,9 +1246,10 @@ async function main() {
     } else if (
       t.leisure === 'pitch' ||
       t.leisure === 'track' ||
-      t.leisure === 'sports_centre' ||
       t.landuse === 'recreation_ground'
     ) {
+      // leisure=sports_centre（千里山中央グラウンドの敷地の全体。観客席・斜面・木を含む）は塗らない。
+      // トラックとフィールドは GroundsBuilder が structures.grounds から描く
       kind = 'sports-pitch';
     } else if (
       t.landuse === 'grass' ||
@@ -1282,6 +1330,16 @@ async function main() {
     },
     math: expresswayMath,
   });
+  // グラウンド（陸上のトラック・直線の走路・野球場・テニスコート）。寸法・線の位置は推定
+  structures.grounds = buildGroundsData({
+    spec: SENRIYAMA_GROUNDS_SPEC,
+    ringOf: (wayId) => wayToRing(wayMap.get(wayId)),
+    sampleElevation: (x, z) => sampleElevation(terrain, x, z),
+  });
+  console.log(
+    `Grounds: ${structures.grounds.map((g) => `${g.id}(${g.kind}, ${g.elevation}m)`).join(', ')}`,
+  );
+
   structures.tunnelPortals = expressway.portals;
   structures.expressways = expressway.carriageways;
   structures.expresswayPiers = expressway.piers;
