@@ -15,6 +15,7 @@ import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { mergeStaticMeshes } from './mergeStaticMeshes';
 import { SCENE_PALETTE } from './palette';
 import { mergeSimpleGeometries } from './TerrainBuilder';
+import { buildWingShells } from './wingSelection';
 
 export interface MaterialColorEntry {
   mat: THREE.MeshStandardMaterial;
@@ -28,6 +29,11 @@ export interface BuildingMeshRecord {
   baseY: number;
   /** 屋根の色の切り替え用（主役の建物以外）。aerial は空中写真の色、area はエリアごとの塗り分け */
   roofColors?: { entry: MaterialColorEntry; area: string; aerial?: string };
+  /**
+   * 建物の中の棟ごとの面の形（group の座標。棟の id → 形）。棟を持つ建物だけ。選んだ棟を光らせる殻と、
+   * 押した所の棟の判定に使う（wingSelection.ts）。部品をまとめる前に切り出す
+   */
+  wingShells?: Map<string, THREE.BufferGeometry>;
 }
 
 /** 屋根の色の決め方。aerial＝空中写真から読み取った色（無い建物はエリアの色）、area＝エリアごとの塗り分け */
@@ -160,15 +166,19 @@ function getShadeVariant(baseHex: string, id: string): string {
 
 /**
  * 建物 1 棟の group を仕上げる。動かない部品を材質ごとにまとめ（mergeParts のとき。回る物は残す）、
- * まとめた後のメッシュに buildingId を付けて選択の当たり判定の対象に入れる
+ * まとめた後のメッシュに buildingId を付けて選択の当たり判定の対象に入れる。
+ * 建物が棟を持てば、まとめる前（部品の棟の印が残っている間）に棟ごとの面の形を切り出して返す
  */
 function finalizeBuildingGroup(
   group: THREE.Group,
-  buildingId: string,
+  building: BuildingFeature,
   animated: readonly THREE.Object3D[],
   mergeParts: boolean,
   interactiveMeshes: THREE.Object3D[],
-): void {
+): Map<string, THREE.BufferGeometry> | undefined {
+  const buildingId = building.id;
+  const wingShells =
+    building.wings && building.wings.length > 0 ? buildWingShells(group, building.wings) : undefined;
   if (mergeParts) {
     mergeStaticMeshes(group, { keep: animated });
   }
@@ -178,6 +188,7 @@ function finalizeBuildingGroup(
       interactiveMeshes.push(obj);
     }
   });
+  return wingShells;
 }
 
 export function isBuildingWithinDiorama(
@@ -273,7 +284,7 @@ export function buildBuildingsGroup(
       const hero = heroBuilder({ building: b, groundVisualY, sampleGroundVisualY });
       hero.group.name = `building-${b.id}`;
       hero.group.userData = { buildingId: b.id };
-      finalizeBuildingGroup(hero.group, b.id, hero.animated, mergeParts, interactiveMeshes);
+      const wingShells = finalizeBuildingGroup(hero.group, b, hero.animated, mergeParts, interactiveMeshes);
       animatedRotors.push(...hero.animated);
       root.add(hero.group);
       campusRecords.set(b.id, {
@@ -281,6 +292,7 @@ export function buildBuildingsGroup(
         group: hero.group,
         primaryMaterials: hero.primaryMaterials,
         baseY: 0,
+        ...(wingShells ? { wingShells } : {}),
       });
       continue;
     }
@@ -302,7 +314,7 @@ export function buildBuildingsGroup(
         for (const m of sculpted.meshes) {
           spotGroup.add(m);
         }
-        finalizeBuildingGroup(spotGroup, b.id, sculpted.animatedRotors, mergeParts, interactiveMeshes);
+        finalizeBuildingGroup(spotGroup, b, sculpted.animatedRotors, mergeParts, interactiveMeshes);
         animatedRotors.push(...sculpted.animatedRotors);
       } else if (b.sculptStyle !== 'station-platform' && b.sculptStyle !== 'open-space') {
         // 駅（station-platform）は TransportBuilder（StationBuilder）が OSM のホーム・駅舎の輪郭から描くので、目印の台は置かない。
@@ -382,11 +394,12 @@ export function buildBuildingsGroup(
     for (const m of sculpted.meshes) {
       bGroup.add(m);
     }
-    finalizeBuildingGroup(bGroup, b.id, sculpted.animatedRotors, mergeParts, interactiveMeshes);
+    const wingShells = finalizeBuildingGroup(bGroup, b, sculpted.animatedRotors, mergeParts, interactiveMeshes);
     animatedRotors.push(...sculpted.animatedRotors);
 
     root.add(bGroup);
     campusRecords.set(b.id, {
+      ...(wingShells ? { wingShells } : {}),
       building: b,
       group: bGroup,
       primaryMaterials: options.forExport
@@ -420,15 +433,21 @@ export function buildBuildingsGroup(
   };
 }
 
+/**
+ * 選択とカテゴリの絞り込みの見た目。選んだ建物は浮かせて光らせる。
+ * selectedWingId があれば（建物の中の棟を選んでいれば）、建物全体は光らせない（棟だけを WingHighlighter の殻で光らせる）
+ */
 export function applyBuildingVisualStates(
   records: Map<string, BuildingMeshRecord>,
   selectedId: string | null,
   activeCategory: BuildingCategory | 'all',
+  selectedWingId: string | null = null,
 ): void {
   const highlightColor = new THREE.Color(SCENE_PALETTE.accents.highlight);
 
   for (const [id, rec] of records.entries()) {
     const isSelected = id === selectedId;
+    const glowsWhole = isSelected && !selectedWingId;
     const isDimmed =
       activeCategory !== 'all' && rec.building.category !== activeCategory && !isSelected;
 
@@ -438,7 +457,7 @@ export function applyBuildingVisualStates(
         entry.mat.color.lerp(new THREE.Color('#DDD8CE'), 0.65);
         entry.mat.emissive.set('#000000');
         entry.mat.emissiveIntensity = 0;
-      } else if (isSelected) {
+      } else if (glowsWhole) {
         entry.mat.emissive.copy(highlightColor);
         entry.mat.emissiveIntensity = 0.26;
       } else {

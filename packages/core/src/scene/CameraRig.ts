@@ -288,12 +288,16 @@ export class CameraRig {
     exag: number,
   ): void {
     const ty = computeVisualY(building.groundY, minElevation, exag) + building.height * 0.45;
-    const target: [number, number, number] = [
-      building.centroid.x,
-      ty,
-      building.centroid.z,
-    ];
+    const horizDist = building.isSpotOnly ? 135 : 165;
+    const heightOffset = building.isSpotOnly ? 105 : 128;
+    this.focusOn([building.centroid.x, ty, building.centroid.z], horizDist, heightOffset);
+  }
 
+  /**
+   * 注視点 target へ寄る。今の向き（水平）のまま、水平に horizDist、上に heightOffset 離れた所から見る
+   * （建物・建物の中の棟を選んだとき）
+   */
+  focusOn(target: [number, number, number], horizDist: number, heightOffset: number): void {
     const currentDir = new THREE.Vector3().subVectors(
       this.camera.position,
       this.controls.target,
@@ -305,12 +309,10 @@ export class CameraRig {
       currentDir.normalize();
     }
 
-    const horizDist = building.isSpotOnly ? 135 : 165;
-    const heightOffset = building.isSpotOnly ? 105 : 128;
     const pos: [number, number, number] = [
-      building.centroid.x + currentDir.x * horizDist,
-      ty + heightOffset,
-      building.centroid.z + currentDir.z * horizDist,
+      target[0] + currentDir.x * horizDist,
+      target[1] + heightOffset,
+      target[2] + currentDir.z * horizDist,
     ];
 
     this.flyTo(pos, target, 720);
