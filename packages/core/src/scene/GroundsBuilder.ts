@@ -7,6 +7,7 @@ import type {
   GroundFeature,
   TerrainGrid,
 } from '../domain/types';
+import { HERO_ROOF_DECKS } from './heroes/roofDecks';
 import { mergeSimpleGeometries } from './TerrainBuilder';
 
 /**
@@ -21,6 +22,8 @@ import { mergeSimpleGeometries } from './TerrainBuilder';
 const PLATE_LIFT_M = 0.12;
 /** 屋上のコートの面の高さ（建物の屋根の上から。屋根の面取りの厚み 0.25m の上） */
 const ROOF_PLATE_LIFT_M = 0.35;
+/** 主役の形の屋上（面取りの無い平らな面）に置くときの浮かせ方。奥行きは面の材質で手前へずらしてある */
+const HERO_ROOF_PLATE_LIFT_M = 0.05;
 /** テクスチャの 1m あたりの画素（線が地図の縮尺で見える太さになるよう、細い線は最小の太さで描く） */
 const PX_PER_M = 8;
 const ATLAS_WIDTH = 2048;
@@ -410,7 +413,10 @@ function plainColorOf(g: GroundFeature): string {
   return COLORS.track;
 }
 
-/** 面の高さ（表示の y）。屋上のコートは建物の屋根の上 */
+/**
+ * 面の高さ（表示の y）。屋上のコートは建物の屋根の上。主役の形が屋上の高さを決めている建物（HERO_ROOF_DECKS）は、
+ * データの高さ（building.height）ではなくその屋上に置く（主役の形と浮き・めり込みが出ないように）
+ */
 export function groundPlateY(
   g: GroundFeature,
   buildingsById: ReadonlyMap<string, BuildingFeature>,
@@ -421,7 +427,10 @@ export function groundPlateY(
   if (roofOf) {
     const b = buildingsById.get(roofOf);
     if (!b) return null;
-    return computeVisualY(b.groundY, minElevation, exag) + b.height + ROOF_PLATE_LIFT_M;
+    const base = computeVisualY(b.groundY, minElevation, exag);
+    const hero = HERO_ROOF_DECKS[roofOf];
+    if (hero) return base + hero.deckM + HERO_ROOF_PLATE_LIFT_M;
+    return base + b.height + ROOF_PLATE_LIFT_M;
   }
   return computeVisualY(g.elevation, minElevation, exag) + PLATE_LIFT_M;
 }
@@ -639,7 +648,9 @@ export function buildGroundsGroup(
     const walls = grandstandWalls(g, minElev, exag, concreteUv);
     if (walls) plates.push(walls);
 
-    if (g.tennis) pushFence(netPos, g.polygon, y, g.tennis.fenceHeightM, true);
+    // 主役の形が屋上の囲いを作っている建物（第4学舎3号館の半透明の板）には網の柵を重ねない
+    const heroEnclosed = g.tennis?.roofOf ? HERO_ROOF_DECKS[g.tennis.roofOf]?.enclosure === true : false;
+    if (g.tennis && !heroEnclosed) pushFence(netPos, g.polygon, y, g.tennis.fenceHeightM, true);
     if (g.baseball) pushFence(wallPos, g.baseball.fence, y - 0.3, g.baseball.fenceHeightM + 0.3, false);
   }
 

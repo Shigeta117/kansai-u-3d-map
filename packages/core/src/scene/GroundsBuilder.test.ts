@@ -6,6 +6,7 @@ import { SENRIYAMA_CONFIG } from '../data/campuses/senriyama/config';
 import { computeVisualY, sampleElevation } from '../domain/projection';
 import type { BuildingFeature, CampusStructuresData, GroundFeature, TerrainGrid } from '../domain/types';
 import { buildGroundsGroup, carveTerrainForGrounds, groundPlateY } from './GroundsBuilder';
+import { AREA43_ROOF_DECK_M } from './heroes/area4-3';
 
 /** グラウンド（public/data/senriyama の実データで確かめる） */
 const dataDir = path.resolve(process.cwd(), 'public/data/senriyama');
@@ -172,7 +173,7 @@ describe('グラウンドの造形', () => {
     expect(checked).toBeGreaterThan(20);
   });
 
-  it('lays each surface just above the flattened ground, and the rooftop courts on the roof of 第4学舎3号館', () => {
+  it('lays each surface just above the flattened ground, and the rooftop courts on the hero roof deck of 第4学舎3号館', () => {
     if (!surface) throw new Error('surface missing');
     for (const g of grounds) {
       const y = groundPlateY(g, buildingsById, terrain.minElevation, exag);
@@ -197,12 +198,30 @@ describe('グラウンドの造形', () => {
         expect(y! - groundY).toBeLessThan(0.3);
       }
     }
+    // 3号館は主役の形（heroes/area4-3.ts）の屋上の面の上に置く（データの高さ b.height ではない）
     const roof = byId('tennis-area4-3-roof');
     const b = buildingsById.get('area4-3')!;
-    const roofY = computeVisualY(b.groundY, terrain.minElevation, exag) + b.height;
+    const deckY = computeVisualY(b.groundY, terrain.minElevation, exag) + AREA43_ROOF_DECK_M;
     const y = groundPlateY(roof, buildingsById, terrain.minElevation, exag)!;
-    expect(y - roofY).toBeGreaterThan(0.2);
-    expect(y - roofY).toBeLessThan(0.6);
+    expect(y - deckY).toBeGreaterThan(0.02);
+    expect(y - deckY).toBeLessThan(0.1);
+  });
+
+  it('does not put a net fence on the roof of 第4学舎3号館 (the hero model has its own translucent screen)', () => {
+    const nets = group.getObjectByName('grounds-net-fences') as THREE.Mesh;
+    const roof = byId('tennis-area4-3-roof');
+    const pos = nets.geometry.getAttribute('position');
+    // 屋上の輪郭を少し広げた範囲に、網の柵の頂点が 1 つも無い
+    const cx = roof.polygon.reduce((s2, p) => s2 + p[0], 0) / roof.polygon.length;
+    const cz = roof.polygon.reduce((s2, p) => s2 + p[1], 0) / roof.polygon.length;
+    const grown = roof.polygon.map(([x, z]) => [cx + (x - cx) * 1.1, cz + (z - cz) * 1.1] as P2);
+    let onRoof = 0;
+    for (let i = 0; i < pos.count; i++) {
+      if (inside([pos.getX(i), pos.getZ(i)], grown)) onRoof++;
+    }
+    expect(onRoof).toBe(0);
+    // ほかの 2 か所のテニスコートの網の柵は残る
+    expect(pos.count).toBeGreaterThan(0);
   });
 
   it('raises the outfield fence and the tennis net fences', () => {
