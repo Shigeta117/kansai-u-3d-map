@@ -232,13 +232,22 @@ export function resolveBuildingPick(
   return { buildingId, wingId: wing?.id ?? null };
 }
 
-/** 選んだ棟に重ねる薄い光の殻（加算で明るくする。下の面と同じ位置に描くので、少し手前に寄せて勝たせる） */
+/**
+ * 選んだ棟に重ねる薄い光の殻。下の色を 30% 薄めて、選んだ建物を光らせる色（accents.highlight）の暗めの光を足す
+ * （結果 = 光 ＋ 下の色 × 0.7）。加算だけだと明るいタイルの壁が白く飛び、半透明で重ねるだけだと塗ったように暗くなるので、
+ * 両方を混ぜて建物全体を選んだときの光らせ方（同じ色の emissive）に近い色味にする。
+ * 下の面と同じ位置に描くので、少し手前に寄せて勝たせる
+ */
 export function createWingShellMaterial(clippingPlanes: THREE.Plane[] = []): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
-    color: SCENE_PALETTE.accents.highlight,
+    color: new THREE.Color(SCENE_PALETTE.accents.highlight).multiplyScalar(0.2),
     transparent: true,
-    opacity: 0.34,
-    blending: THREE.AdditiveBlending,
+    opacity: 0.3,
+    toneMapped: false,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -1,
