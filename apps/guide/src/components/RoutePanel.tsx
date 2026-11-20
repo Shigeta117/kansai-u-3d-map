@@ -115,6 +115,8 @@ export function RoutePanel({
   // 開いたときは呼び出し元の指定。前回の値と比べて描画中に直す（React の「前の props を覚える」作法）
   const routeKey = route ? `${route.mode}:${route.fromId}:${route.toId}` : null;
   const [seenRouteKey, setSeenRouteKey] = useState(routeKey);
+  // 朝は上りのみのエスカレーターの注意は、既定で畳んでおく（チップを押すと 1 行の説明）
+  const [rushNoteOpen, setRushNoteOpen] = useState(false);
   const [seenPicking, setSeenPicking] = useState(pickingTarget);
   const [seenOpen, setSeenOpen] = useState(open);
   let nextSnap = snap;
@@ -343,12 +345,28 @@ export function RoutePanel({
                 高架デッキ経由
               </span>
             ) : null}
-            {route.usesEscalator && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F6EE] px-2.5 py-0.5 text-[10.5px] font-bold text-[#217058]">
-                <TrendingUp className="h-3 w-3" />
-                屋外エスカレーター利用
-              </span>
-            )}
+            {route.usesEscalator &&
+              (usesRushHourDownEscalator(route) ? (
+                <button
+                  type="button"
+                  data-testid="escalator-rush-note"
+                  aria-expanded={rushNoteOpen}
+                  aria-controls="escalator-rush-detail"
+                  onClick={() => setRushNoteOpen((open) => !open)}
+                  className="t-interactive inline-flex items-center gap-1 rounded-full bg-[#FEF3DF] px-2.5 py-0.5 text-[10.5px] font-bold text-[#9A4E10]"
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  エスカレーター 朝は上りのみ
+                  <ChevronDown
+                    className={`h-3 w-3 transition-transform duration-150 ${rushNoteOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#E5F6EE] px-2.5 py-0.5 text-[10.5px] font-bold text-[#217058]">
+                  <TrendingUp className="h-3 w-3" />
+                  屋外エスカレーター利用
+                </span>
+              ))}
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold tabular-nums ${
                 route.maxSlopeRatio > STEEP_SLOPE_RATIO
@@ -361,12 +379,9 @@ export function RoutePanel({
             </span>
           </div>
 
-          {usesRushHourDownEscalator(route) && (
-            <p
-              data-testid="escalator-rush-note"
-              className="rounded-xl border border-[#EBD9B4] bg-[#FDF7EA] px-3 py-1.5 text-[11px] leading-relaxed text-[#6B4A12]"
-            >
-              西門の新アクセス路のエスカレーターは、授業日（土曜を含む）の 8:00〜11:00 は 2 台とも上りになり、下りは階段になります（大学のバリアフリーマップの冊子、2019〜2021 年の資料）。この経路は下りでエスカレーターを使います。
+          {usesRushHourDownEscalator(route) && rushNoteOpen && (
+            <p id="escalator-rush-detail" className="-mt-1 px-1 text-[11px] text-[#6B4A12]">
+              授業日 8:00〜11:00 は 2 台とも上り。下りは階段です。
             </p>
           )}
 
