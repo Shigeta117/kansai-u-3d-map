@@ -33,6 +33,8 @@
    - ホーム（`railway=platform` way `467581838`・`467581839`）と駅舎（`building=train_station` way `529826319`・`668430803`・`668430804`）を `transport.json` の `stationFacilities` に出し、`StationBuilder` が描く（駅舎は周辺の建物から外す）。仕様は `packages/core/src/data/campuses/senriyama/station.ts`。
    - 上屋は国土地理院の空中写真（seamlessphoto, z18）で屋根が見える 1 番線の南端（駅舎 `668430804` の横）だけ。屋根の色は空中写真から読んだ色。駅舎の高さ（平屋 4〜4.5m）・上屋の高さ（ホームから 3m）は推定。
 5. **車道の短い橋**: `bridge=yes` で長さ 15m 未満の車道（暗渠の上など）は地面に沿った帯で描く（帯が途切れないように）。
+   - **以文館の連絡通路**（way `490801252`、`highway=footway`・`tunnel=yes`・`layer=-1`）: トンネルなので道の帯は描かない。両側の道（`path_423060577`・`path_490801256`）は通路の口で終わり、`walk-graph.json` では両端が 23.9m の辺でつながる。通路の形（アーチの天井・腰壁・床の坂）は以文館の専用モデル（`scene/heroes/ibunkan.ts`）が描く。幅・高さなどの寸法は持ち主の 2023 年の映像から読んだ推定
+   - **第3学舎連絡デッキの屋根と壁**（way `423060539` のうち、道路 `path_158856536` をまたぐ区間）: `BridgeBuilder` の `DECK_ROOF_SECTIONS` で、高いコンクリートの壁と網状の金属のアーチの屋根を足す。壁と屋根の高さは持ち主の 2023 年の映像から読んだ推定。デッキの幅（3.4m）はデータの既定値で、映像では 4〜4.5m ほどに見える
 6. **3モード歩行グラフ（最短 / 坂ひかえめ / 完全段差フリー）**:
    - `step-free` モード時は `isSteps` および `isEscalator` エッジコストを `Infinity` とし、`accessibleWalkNodeId`（階段・エスカレーターを含まない主連結成分 2,125ノード）を用いて探索。
 
