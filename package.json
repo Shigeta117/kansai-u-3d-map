@@ -16,7 +16,7 @@
     "preview:guide": "npm -w apps/guide run preview",
     "preview:lite": "npm -w apps/lite run preview",
     "build": "npm -w apps/guide run build && npm -w apps/lite run build",
-    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p apps/guide/tsconfig.json --noEmit && tsc -p apps/lite/tsconfig.json --noEmit",
+    "typecheck": "tsc -p packages/core/tsconfig.json --noEmit && tsc -p apps/guide/tsconfig.json --noEmit && tsc -p apps/lite/tsconfig.json --noEmit && tsc -p tsconfig.e2e.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
