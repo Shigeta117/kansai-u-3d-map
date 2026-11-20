@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AREA3_WING_IDS,
   SENRIYAMA_LANDMARKS,
+  SENRIYAMA_WINGS,
   searchLocationItems,
   type BuildingFeature,
 } from '@kansai-u-3d/core';
@@ -180,5 +182,34 @@ describe('SENRIYAMA_FLOOR_PLANS sourced connectors (P0a)', () => {
     expect([de.fromBuildingId, de.fromFloor, de.toBuildingId, de.toFloor]).toEqual(['area1-4', 2, 'area1-5', 1]);
     // 以前の出典の無い 12 件（全部 2 階 ↔ 2 階）が戻っていない
     expect(all.some((item) => item.conn.id.startsWith('conn-'))).toBe(false);
+  });
+});
+
+describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行。今は第3学舎だけ）', () => {
+  const area3Ids = new Map(SENRIYAMA_WINGS.filter((w) => w.id.startsWith('area3-')).map((w) => [w.id, w]));
+
+  it('gives every 第3学舎 room the id of its wing, matching the wing name and the room code letter', () => {
+    const rooms = SENRIYAMA_FLOOR_PLANS.area3?.rooms ?? [];
+    expect(rooms.length).toBeGreaterThan(15);
+    for (const room of rooms) {
+      const wing = room.wingId ? area3Ids.get(room.wingId) : undefined;
+      expect(wing, room.id).toBeDefined();
+      if (!wing) continue;
+      // 表示の名前（'3号館 C棟'）と棟の表がそろう
+      expect(room.wing).toBe(`${wing.hallName} ${wing.name}`);
+      // 部屋の番号の頭の文字（C301 の C）が棟の記号と同じ（'B1F カフェソシオ' の B1F は地下 1 階で、棟ではない）
+      const letter = /^[A-D](?=\d{3})/.exec(room.code)?.[0];
+      if (letter) expect(`area3-${letter.toLowerCase()}`, room.id).toBe(room.wingId);
+    }
+    // 4 棟とも部屋がある
+    expect(new Set(rooms.map((r) => r.wingId)).size).toBe(4);
+    expect(rooms.find((r) => r.id === 'a3-cafe-socio')?.wingId).toBe(AREA3_WING_IDS.a);
+  });
+
+  it('keeps the other buildings on the free wing names for now (moved in P2)', () => {
+    for (const [id, plan] of Object.entries(SENRIYAMA_FLOOR_PLANS)) {
+      if (id === 'area3') continue;
+      for (const room of plan.rooms) expect(room.wingId, room.id).toBeUndefined();
+    }
   });
 });
