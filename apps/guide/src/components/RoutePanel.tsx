@@ -366,7 +366,7 @@ export function RoutePanel({
               data-testid="escalator-rush-note"
               className="rounded-xl border border-[#EBD9B4] bg-[#FDF7EA] px-3 py-1.5 text-[11px] leading-relaxed text-[#6B4A12]"
             >
-              西門の新アクセス路のエスカレーターは、朝のラッシュ時は 2 台とも上りになり、下りは階段になります（持ち主の確認、2026-11-20）。この経路は下りでエスカレーターを使います。
+              西門の新アクセス路のエスカレーターは、授業日（土曜を含む）の 8:00〜11:00 は 2 台とも上りになり、下りは階段になります（大学のバリアフリーマップの冊子、2019〜2021 年の資料）。この経路は下りでエスカレーターを使います。
             </p>
           )}
 

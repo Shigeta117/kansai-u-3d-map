@@ -364,7 +364,7 @@ describe('routing (3-mode + bridges + step-free)', () => {
     }
     expect(checkedPairs).toBeGreaterThan(0);
   });
-  describe('エスカレーターの向き（朝のラッシュ時の注意 #31）', () => {
+  describe('エスカレーターの向き（授業日の朝の注意 #31）', () => {
     const live = () => {
       const dataDir = path.resolve(process.cwd(), 'public/data/senriyama');
       const buildings = JSON.parse(

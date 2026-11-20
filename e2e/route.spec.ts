@@ -115,7 +115,7 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(panel.getByTestId('route-distance')).toHaveText(/^\d+m$/);
     await expect(panel.getByText('屋外エスカレーター利用')).toBeVisible();
     await expect(note).toBeVisible();
-    await expect(note).toContainText('朝のラッシュ時は 2 台とも上りになり、下りは階段になります');
+    await expect(note).toContainText('8:00〜11:00 は 2 台とも上りになり、下りは階段になります');
 
     // 出発と到着を入れ替えると上りだけになり、注意は出ない
     await panel.getByRole('button', { name: /入れ替え/ }).click();

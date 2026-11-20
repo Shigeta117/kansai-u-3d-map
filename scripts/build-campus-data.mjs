@@ -690,7 +690,7 @@ function buildWalkGraphAndPaths(
           isBridge,
           isShureiBridge,
           isEscalator,
-          // 新アクセス路のエスカレーター 2 台は朝のラッシュ時に全機上りになる（持ち主の確認、2026-11-20）。
+          // 新アクセス路のエスカレーター 2 台は授業日の 8:00〜11:00 に全機上りになる（大学のバリアフリーマップの冊子、2019〜2021 年。今も続くことは持ち主の確認 2026-11-20）。
           // OSM では 1 本の way（923172458）に載っている。ほかのエスカレーターの運用は未確認
           rushHourUpOnly: isEscalator && NEW_ACCESS_WAY_IDS.includes(el.id),
         });
