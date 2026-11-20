@@ -5,6 +5,7 @@ import { getCampusConfig } from '../domain/campus-registry';
 import type { BuildingFeature, TerrainGrid } from '../domain/types';
 import { buildBuildingsGroup } from './BuildingBuilder';
 import { dropExtrudeBottomLid } from './extrudeLids';
+import { HERO_BUILDERS } from './heroes';
 
 function readData<T>(file: string): T {
   const url = new URL(`../../../../public/data/senriyama/${file}`, import.meta.url);
@@ -141,6 +142,17 @@ function worldTris(mesh: THREE.Mesh, range?: { start: number; count: number }): 
   return out;
 }
 
+const triangle = new THREE.Triangle();
+/** 同じ平面（2mm 以内）・同じ向きで、片方の重心がもう片方の内側にある（z-fighting になる重なり） */
+function overlapsCoplanar(p: Tri, q: Tri): boolean {
+  if (p.n.dot(q.n) < 0.999) return false;
+  if (Math.abs(p.n.dot(q.a) - p.d) > 0.002) return false;
+  if (Math.abs(p.n.dot(q.b) - p.d) > 0.002 || Math.abs(p.n.dot(q.c) - p.d) > 0.002) return false;
+  const pc = p.a.clone().add(p.b).add(p.c).divideScalar(3);
+  const qc = q.a.clone().add(q.b).add(q.c).divideScalar(3);
+  return triangle.set(q.a, q.b, q.c).containsPoint(pc) || triangle.set(p.a, p.b, p.c).containsPoint(qc);
+}
+
 describe('組み上げたシーンの押し出しの蓋', () => {
   const terrain = readData<TerrainGrid>('terrain.json');
   const buildings = readData<BuildingFeature[]>('buildings.json');
@@ -196,5 +208,37 @@ describe('組み上げたシーンの押し出しの蓋', () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+
+  // 下向きの蓋（床）は調べない。地面の下か基壇の中に隠れる（百周年の各部は基壇の上面の 5cm 下から立ち上げるので、
+  // 床どうしが同じ高さで重なるが、外からは見えない）
+  it('主役の建物で、押し出しの屋根・端の面と同じ平面・同じ向きに重なる別の面が無い（二重の面のちらつき）', () => {
+    const doubled = new Set<string>();
+    for (const id of Object.keys(HERO_BUILDERS)) {
+      const group = built.root.getObjectByName(`building-${id}`);
+      if (!group) throw new Error(`building-${id} missing`);
+      const meshes: THREE.Mesh[] = [];
+      group.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && !(obj instanceof THREE.InstancedMesh) && obj.visible) meshes.push(obj);
+      });
+      for (const mesh of meshes) {
+        if ((mesh.geometry as THREE.BufferGeometry).type !== 'ExtrudeGeometry') continue;
+        const lid = mesh.geometry.groups.find((g) => g.materialIndex === 0);
+        if (!lid) continue;
+        const lidTris = worldTris(mesh, lid).filter((t) => t.n.y > -0.9);
+        for (const other of meshes) {
+          if (other === mesh) continue;
+          const otherTris = worldTris(other);
+          for (const p of lidTris) {
+            const hit = otherTris.find((q) => overlapsCoplanar(p, q));
+            if (hit) {
+              doubled.add(`${id}: ${p.owner} × ${hit.owner}`);
+              break;
+            }
+          }
+        }
+      }
+    }
+    expect([...doubled]).toEqual([]);
   });
 });
