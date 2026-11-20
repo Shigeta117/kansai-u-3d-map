@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { applyBuildingWings } from '../data/loadCampusData';
 import type { BuildingFloorPlan } from './indoor-types';
 import {
   expandRoomRange,
@@ -224,5 +225,86 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
       expect(spot?.sculptStyle).toBe('open-space');
       expect(spot?.accessibleWalkNodeId).toBeTruthy();
     }
+  });
+});
+
+describe('第3学舎の棟の検索（その棟を選んだ状態で開く）', () => {
+  const buildings = applyBuildingWings(
+    JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), 'public/data/senriyama/buildings.json'), 'utf8'),
+    ) as BuildingFeature[],
+  );
+  // 部屋のデータの形だけを写した小さい表（本物は apps/guide の senriyama-indoor.ts）
+  const plans: Record<string, BuildingFloorPlan> = {
+    area3: {
+      buildingId: 'area3',
+      floors: [],
+      entrances: [],
+      connectors: [],
+      rooms: [
+        { id: 'a3-a101', code: 'A101', name: 'A101教室', floor: 1, kind: 'lecture', wing: '1号館 A棟', wingId: 'area3-a' },
+        {
+          id: 'a3-c301-304',
+          code: 'C301〜C304',
+          name: 'C301〜C304教室',
+          floor: 3,
+          kind: 'lecture',
+          wing: '3号館 C棟',
+          wingId: 'area3-c',
+          searchableCodes: expandRoomRange('C', 301, 304),
+        },
+      ],
+    },
+    'area1-3': {
+      buildingId: 'area1-3',
+      wingLabel: 'C棟（3号館）',
+      floors: [],
+      entrances: [],
+      connectors: [],
+      rooms: [
+        { id: 'c101', code: 'C101〜C104', name: 'C101〜C104教室', floor: 1, kind: 'lecture', wing: 'C棟', searchableCodes: expandRoomRange('C', 101, 104) },
+        { id: 'c301', code: 'C301〜C304', name: 'C301〜C304教室', floor: 3, kind: 'lecture', wing: 'C棟', searchableCodes: expandRoomRange('C', 301, 304) },
+      ],
+    },
+  };
+
+  it.each(['C棟', '3号館', '3号館C棟', '第3学舎 C棟', '第3学舎3号館', 'C棟（3号館）', '３号館 Ｃ棟'])(
+    'puts 第3学舎 3号館 C棟 first for "%s"',
+    (query) => {
+      const top = searchLocationItems(buildings, plans, query)[0];
+      expect(top).toMatchObject({
+        kind: 'building',
+        buildingId: 'area3',
+        wingId: 'area3-c',
+        title: '第3学舎 3号館 C棟',
+        subtitle: '第3学舎（社会） ・ 地上 10 階',
+      });
+    },
+  );
+
+  it('still lists the C棟 rooms of the other 学舎 below the wing', () => {
+    const res = searchLocationItems(buildings, plans, 'C棟');
+    expect(res.filter((i) => i.buildingId === 'area1-3' && i.kind === 'room').length).toBeGreaterThan(0);
+    expect(res.filter((i) => i.wingId).map((i) => i.wingId)).toEqual(['area3-c', 'area3-c']);
+  });
+
+  it('does not list the 4 wings for the 学舎 name alone or a single letter', () => {
+    for (const q of ['第3学舎', '第3', 'c', 'C']) {
+      expect(searchLocationItems(buildings, plans, q).filter((i) => i.key.startsWith('wing:'))).toEqual([]);
+    }
+    expect(searchLocationItems(buildings, plans, '第3学舎')[0]?.buildingId).toBe('area3');
+  });
+
+  it('carries the wing id on rooms that have one (C301 opens the C wing on 3F)', () => {
+    const c301 = searchLocationItems(buildings, plans, 'C301');
+    const area3Room = c301.find((i) => i.buildingId === 'area3');
+    expect(area3Room).toMatchObject({ kind: 'room', wingId: 'area3-c', floor: 3, roomCode: 'C301' });
+    // 棟の id を持たない部屋（第1学舎）には付けない
+    expect(c301.find((i) => i.buildingId === 'area1-3')?.wingId).toBeUndefined();
+  });
+
+  it('follows the category filter', () => {
+    expect(searchLocationItems(buildings, plans, 'C棟', 'area1').some((i) => i.wingId)).toBe(false);
+    expect(searchLocationItems(buildings, plans, 'C棟', 'area3')[0]?.wingId).toBe('area3-c');
   });
 });

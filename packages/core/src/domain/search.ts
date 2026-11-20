@@ -1,5 +1,6 @@
 import type { BuildingFloorPlan, LocationSearchItem } from './indoor-types';
 import type { BuildingCategory, BuildingFeature, FacilityTag } from './types';
+import { findWing, wingFloorsText, wingLabel, wingSearchAliases, wingTitle, type Wing } from './wings';
 
 export interface CategoryFilterOption {
   id: BuildingCategory | 'all';
@@ -158,6 +159,26 @@ export function searchBuildings(
   return scored.map((s) => s.building);
 }
 
+/**
+ * 棟の名前で検索したときの点数（0 は当たらない）。名前がそのまま一致すれば 140（部屋の番号の一致 142 のすぐ下で、
+ * 棟の名前を含む部屋〈64〉より上）、2 文字以上の頭の一致は 85。学舎の名前（'第3学舎'）だけでは棟を出さない
+ * （建物の候補の下に 4 棟が並ばないように）
+ */
+export function scoreWingMatch(wing: Wing, normalizedQuery: string): number {
+  if (normalizedQuery.length < 2) return 0;
+  const school = normalizeSearchText(wing.school);
+  let best = 0;
+  for (const alias of wingSearchAliases(wing)) {
+    const a = normalizeSearchText(alias);
+    if (a === normalizedQuery) return 140;
+    if (a.startsWith(normalizedQuery)) {
+      const onlySchoolName = school.length > 0 && a.startsWith(school) && normalizedQuery.length <= school.length;
+      if (!onlySchoolName) best = Math.max(best, 85);
+    }
+  }
+  return best;
+}
+
 export function searchLocationItems(
   buildings: BuildingFeature[],
   floorPlans: Record<string, BuildingFloorPlan>,
@@ -192,6 +213,30 @@ export function searchLocationItems(
   );
 
   if (normalized.length > 0) {
+    // 建物の中の棟（第3学舎の A〜D棟など）。選ぶとその棟を選んだ状態で開く
+    for (const b of matchedBuildingsForWings(buildings, categoryFilter)) {
+      for (const wing of b.wings ?? []) {
+        const score = scoreWingMatch(wing, normalized);
+        if (score <= 0) continue;
+        items.push({
+          item: {
+            key: `wing:${b.id}:${wing.id}`,
+            kind: 'building',
+            buildingId: b.id,
+            wingId: wing.id,
+            wing: wingLabel(wing),
+            title: wingTitle(wing),
+            subtitle: `${getCategoryLabel(b.category)} ・ ${wingFloorsText(wing)}`,
+            category: b.category,
+            groundY: b.groundY,
+            walkNodeId: b.walkNodeId,
+            accessibleWalkNodeId: b.accessibleWalkNodeId,
+          },
+          score,
+        });
+      }
+    }
+
     for (const plan of Object.values(floorPlans)) {
       const b = buildingMap.get(plan.buildingId);
       if (!b) continue;
@@ -267,6 +312,7 @@ export function searchLocationItems(
               category: b.category,
               floor: room.floor,
               wing: room.wing,
+              ...(findWing(b, room.wingId) ? { wingId: room.wingId } : {}),
               roomCode: matchedSpecificCode ?? room.code,
               groundY: b.groundY,
               walkNodeId: b.walkNodeId,
@@ -281,4 +327,17 @@ export function searchLocationItems(
 
   items.sort((a, b) => b.score - a.score);
   return items.map((x) => x.item);
+}
+
+/** 棟を持つ建物（検索の対象で、カテゴリの絞り込みに合う物） */
+function matchedBuildingsForWings(
+  buildings: BuildingFeature[],
+  categoryFilter: BuildingCategory | 'all',
+): BuildingFeature[] {
+  return buildings.filter(
+    (b) =>
+      (b.wings?.length ?? 0) > 0 &&
+      isSearchableBuilding(b) &&
+      (categoryFilter === 'all' || b.category === categoryFilter),
+  );
 }
