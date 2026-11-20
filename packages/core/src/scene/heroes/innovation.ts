@@ -166,11 +166,11 @@ function createGlassBoxTexture(levelFractions: readonly number[]): THREE.CanvasT
   canvas.height = h;
   const g = canvas.getContext('2d');
   if (!g) return null;
-  // 空の映り込み（上ほど明るい）
+  // 空の映り込み（上ほど明るい）。長い棟のルーバーと同じ系統の淡い青緑に寄せる（3 回目のレビュー）
   const sky = g.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, '#EEF2F3');
-  sky.addColorStop(0.5, '#D3DCDF');
-  sky.addColorStop(1, '#BCC7CA');
+  sky.addColorStop(0, '#E7F1EE');
+  sky.addColorStop(0.5, '#CADCD7');
+  sky.addColorStop(1, '#B3C8C2');
   g.fillStyle = sky;
   g.fillRect(0, 0, w, h);
   const yOf = (f: number): number => Math.round(h * (1 - f));
@@ -189,14 +189,14 @@ function createGlassBoxTexture(levelFractions: readonly number[]): THREE.CanvasT
     // 天井の照明（暖色の小さな点。決まった並び）
     g.fillStyle = 'rgba(252, 238, 200, 0.95)';
     for (const x of [0.16, 0.42, 0.68, 0.9]) g.fillRect(Math.round(x * w) - 4, y0 + 5, 8, 3);
-    // 階段の斜めの手すりと段の裏（階ごとに向きを変える折り返し）
+    // 階段の段の裏（斜めの淡い帯）と手すり。階ごとに向きを変える折り返しを面の左の 4 割に収め、薄く描く
+    // （濃く面いっぱいに描くと、長い棟の筋交いのようなジグザグに見えた。3 回目のレビュー）
     const left = i % 2 === 0;
-    const xa = left ? 0.08 : 0.58;
-    const xb = left ? 0.52 : 0.08;
-    // 段の裏（斜めの帯）と、その上の明るい手すり
+    const xa = left ? 0.06 : 0.42;
+    const xb = left ? 0.42 : 0.06;
     const ax = Math.round(xa * w);
     const bx = Math.round(xb * w);
-    g.fillStyle = 'rgba(112, 124, 130, 0.8)';
+    g.fillStyle = 'rgba(112, 124, 130, 0.3)';
     g.beginPath();
     g.moveTo(ax, y1 - 3);
     g.lineTo(bx, y0 + 9);
@@ -204,19 +204,21 @@ function createGlassBoxTexture(levelFractions: readonly number[]): THREE.CanvasT
     g.lineTo(ax, y1 + 3);
     g.closePath();
     g.fill();
-    g.strokeStyle = 'rgba(240, 242, 242, 0.95)';
+    g.strokeStyle = 'rgba(240, 242, 242, 0.45)';
     g.lineWidth = 1;
     g.beginPath();
     g.moveTo(ax, y1 - 10);
     g.lineTo(bx, y0 + 2);
     g.stroke();
   }
-  // 各階の床の縁（ガラスの奥の灰色の帯）
-  g.fillStyle = '#8E989C';
+  // 目立たせるのは各階の床の縁（ガラスの奥の灰色の帯）と、縦の方立て（外の銀の方立てと同じ 7 区画）
+  g.fillStyle = '#7C878A';
   for (const f of levelFractions) {
     const y = yOf(f);
-    g.fillRect(0, Math.max(0, y - 2), w, 4);
+    g.fillRect(0, Math.max(0, y - 2), w, 5);
   }
+  g.fillStyle = 'rgba(236, 240, 240, 0.9)';
+  for (let k = 0; k <= 7; k++) g.fillRect(Math.min(w - 2, Math.round((k * w) / 7) - 1), 0, 2, h);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
