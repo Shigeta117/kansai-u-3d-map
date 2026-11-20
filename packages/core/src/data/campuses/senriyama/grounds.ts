@@ -90,6 +90,11 @@ export interface GrandstandSpec {
   /** 座席の色と通路の色（空中写真の色） */
   seatHex: string;
   aisleHex: string;
+  /**
+   * 観客席の輪郭から外す建物（OSM の way）と、建物の輪郭から空ける幅（m）。輪郭を幅だけ外へ広げた範囲を
+   * 観客席の輪郭から引く（データの生成 scripts/lib/grounds-data.mjs の subtractConvex）
+   */
+  keepClearOf?: { wayId: number; clearanceM: number }[];
 }
 
 export interface GroundsSpec {
@@ -124,6 +129,9 @@ export const SENRIYAMA_GROUNDS_SPEC: GroundsSpec = {
     backRiseM: 0.6,
     seatHex: '#4A6696',
     aisleHex: '#A3A39E',
+    // OSM の観客席の輪郭は第4学舎3号館（way 423067232）の東の角の下に入っている。空中写真（2017 年 4 月）では、
+    // 3号館の南東の辺の外に暗い帯と明るい通路があり、座席の列は辺から 5.5〜6.5m で始まる。辺から 5m（推定）を空ける
+    keepClearOf: [{ wayId: 423067232, clearanceM: 5 }],
   },
   // 公式の地図の 23 番。本塁は北東の角で、外野は南西へ開く（空中写真の暗い内野とフェンスの手前の赤茶の帯）
   baseball: {
