@@ -104,4 +104,27 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(panel.getByText(/情報の無い段差/)).toHaveCount(0);
     await expect(distance).toHaveText(/^\d+m$/);
   });
+  test('経路: 第3学舎から関大前駅への下りはエスカレーターの朝の注意が出て、逆の上りだけでは出ない', async ({ page }) => {
+    await page.getByRole('button', { name: 'ルート案内' }).click();
+    const panel = page.getByRole('complementary', { name: 'キャンパス内徒歩ルート案内' });
+    await expect(panel).toBeVisible();
+    const note = panel.getByTestId('escalator-rush-note');
+
+    await pickPlace(page, '出発', '第3学舎', '第3学舎');
+    await pickPlace(page, '到着', '関大前', '関大前');
+    await expect(panel.getByTestId('route-distance')).toHaveText(/^\d+m$/);
+    await expect(panel.getByText('屋外エスカレーター利用')).toBeVisible();
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('8:00〜11:00 は 2 台とも上りになり、下りは階段になります');
+
+    // 出発と到着を入れ替えると上りだけになり、注意は出ない
+    await panel.getByRole('button', { name: /入れ替え/ }).click();
+    await expect(panel.getByText('屋外エスカレーター利用')).toBeVisible();
+    await expect(note).toHaveCount(0);
+
+    // 段差フリーはエスカレーターを通さない
+    await panel.getByRole('radiogroup', { name: 'ルート探索モード' }).getByRole('radio', { name: /段差フリー/ }).click();
+    await expect(panel.getByText('屋外エスカレーター利用')).toHaveCount(0);
+    await expect(note).toHaveCount(0);
+  });
 });
