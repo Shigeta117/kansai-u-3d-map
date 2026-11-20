@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { STEEP_SLOPE_RATIO, findNearestWalkNode, findRoute } from './routing';
+import {
+  STEEP_SLOPE_RATIO,
+  escalatorDirection,
+  findNearestWalkNode,
+  findRoute,
+  usesRushHourDownEscalator,
+} from './routing';
 import type { BuildingFeature, WalkGraph } from './types';
 
 describe('routing (3-mode + bridges + step-free)', () => {
@@ -357,6 +363,79 @@ describe('routing (3-mode + bridges + step-free)', () => {
       }
     }
     expect(checkedPairs).toBeGreaterThan(0);
+  });
+  describe('エスカレーターの向き（授業日の朝の注意 #31）', () => {
+    const live = () => {
+      const dataDir = path.resolve(process.cwd(), 'public/data/senriyama');
+      const buildings = JSON.parse(
+        fs.readFileSync(path.join(dataDir, 'buildings.json'), 'utf8'),
+      ) as BuildingFeature[];
+      const graph = JSON.parse(
+        fs.readFileSync(path.join(dataDir, 'walk-graph.json'), 'utf8'),
+      ) as WalkGraph;
+      const node = (id: string) => {
+        const b = buildings.find((x) => x.id === id);
+        if (!b?.walkNodeId) throw new Error(`no walk node: ${id}`);
+        return b.walkNodeId;
+      };
+      return { graph, node };
+    };
+
+    it('向きは辺の両端の高さの差で決まる（0.05m 未満は向きを言えない）', () => {
+      expect(escalatorDirection(8.58)).toBe('up');
+      expect(escalatorDirection(-8.58)).toBe('down');
+      expect(escalatorDirection(0.02)).toBe('flat');
+      expect(escalatorDirection(-0.04)).toBe('flat');
+    });
+
+    it('合成グラフ: 下りの向きと、ラッシュ時に上りだけになる印を結果に出す', () => {
+      const edge = (to: string, deltaY: number, rush: boolean) => ({
+        to,
+        dist: 30,
+        deltaY,
+        slope: deltaY / 30,
+        isSteps: false,
+        isBridge: false,
+        isEscalator: true,
+        ...(rush ? { rushHourUpOnly: true } : {}),
+      });
+      const g = (rush: boolean): WalkGraph => ({
+        nodes: {
+          lo: { id: 'lo', x: 0, z: 0, y: 20 },
+          hi: { id: 'hi', x: 30, z: 0, y: 28 },
+        },
+        adjacency: { lo: [edge('hi', 8, rush)], hi: [edge('lo', -8, rush)] },
+      });
+      const down = findRoute(g(true), 'hi', 'lo', 'gentle', 'hi', 'lo');
+      const up = findRoute(g(true), 'lo', 'hi', 'gentle', 'lo', 'hi');
+      const downOther = findRoute(g(false), 'hi', 'lo', 'gentle', 'hi', 'lo');
+      if (!down || !up || !downOther) throw new Error('routes expected');
+      expect(down.escalatorUses).toEqual([{ edgeIndex: 0, direction: 'down', rushHourUpOnly: true }]);
+      expect(up.escalatorUses).toEqual([{ edgeIndex: 0, direction: 'up', rushHourUpOnly: true }]);
+      expect(usesRushHourDownEscalator(down)).toBe(true);
+      expect(usesRushHourDownEscalator(up)).toBe(false);
+      expect(usesRushHourDownEscalator(downOther)).toBe(false);
+    });
+
+    it('実データ: 第3学舎 → 関大前駅の坂ひかえめは下りで新アクセス路のエスカレーターを通り、逆は上りだけで注意が出ない', () => {
+      const { graph, node } = live();
+      const down = findRoute(graph, node('area3'), node('kandaimae-station'), 'gentle', 'area3', 'kandaimae-station');
+      const up = findRoute(graph, node('kandaimae-station'), node('area3'), 'gentle', 'kandaimae-station', 'area3');
+      if (!down || !up) throw new Error('routes expected');
+      expect(down.escalatorUses.some((u) => u.direction === 'down' && u.rushHourUpOnly)).toBe(true);
+      expect(usesRushHourDownEscalator(down)).toBe(true);
+      expect(up.escalatorUses.length).toBeGreaterThan(0);
+      expect(up.escalatorUses.every((u) => u.direction === 'up')).toBe(true);
+      expect(usesRushHourDownEscalator(up)).toBe(false);
+    });
+
+    it('実データ: 段差フリーはエスカレーターを通さない（注意も出ない）', () => {
+      const { graph, node } = live();
+      const route = findRoute(graph, node('area3'), node('kandaimae-station'), 'step-free', 'area3', 'kandaimae-station');
+      if (!route) throw new Error('route expected');
+      expect(route.escalatorUses).toEqual([]);
+      expect(usesRushHourDownEscalator(route)).toBe(false);
+    });
   });
 });
 
