@@ -37,6 +37,20 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(sheet.getByRole('heading', { name: /総合図書館/ })).toBeVisible();
   });
 
+  test('中学校・高等学校の施設は、名称と注記だけを出し、経路のボタンを出さない', async ({ page }) => {
+    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
+    await search.fill('一高');
+    await page.getByRole('option', { name: /関西大学第一高等学校/ }).first().click();
+
+    const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
+    await expect(sheet.getByRole('heading', { name: '関西大学第一高等学校' })).toBeVisible();
+    await expect(sheet.getByText('名称だけを表示しています')).toBeVisible();
+    await expect(sheet.getByRole('tablist')).toHaveCount(0);
+    await expect(sheet.getByRole('button', { name: 'ここへ行く' })).toHaveCount(0);
+    await expect(sheet.getByRole('button', { name: 'ここを出発' })).toHaveCount(0);
+    await expect(sheet.getByText(/階建相当/)).toHaveCount(0);
+  });
+
   test('経路: 関大前駅 → 総合図書館 を 3 モードで切り替える', async ({ page }) => {
     await page.getByRole('button', { name: 'ルート案内' }).click();
     const panel = page.getByRole('complementary', { name: 'キャンパス内徒歩ルート案内' });

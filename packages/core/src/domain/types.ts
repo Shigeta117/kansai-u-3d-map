@@ -150,6 +150,8 @@ export interface BuildingFeature {
   facilityTags: FacilityTag[];
   keywords: string[];
   description: string;
+  /** 'name-only' なら名称のほかの情報（階数・設備・出入口・経路）を出さない（中学校・高等学校・幼稚園の施設） */
+  infoPolicy?: 'name-only';
   architectNote?: string;
   sculptStyle: LandmarkSculptStyle;
   labelPriority: number;

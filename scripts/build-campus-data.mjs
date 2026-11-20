@@ -48,9 +48,11 @@ const OFFICIAL_MAP_BUILDINGS = new Map([
   ['way_624589997', { name: '誠之館2・3号館（関西大学共済会事務局）', keywords: ['誠之館2号館旧館', '誠之館3号館', '関西大学共済会'] }],
   ['way_423067245', { name: '誠之館2号館', keywords: ['誠之館2・3号館', '関西大学共済会事務局'] }],
   // 39〜41・19: 名前は OSM のままで地図と同じ
-  ['way_497645752', { name: '関西大学第一高等学校', keywords: ['一高', '関大一高'], inCampus: true }],
-  ['way_497645756', { name: '関西大学第一中学校', keywords: ['一中', '関大一中'], inCampus: true }],
-  ['way_497645754', { name: '秀麗館', keywords: ['中学・高校の体育館'], inCampus: true }],
+  // 中学校・高等学校・幼稚園の施設は名称だけを出す（nameOnly。持ち主の決め、2026-11-20）
+  ['way_497645752', { name: '関西大学第一高等学校', keywords: ['一高', '関大一高'], inCampus: true, nameOnly: true }],
+  ['way_497645756', { name: '関西大学第一中学校', keywords: ['一中', '関大一中'], inCampus: true, nameOnly: true }],
+  ['way_497645754', { name: '秀麗館', keywords: [], inCampus: true, nameOnly: true }],
+  ['way_497645761', { name: '関西大学幼稚園', keywords: [], inCampus: true, nameOnly: true }],
   ['rel_10704520', { name: '学生国際交流館・秀麗寮', keywords: ['秀麗寮', '留学生', '寮'], inCampus: true }],
 ]);
 
@@ -1120,9 +1122,10 @@ async function main() {
       keywords:
         lm?.keywords ??
         (cb.official ? [rawName, ...cb.official.keywords] : rawName ? [rawName] : []),
-      description:
-        lm?.description ??
-        (inCampus ? `${rawName}（千里山キャンパス内施設）` : ''),
+      description: cb.official?.nameOnly
+        ? ''
+        : lm?.description ?? (inCampus ? `${rawName}（千里山キャンパス内施設）` : ''),
+      ...(cb.official?.nameOnly ? { infoPolicy: 'name-only' } : {}),
       architectNote: lm?.architectNote,
       sculptStyle: lm?.sculptStyle ?? 'standard',
       labelPriority: lm?.labelPriority ?? (inCampus && (cb.tags.name || cb.official) ? 7 : 99),
