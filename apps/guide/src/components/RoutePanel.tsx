@@ -457,6 +457,7 @@ export function RoutePanel({
         snap={snap}
         onSnapChange={setSnap}
         onClose={onClose}
+        dismissible={false}
         onSheetHeightChange={onSheetHeightChange}
         header={
           <div className="flex items-center justify-between border-b border-[#EAE3D6] pb-2.5">
@@ -533,6 +534,7 @@ export function RoutePanel({
       snap={snap}
       onSnapChange={setSnap}
       onClose={onClose}
+      dismissible={false}
       onSheetHeightChange={onSheetHeightChange}
       header={
         <div className="pb-2.5">

@@ -57,6 +57,11 @@ interface BottomSheetProps {
   snap: SheetSnap;
   onSnapChange: (snap: SheetSnap) => void;
   onClose: () => void;
+  /**
+   * 下へ払ったときに閉じるか（既定 true）。false なら低い段で止まり、閉じるのは × や Esc だけ。
+   * ルート案内は、払っても経路の地図を見る状態（低い段）に残す（持ち主の決め、2026-11-20）
+   */
+  dismissible?: boolean;
   /** スマホの幅で、落ち着いた（ドラッグ中でない）シートの高さを知らせる。閉じると 0。安定した関数を渡す */
   onSheetHeightChange?: (height: number) => void;
   /** つまみの下に固定する見出し。ここもドラッグできる */
@@ -100,6 +105,7 @@ export function BottomSheet({
   snap,
   onSnapChange,
   onClose,
+  dismissible = true,
   onSheetHeightChange,
   header,
   footer,
@@ -119,9 +125,9 @@ export function BottomSheet({
   const suppressClickUntilRef = useRef(0);
 
   // ネイティブのリスナーから最新の値を読むための控え
-  const latestRef = useRef({ snap, heights, onSnapChange, onClose, onSheetHeightChange });
+  const latestRef = useRef({ snap, heights, onSnapChange, onClose, onSheetHeightChange, dismissible });
   useLayoutEffect(() => {
-    latestRef.current = { snap, heights, onSnapChange, onClose, onSheetHeightChange };
+    latestRef.current = { snap, heights, onSnapChange, onClose, onSheetHeightChange, dismissible };
   });
 
   const measure = useCallback(() => {
@@ -240,7 +246,7 @@ export function BottomSheet({
       visibleHeight: drag.frame.height - drag.frame.offset,
       velocity: cancelled ? 0 : releaseVelocity(drag.samples, t),
       heights: latest.heights,
-      dismissible: true,
+      dismissible: latest.dismissible,
     });
     el.style.transform = '';
     if (target === 'dismiss') {
