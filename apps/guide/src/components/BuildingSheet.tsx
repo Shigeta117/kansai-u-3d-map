@@ -178,6 +178,9 @@ export function BuildingSheet({
     return [...seen].map(([key, label]) => ({ key, label }));
   }, [floorPlan]);
 
+  // 階のボタンは、棟を選んでいればその棟の階だけ
+  const floorChips = (floorPlan?.floors ?? []).filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor));
+
   const chooseWing = (key: string | 'all') => {
     if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
       onSelectWing(key === 'all' ? null : key);
@@ -445,9 +448,7 @@ export function BuildingSheet({
                 >
                   全フロア
                 </button>
-                {floorPlan.floors
-                  .filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor))
-                  .map((fl) => {
+                {floorChips.map((fl) => {
                   const active = floorFilter === fl.floor;
                   return (
                     <button
