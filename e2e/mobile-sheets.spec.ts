@@ -156,5 +156,22 @@ test.describe('スマホの下から出るシート', () => {
     await modes.getByRole('radio', { name: /最短/ }).tap();
     await expect(panel).toHaveAttribute('data-snap', 'peek');
     await expect(summary).toContainText('最短');
+
+    // 中の段から下へ強く払っても閉じず、経路の地図を見る状態（低い段）で止まる
+    await summary.tap();
+    await expect(panel).toHaveAttribute('data-snap', 'half');
+    const h2 = await centerOf(handle);
+    await touchDrag(page, h2, { x: h2.x, y: h2.y + 500 }, { steps: 6, stepMs: 8, holdMs: 0 });
+    await expect(panel).toHaveAttribute('data-snap', 'peek');
+    await expect(summary).toBeInViewport();
+    // 低い段からさらに下へ払っても閉じない
+    const h3 = await centerOf(handle);
+    await touchDrag(page, h3, { x: h3.x, y: h3.y + 200 }, { steps: 6, stepMs: 8, holdMs: 0 });
+    await expect(panel).toHaveAttribute('data-snap', 'peek');
+    await expect(summary).toBeInViewport();
+
+    // 解除は × だけ
+    await panel.getByRole('button', { name: 'ルートパネルを閉じる' }).first().tap();
+    await expect(panel).toBeHidden();
   });
 });
