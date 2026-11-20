@@ -44,6 +44,8 @@ interface CampusViewportProps {
   dataset: CampusDataset;
   config: CampusConfig;
   selectedId: string | null;
+  /** 建物の中の棟（選んでいれば、その棟だけを光らせる） */
+  selectedWingId?: string | null;
   activeCategory: BuildingCategory | 'all';
   activeRoute: RouteResult | null;
   lighting: LightingTheme;
@@ -52,7 +54,7 @@ interface CampusViewportProps {
   freeCamera?: boolean;
   /** URL の stats=1。開発時は指定が無くても出す */
   renderStats?: boolean;
-  onSelectBuilding: (buildingId: string | null) => void;
+  onSelectBuilding: (buildingId: string | null, wingId?: string | null) => void;
   onSceneChange: (scene: CampusScene | null) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
 }
@@ -73,6 +75,7 @@ export function CampusViewport({
   dataset,
   config,
   selectedId,
+  selectedWingId = null,
   activeCategory,
   activeRoute,
   lighting,
@@ -106,7 +109,7 @@ export function CampusViewport({
       dataset,
       config,
       {
-        onSelectBuilding: (id) => onSelectRef.current(id),
+        onSelectBuilding: (id, wingId) => onSelectRef.current(id, wingId),
       },
       {
         initialCamera,
@@ -136,8 +139,8 @@ export function CampusViewport({
   }, [dataset, config, sceneRef, initialCamera, freeCamera, renderStats]);
 
   useEffect(() => {
-    sceneRef.current?.setHighlightState(selectedId, activeCategory);
-  }, [selectedId, activeCategory, sceneRef]);
+    sceneRef.current?.setHighlightState(selectedId, activeCategory, selectedWingId);
+  }, [selectedId, selectedWingId, activeCategory, sceneRef]);
 
   useEffect(() => {
     sceneRef.current?.setRoute(activeRoute);
