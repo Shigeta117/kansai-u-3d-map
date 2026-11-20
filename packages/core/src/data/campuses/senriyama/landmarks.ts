@@ -531,10 +531,10 @@ export const SENRIYAMA_LANDMARKS: LandmarkMeta[] = [
     keywords: ['第4学舎', '3号館', '理工'],
     approxCoord: { lat: 34.775198, lon: 135.512958 },
     osmNameAliases: ['第4学舎3号館'],
-    description: '東体育館の南に建つ第4学舎3号館。高層研究・講義棟として東エリアを支える。',
+    description: '東体育館の南に建つ第4学舎3号館。地上 4 階に教室とデザインルームがあり（KAN-CAN!）、屋上はテニスコート 4 面を半透明の板の囲いが巡る（空中写真・持ち主の映像）。',
     // 屋上はテニスコート 4 面（空中写真・公式の地図）。GroundsBuilder が描くので、屋上の塔屋の箱（area4-white-lab）は置かない
     sculptStyle: 'standard',
-    defaultLevels: 6,
+    defaultLevels: 4,
     labelPriority: 6,
   },
   {

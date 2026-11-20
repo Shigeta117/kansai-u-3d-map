@@ -1,4 +1,5 @@
 import { buildArea3 } from './area3';
+import { buildArea43 } from './area4-3';
 import { buildCentenary } from './centenary';
 import { buildCentralGym } from './centralGym';
 import { buildEnshinkan } from './enshinkan';
@@ -19,6 +20,7 @@ export type { HeroBuildContext, HeroBuildResult, HeroBuilder } from './types';
  */
 export const HERO_BUILDERS: Readonly<Record<string, HeroBuilder>> = {
   area3: buildArea3,
+  'area4-3': buildArea43,
   centenary: buildCentenary,
   'central-gym': buildCentralGym,
   enshinkan: buildEnshinkan,
