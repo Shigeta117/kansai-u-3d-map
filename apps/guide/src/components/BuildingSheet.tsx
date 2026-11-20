@@ -71,7 +71,7 @@ function AccessibilityNotice({ buildingId }: { buildingId?: string }) {
               {official.restroomFloors ? ` — ${official.restroomFloors}` : ''}
             </li>
           </ul>
-          <p className="mt-1">設備は改修されている可能性があります。移動の前に大学のページで確かめてください。下の出入口・連絡の一覧は未確認です。</p>
+          <p className="mt-1">設備は改修されている可能性があります。移動の前に大学のページで確かめてください。下の連絡通路は同じ資料の読み取りで、出典の無い出入口・連絡は載せていません。</p>
         </>
       ) : (
         <p>
@@ -582,7 +582,7 @@ export function BuildingSheet({
           {floorPlan && floorPlan.connectors.length > 0 && (
             <div>
               <div className="mb-1.5 text-[11px] font-bold text-[#5F6875]">
-                棟間連絡デッキ・通路・エレベーター
+                棟間の連絡通路
               </div>
               <div className="space-y-1.5">
                 {floorPlan.connectors.map((conn) => {

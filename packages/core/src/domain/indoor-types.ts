@@ -40,6 +40,8 @@ export interface BuildingConnector {
   access: AccessStatus;
   label: string;
   note?: string;
+  /** 出典（資料の名前と版）。出典の無い連絡は持たない（docs/indoor-plan.md の P0a） */
+  source?: string;
 }
 
 export interface RoomEntry {

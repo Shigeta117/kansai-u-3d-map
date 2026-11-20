@@ -37,6 +37,21 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(sheet.getByRole('heading', { name: /総合図書館/ })).toBeVisible();
   });
 
+  test('出入口・連絡のタブは、大学のバリアフリーマップにある連絡通路だけを出す', async ({ page }) => {
+    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
+    await search.fill('第1学舎4号館');
+    await page.getByRole('option', { name: /第1学舎 4号館/ }).first().click();
+
+    const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
+    await sheet.getByRole('tab', { name: '出入口・連絡' }).click();
+    await expect(sheet.getByText('第1学舎 A棟 1階 ↔ D棟 1階 の連絡通路')).toBeVisible();
+    await expect(sheet.getByText('途中に階段がある')).toBeVisible();
+    await expect(sheet.getByText('第1学舎 D棟 2階 ↔ E棟 1階 の連絡通路')).toBeVisible();
+    // 以前の出典の無い連絡（全部「2F」の表記）と出入口が出ていない
+    await expect(sheet.getByText(/2F/)).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('access-tab.png') });
+  });
+
   test('中学校・高等学校の施設は、名称と注記だけを出し、経路のボタンを出さない', async ({ page }) => {
     const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
     await search.fill('一高');
