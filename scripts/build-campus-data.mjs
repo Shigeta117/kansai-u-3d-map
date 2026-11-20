@@ -22,6 +22,34 @@ const EXCLUDED_CANOPY_BUILDING_IDS = new Set([
   1493876596,
 ]);
 
+// 公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）の番号つきの一覧で名前を確かめた建物（OSM の osmId → 名前など）。
+// OSM の輪郭と地図のイラストの位置・形が合う物だけ（突き合わせの記録は docs/DATA_SOURCES.md 5 節）。
+// 目印（landmarks.ts）に一致した建物は目印の名前が優先する。keywords は名前に足す検索語（OSM の名前など）
+// - inCampus: 地図に番号つきで載る関連施設（一中・一高・秀麗館・秀麗寮）を、キャンパスの建物として扱う（ラベル・検索）
+// - levels: 階数の推定（OSM に無く、既定の 4 階では明らかに高すぎる物だけ）
+const OFFICIAL_MAP_BUILDINGS = new Map([
+  // 2-1: 第2学舎1号館は A棟・B棟。B棟は A棟（円い天窓の棟）の北東の端に付く箱
+  ['way_423067212', { name: '第2学舎 1号館 B棟', keywords: ['第2学舎1号館', 'B棟'] }],
+  // 実-1〜6: 第4学舎第1〜6実験棟（OSM の名前は「第N実験棟」）
+  ['way_423067247', { name: '第4学舎 第1実験棟', keywords: ['第1実験棟', '実験棟'] }],
+  ['way_423067250', { name: '第4学舎 第2実験棟', keywords: ['第2実験棟', '実験棟'] }],
+  ['way_423067248', { name: '第4学舎 第3実験棟', keywords: ['第3実験棟', '実験棟'] }],
+  ['way_423067249', { name: '第4学舎 第4実験棟', keywords: ['第4実験棟', '実験棟'] }],
+  ['way_423067251', { name: '第4学舎 第5実験棟', keywords: ['第5実験棟', '実験棟'] }],
+  ['way_423067254', { name: '第4学舎 第6実験棟', keywords: ['第6実験棟', '実験棟'] }],
+  // 24: 弓道場。OSM は sport=archery の名前の無い建物（芝の矢道を囲む L 字の屋根）。地図・空中写真とも低い屋根なので平屋（推定）
+  ['way_490258123', { name: '弓道場', keywords: ['弓道', 'Kyudo Range'], levels: 1 }],
+  // 26: 誠之館2・3号館（関西大学共済会事務局）。地図では 4 つの箱の群に 26 の番号が 1 つ。番号が載るのは OSM の「誠之館　2号館旧館」。
+  // どの箱が 3 号館かは地図から分からないので、名前の無い 2 つ（way 624589994・624589992）は直さない
+  ['way_624589997', { name: '誠之館2・3号館（関西大学共済会事務局）', keywords: ['誠之館2号館旧館', '誠之館3号館', '関西大学共済会'] }],
+  ['way_423067245', { name: '誠之館2号館', keywords: ['誠之館2・3号館', '関西大学共済会事務局'] }],
+  // 39〜41・19: 名前は OSM のままで地図と同じ
+  ['way_497645752', { name: '関西大学第一高等学校', keywords: ['一高', '関大一高'], inCampus: true }],
+  ['way_497645756', { name: '関西大学第一中学校', keywords: ['一中', '関大一中'], inCampus: true }],
+  ['way_497645754', { name: '秀麗館', keywords: ['中学・高校の体育館'], inCampus: true }],
+  ['rel_10704520', { name: '学生国際交流館・秀麗寮', keywords: ['秀麗寮', '留学生', '寮'], inCampus: true }],
+]);
+
 // OSM way IDs forming the Shurei Bridge / Area 3 elevated pedestrian deck
 // 第3学舎〜新関西大学会館〜法文坂の高架デッキ（OSM の bridge=yes の歩道）
 const SHUREI_BRIDGE_WAY_IDS = new Set([423060539, 423060540, 423060541]);
@@ -952,16 +980,20 @@ async function main() {
         rb.tags.building !== 'university' &&
         !String(rb.tags.name ?? '').includes('関西大学'));
 
-    const inCampus =
+    const osmInCampus =
       (inUnivPoly ||
         rb.tags.building === 'university' ||
         rb.tags.operator === 'Kansai University') &&
       !isSchoolSouth;
+    // 公式の地図でキャンパスの建物として扱う物も、高さは OSM から決めた扱いのまま（形を変えない）
+    const official = OFFICIAL_MAP_BUILDINGS.get(rb.osmId);
 
     candidateBuildings.push({
       ...rb,
       centroid,
-      inCampus,
+      inCampus: official?.inCampus ?? osmInCampus,
+      osmInCampus,
+      official,
     });
   }
 
@@ -1026,6 +1058,7 @@ async function main() {
 
     const rawName =
       lm?.name ??
+      cb.official?.name ??
       cb.tags.name ??
       cb.tags['name:ja'] ??
       cb.tags['name:en'] ??
@@ -1037,8 +1070,9 @@ async function main() {
         ? inferCampusCategory(cb.tags, cb.centroid)
         : 'surrounding';
 
-    const levels = parseLevels(cb.tags, lm?.defaultLevels ?? (inCampus ? 4 : 2));
-    const height = computeBuildingHeight(cb.tags, levels, inCampus, cb.osmId);
+    const shapeInCampus = Boolean(lm) || cb.osmInCampus;
+    const levels = cb.official?.levels ?? parseLevels(cb.tags, lm?.defaultLevels ?? (shapeInCampus ? 4 : 2));
+    const height = computeBuildingHeight(cb.tags, levels, shapeInCampus, cb.osmId);
 
     const groundY = Number(
       sampleElevation(terrain, cb.centroid.x, cb.centroid.z).toFixed(2),
@@ -1074,13 +1108,15 @@ async function main() {
       inCampus,
       faculties: lm?.faculties ?? [],
       facilityTags: lm?.facilityTags ?? [],
-      keywords: lm?.keywords ?? (rawName ? [rawName] : []),
+      keywords:
+        lm?.keywords ??
+        (cb.official ? [rawName, ...cb.official.keywords] : rawName ? [rawName] : []),
       description:
         lm?.description ??
         (inCampus ? `${rawName}（千里山キャンパス内施設）` : ''),
       architectNote: lm?.architectNote,
       sculptStyle: lm?.sculptStyle ?? 'standard',
-      labelPriority: lm?.labelPriority ?? (inCampus && cb.tags.name ? 7 : 99),
+      labelPriority: lm?.labelPriority ?? (inCampus && (cb.tags.name || cb.official) ? 7 : 99),
       isQuickOrigin: lm?.isQuickOrigin ?? false,
       polygon: cb.polygon,
       holes: cb.holes,

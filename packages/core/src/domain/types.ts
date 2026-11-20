@@ -29,6 +29,8 @@ export type LandmarkSculptStyle =
   | 'main-gate'
   | 'west-gate'
   | 'station-platform'
+  /** グラウンド・広場など、地面そのものが目印の場所（目印の台を置かない） */
+  | 'open-space'
   | 'standard';
 
 export type FacilityTag =
