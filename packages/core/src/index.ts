@@ -37,6 +37,7 @@ export { buildStationGroup, type StationBuildResult } from './scene/StationBuild
 export { buildAccessCanopiesGroup } from './scene/AccessWayBuilder';
 export { sculptLandmarkDetails, type SculptExtraResult } from './scene/LandmarkSculptor';
 export { buildFoliageGroup } from './scene/FoliageBuilder';
+export { buildGroundsGroup, carveTerrainForGrounds } from './scene/GroundsBuilder';
 export { buildTransportGroup, type TransportBuildResult } from './scene/TransportBuilder';
 export { RouteOverlay } from './scene/RouteOverlay';
 export {

@@ -175,3 +175,54 @@ describe('第3学舎の棟の呼び名（KAN-CAN!）', () => {
     },
   );
 });
+
+describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）の名前', () => {
+  const buildings = JSON.parse(
+    fs.readFileSync(path.resolve(process.cwd(), 'public/data/senriyama/buildings.json'), 'utf8'),
+  ) as BuildingFeature[];
+  const byKey = (key: string): BuildingFeature | undefined =>
+    buildings.find((b) => b.id === key || b.osmId === key);
+
+  it.each([
+    ['法文研究室棟', 'hobunken'],
+    ['ソシオネットワーク戦略研究機構', 'keisho-kenkyu'],
+    ['第2学舎1号館B棟', 'way_423067212'],
+    ['第4学舎 第3実験棟', 'way_423067248'],
+    ['弓道場', 'way_490258123'],
+    ['誠之館2・3号館', 'way_624589997'],
+    ['関西大学共済会', 'way_624589997'],
+    ['中央グラウンド', 'central-ground'],
+    ['KAISERS', 'kaisers-baseball-field'],
+    ['千里山北グラウンド', 'kaisers-baseball-field'],
+    ['北広場', 'kitahiroba'],
+    ['あすかの庭', 'asuka-garden'],
+    ['一高', 'way_497645752'],
+    ['関西大学第一中学校', 'way_497645756'],
+    ['秀麗館', 'way_497645754'],
+    ['秀麗寮', 'rel_10704520'],
+  ])('finds "%s" (%s)', (query, key) => {
+    const hit = byKey(key);
+    expect(hit).toBeDefined();
+    expect(searchBuildings(buildings, query).map((b) => b.id)).toContain(hit!.id);
+  });
+
+  it('keeps the old OSM names searchable', () => {
+    expect(searchBuildings(buildings, '法文研究棟').map((b) => b.id)).toContain('hobunken');
+    expect(searchBuildings(buildings, '誠之館2号館旧館').map((b) => b.osmId)).toContain('way_624589997');
+  });
+
+  it('draws the kyudo range as a low shed, not a 4-storey block', () => {
+    const kyudo = byKey('way_490258123');
+    expect(kyudo?.levels).toBe(1);
+    expect(kyudo?.height).toBeLessThan(6);
+  });
+
+  it('places the grounds and gardens as spots without a marker pad', () => {
+    for (const id of ['central-ground', 'kaisers-baseball-field', 'kitahiroba', 'asuka-garden']) {
+      const spot = byKey(id);
+      expect(spot?.isSpotOnly).toBe(true);
+      expect(spot?.sculptStyle).toBe('open-space');
+      expect(spot?.accessibleWalkNodeId).toBeTruthy();
+    }
+  });
+});
