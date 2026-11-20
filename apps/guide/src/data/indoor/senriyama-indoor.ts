@@ -1,6 +1,7 @@
 import {
   expandRoomRange,
   type AccessStatus,
+  type BuildingConnector,
   type BuildingFloorPlan,
   type RoomEntry,
 } from '@kansai-u-3d/core';
@@ -39,6 +40,50 @@ function buildStandardFloors(
   return floors;
 }
 
+/**
+ * 棟の間の連絡通路（出典つきの物だけ）。
+ * 出典: 関西大学 学生相談・支援センター「バリアフリーマップ 千里山キャンパス施設一覧」（2025 年 12 月現在）の読み取り
+ * （`docs/visual-research/barrier-free-map.md`）。1 本の連絡通路は 1 件・1 id で、両側の建物から同じ物を参照する。
+ * 以前の 12 件（全部「2 階 ↔ 2 階」・出典なし）は資料と食い違っていたので外した（docs/indoor-plan.md の P0a）。
+ * 屋外のデッキ・橋（秀麗橋・第3学舎連絡デッキなど）は屋外の歩道の側で持つので、ここには入れない。
+ */
+const BARRIER_FREE_MAP_SOURCE = '大学のバリアフリーマップ（2025年12月現在）の読み取り';
+const BF_A1_AD_1F: BuildingConnector = {
+  id: 'bf-area1-ad-1f', fromBuildingId: 'area1-1', fromFloor: 1, toBuildingId: 'area1-4', toFloor: 1,
+  kind: 'indoor-corridor', access: 'no', label: '第1学舎 A棟 1階 ↔ D棟 1階 の連絡通路',
+  note: '途中に階段がある', source: BARRIER_FREE_MAP_SOURCE,
+};
+const BF_A1_BC_2F: BuildingConnector = {
+  id: 'bf-area1-bc-2f', fromBuildingId: 'area1-2', fromFloor: 2, toBuildingId: 'area1-3', toFloor: 2,
+  kind: 'indoor-corridor', access: 'unknown', label: '第1学舎 B棟 2階 ↔ C棟 2階 の連絡通路',
+  note: 'B棟側は開き戸（資料の凡例では車いすには勧めない）、C棟側は自動扉', source: BARRIER_FREE_MAP_SOURCE,
+};
+const BF_A1_DE: BuildingConnector = {
+  id: 'bf-area1-de', fromBuildingId: 'area1-4', fromFloor: 2, toBuildingId: 'area1-5', toFloor: 1,
+  kind: 'indoor-corridor', access: 'unknown', label: '第1学舎 D棟 2階 ↔ E棟 1階 の連絡通路',
+  note: '幅約 10cm の溝がある', source: BARRIER_FREE_MAP_SOURCE,
+};
+const BF_A4_24_B1: BuildingConnector = {
+  id: 'bf-area4-24-b1', fromBuildingId: 'area4-2', fromFloor: -1, toBuildingId: 'area4-4', toFloor: -1,
+  kind: 'indoor-corridor', access: 'unknown', label: '第4学舎 2号館 B1階 ↔ 4号館 B1階 の連絡通路',
+  note: '2号館側は開き戸、4号館側は自動扉', source: BARRIER_FREE_MAP_SOURCE,
+};
+const BF_A4_24_1F: BuildingConnector = {
+  id: 'bf-area4-24-1f', fromBuildingId: 'area4-2', fromFloor: 1, toBuildingId: 'area4-4', toFloor: 1,
+  kind: 'indoor-corridor', access: 'unknown', label: '第4学舎 2号館 1階 ↔ 4号館 1階 の連絡通路',
+  note: '両側とも自動扉（段差の有無は資料に無い）', source: BARRIER_FREE_MAP_SOURCE,
+};
+const BF_A4_24_2F: BuildingConnector = {
+  id: 'bf-area4-24-2f', fromBuildingId: 'area4-2', fromFloor: 2, toBuildingId: 'area4-4', toFloor: 2,
+  kind: 'indoor-corridor', access: 'unknown', label: '第4学舎 2号館 2階 ↔ 4号館 2階 の連絡通路',
+  note: '両側とも自動扉（段差の有無は資料に無い）', source: BARRIER_FREE_MAP_SOURCE,
+};
+const BF_A4_24_3F: BuildingConnector = {
+  id: 'bf-area4-24-3f', fromBuildingId: 'area4-2', fromFloor: 3, toBuildingId: 'area4-4', toFloor: 3,
+  kind: 'indoor-corridor', access: 'unknown', label: '第4学舎 2号館 3階 ↔ 4号館 3階 の連絡通路',
+  note: '両側とも自動扉（段差の有無は資料に無い）', source: BARRIER_FREE_MAP_SOURCE,
+};
+
 export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
   // ===== 第1学舎（A〜E棟） =====
   'area1-1': {
@@ -51,33 +96,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第1学舎1号館（A棟）。1階に法文オフィス・授業支援ステーション・食堂、2階に千里ホールA/Bを備える文系の中核棟。',
     floors: buildStandardFloors(6, 1, 0),
-    entrances: [
-      {
-        id: 'a1-1-front',
-        label: 'A棟 1F 正面ピロティ入口（法文オフィス・食堂側）',
-        floor: 1,
-        access: 'unknown',
-        note: '法文坂上・総合図書館方面からのメインアプローチ',
-      },
-      {
-        id: 'a1-1-2f-link',
-        label: '2F 千里ホール・各号館連絡デッキ口',
-        floor: 2,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a1-1-2',
-        fromBuildingId: 'area1-1',
-        fromFloor: 2,
-        toBuildingId: 'area1-2',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第1学舎 1号館(A棟)〜2号館(B棟)・各号館 連絡通路',
-      },
-    ],
+    entrances: [],
+    connectors: [BF_A1_AD_1F],
     rooms: [
       {
         id: 'a1-hobun-office',
@@ -213,26 +233,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第1学舎2号館（B棟）。北門側に位置する3階建て講義棟。',
     floors: buildStandardFloors(3, 1, 0),
-    entrances: [
-      {
-        id: 'a1-2-1f',
-        label: 'B棟 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a1-2-1',
-        fromBuildingId: 'area1-2',
-        fromFloor: 2,
-        toBuildingId: 'area1-1',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第1学舎1号館(A棟) 連絡通路',
-      },
-    ],
+    entrances: [],
+    connectors: [BF_A1_BC_2F],
     rooms: [
       {
         id: 'a1-b101-102',
@@ -276,15 +278,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第1学舎3号館（C棟）。講義室およびアクティブラーニング教室（ALC）・AVC教室を備える。',
     floors: buildStandardFloors(5, 1, 0),
-    entrances: [
-      {
-        id: 'a1-3-1f',
-        label: 'C棟 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [],
+    entrances: [],
+    connectors: [BF_A1_BC_2F],
     rooms: [
       {
         id: 'a1-c101-104',
@@ -349,26 +344,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第1学舎4号館（D棟）。多数のゼミ・小中教室（D101〜D403）に加え、法廷教室・古文書実習室・地理学実習室・心理実験室・情報演習室A/Bを備える。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'a1-4-1f',
-        label: 'D棟 1F エントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a1-4-1',
-        fromBuildingId: 'area1-4',
-        fromFloor: 2,
-        toBuildingId: 'area1-1',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第1学舎1号館(A棟)方面 連絡通路',
-      },
-    ],
+    entrances: [],
+    connectors: [BF_A1_AD_1F, BF_A1_DE],
     rooms: [
       {
         id: 'a1-d101-119',
@@ -451,15 +428,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第1学舎5号館（E棟）。1階自習室、2〜6階にE201〜E603教室および情報演習室C・Dを配置。',
     floors: buildStandardFloors(6, 1, 0),
-    entrances: [
-      {
-        id: 'a1-5-1f',
-        label: 'E棟 1F 出入口（自習室フロア）',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [],
+    entrances: [],
+    connectors: [BF_A1_DE],
     rooms: [
       {
         id: 'a1-e1-study',
@@ -533,14 +503,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '岩崎記念館（第1学舎エリア F棟）。1階に政外オフィス・SAセンター（外国語学部）、2〜4階にF201〜F402教室・CALL教室・同時通訳ブース・e-LINCを備える。',
     floors: buildStandardFloors(8, 1, 0),
-    entrances: [
-      {
-        id: 'iw-glass-1f',
-        label: '低層ガラス棟 メインエントランス（1F 政外オフィス側）',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -596,14 +559,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '大学院学舎「尚文館」。1階マルチメディアAV大教室、2〜5階に201〜522講義室・演習室、3階に授業支援ステーション・教育開発支援センター、6〜7階に各研究科院生共同研究室を配置。',
     floors: buildStandardFloors(7, 1, 0),
-    entrances: [
-      {
-        id: 'shobun-1f',
-        label: '尚文館 1F メインエントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -675,14 +631,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '法文坂下の八角形ドーム校舎「以文館」。1階に法科大学院オフィス・リーガルクリニック、2階に21〜28講義室/演習室・自習室・学生ラウンジ、3階にロー・ライブラリーを備える。',
     floors: buildStandardFloors(4, 1, 1),
-    entrances: [
-      {
-        id: 'ib-east-1f',
-        label: '法文坂側 1F エントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -743,27 +692,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第2学舎1号館（A棟・B棟）。A棟1階に教務センター・教職支援センター・KITENE、2階に経商オフィス・国際部・Mi-room、A棟3〜5階とB棟1〜4階に講義室・自習室を備える。',
     floors: buildStandardFloors(5, 1, 0),
-    entrances: [
-      {
-        id: 'a2-1-front',
-        label: '第2学舎1号館 A棟 1F 正面入口（教務センター側）',
-        floor: 1,
-        access: 'unknown',
-        note: '正門・総合図書館前広場方面からのアプローチ',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a2-1-2',
-        fromBuildingId: 'area2-1',
-        fromFloor: 2,
-        toBuildingId: 'area2-2',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第2学舎 1号館(A・B棟)〜2号館(C棟) 連絡デッキ',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       {
         id: 'a2-1-kyomu',
@@ -887,26 +817,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第2学舎2号館（C棟）。1階食堂、2〜6階にC201〜C607教室、7階に会計専門職大学院・公認会計士試験受験支援自習室・パソコン教室を備える。',
     floors: buildStandardFloors(7, 1, 0),
-    entrances: [
-      {
-        id: 'a2-2-1f',
-        label: 'C棟 1F 出入口（第2学舎食堂側）',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a2-2-1',
-        fromBuildingId: 'area2-2',
-        fromFloor: 2,
-        toBuildingId: 'area2-1',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第2学舎1号館(A・B棟) 連絡デッキ',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       {
         id: 'a2-2-cafe',
@@ -988,14 +900,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第2学舎3号館（D棟・E棟）。D101〜D304教室および大型のE101・E201・E301教室で構成。',
     floors: buildStandardFloors(3, 1, 0),
-    entrances: [
-      {
-        id: 'a2-3-1f',
-        label: '第2学舎3号館（D・E棟）1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -1071,26 +976,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第2学舎4号館（F棟）。1〜3階吹抜の大講堂「BIGホール100」およびリフレッシュコーナー（自習スペース）、4階にF401〜F403教室を備える。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'bh-front-1f',
-        label: '第2学舎4号館（F棟）1F 正面エントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-bh-a2',
-        fromBuildingId: 'area2-bighall',
-        fromFloor: 2,
-        toBuildingId: 'area2-3',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第2学舎3号館 連絡デッキ',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       {
         id: 'bh-main-hall',
@@ -1126,35 +1013,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '社会学部の拠点・第3学舎（1号館A棟・2号館B棟・3号館C棟・4号館D棟）。西門新アクセス路と、新関西大学会館・秀麗橋へ続く第3学舎連絡デッキに直結。',
     floors: buildStandardFloors(6, 1, 1),
-    entrances: [
-      {
-        id: 'a3-west-b1',
-        label: '1号館(A棟) 地階・1F 西門新アクセス路側 玄関ホール',
-        floor: 1,
-        access: 'unknown',
-        note: '屋外エスカレーター到着広場およびカフェソシオ連絡',
-      },
-      {
-        id: 'a3-shurei-2f',
-        label: '第3学舎連絡デッキ 2F 入口',
-        floor: 2,
-        access: 'unknown',
-        note: '新関西大学会館南棟・正門・法文坂方面への連絡口',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a3-shurei',
-        fromBuildingId: 'area3',
-        fromFloor: 2,
-        toBuildingId: 'shinkandaikaikan-s',
-        toFloor: 2,
-        kind: 'skybridge',
-        access: 'unknown',
-        label: '第3学舎連絡デッキ直結',
-        note: '道路を横断せず新関西大学会館南棟・正門方面へ連絡',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       // A棟 (1号館)
       {
@@ -1364,26 +1224,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第4学舎1号館および1号館（教授棟）。1階に理工系オフィス・授業支援ステーション・学習支援室、2階にキャリアセンター理工系事務室・1201(IoT)・1202(LC)を備える。',
     floors: buildStandardFloors(5, 1, 0),
-    entrances: [
-      {
-        id: 'a4-1-west',
-        label: '第4学舎1号館 1F メインエントランス（理工系オフィス側）',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a4-1-2',
-        fromBuildingId: 'area4-1',
-        fromFloor: 2,
-        toBuildingId: 'area4-2',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第4学舎 1号館〜2号館 連絡通路',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       {
         id: 'a4-1-riko-office',
@@ -1457,26 +1299,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第4学舎2号館（③教室棟・④研究棟・⑤研究棟別館）。2101〜2502教室、情報処理室（4ST）、第2製図室、OD1・OD2教室および化学・材料・建築系研究室群を備える。',
     floors: buildStandardFloors(5, 1, 1),
-    entrances: [
-      {
-        id: 'a4-2-1f',
-        label: '第4学舎2号館（教室棟）1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-a4-2-1',
-        fromBuildingId: 'area4-2',
-        fromFloor: 2,
-        toBuildingId: 'area4-1',
-        toFloor: 2,
-        kind: 'indoor-corridor',
-        access: 'unknown',
-        label: '第4学舎1号館 連絡通路',
-      },
-    ],
+    entrances: [],
+    connectors: [BF_A4_24_B1, BF_A4_24_1F, BF_A4_24_2F, BF_A4_24_3F],
     rooms: [
       {
         id: 'a4-2-2101-2106',
@@ -1560,14 +1384,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第4学舎3号館（⑥）。3101・3201・3202・3401〜3403教室およびデザインルーム1・2を備える。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'a4-3-1f',
-        label: '第4学舎3号館 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -1622,15 +1439,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '第4学舎4号館（⑦）。地階4001〜4003教室、1〜3階に4101〜4301教室を配置。',
     floors: buildStandardFloors(3, 1, 1),
-    entrances: [
-      {
-        id: 'a4-4-1f',
-        label: '第4学舎4号館 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
-    connectors: [],
+    entrances: [],
+    connectors: [BF_A4_24_B1, BF_A4_24_1F, BF_A4_24_2F, BF_A4_24_3F],
     rooms: [
       {
         id: 'a4-4-4001-4003',
@@ -1685,14 +1495,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '第4学舎東側の実験棟群（⑧第1実験棟〜⑬第6実験棟）およびハイテク・リサーチ・コア。テクノサポートオフィスやクリーンルーム、各学科の大型実験場が集まる。',
     floors: buildStandardFloors(4, 1, 1),
-    entrances: [
-      {
-        id: 'ht-1f',
-        label: '実験棟エリア 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -1779,20 +1582,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '総合学生会館（メディアパーク凜風館）。1階に学生センター・学生相談室・コラボレーションコモンズ、2階に生協食堂、3階に生協総合サービスカウンター・物品売場、4階に小ホール・会議室・和室を備える。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'rmp-west-1f',
-        label: '悠久の庭側 1F メインエントランス（学生センター・ラウンジ）',
-        floor: 1,
-        access: 'unknown',
-      },
-      {
-        id: 'rmp-south-2f',
-        label: '2F テラス・生協食堂側入口',
-        floor: 2,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -1853,32 +1643,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '新関西大学会館 北棟。1階に入試センター・学生相談・支援センター・北棟ホール、3階にキャリアセンター事務室、4階に保健管理センター・心理相談室を備える。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'skn-1f',
-        label: '正門北側 1F エントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-      {
-        id: 'skn-2f-hobunzaka',
-        label: '秀麗橋・法文坂側 デッキ連絡口',
-        floor: 2,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-skn-south',
-        fromBuildingId: 'shinkandaikaikan-n',
-        fromFloor: 2,
-        toBuildingId: 'shinkandaikaikan-s',
-        toFloor: 2,
-        kind: 'skybridge',
-        access: 'unknown',
-        label: '秀麗橋・南棟連絡デッキ',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       {
         id: 'skn-1f-nyushi',
@@ -1923,42 +1689,8 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '円形の新関西大学会館 南棟。1階にインフォメーションロビー・出納課分室、2・3階に研究推進部・社会連携部を備え、秀麗橋高架デッキのハブとなる。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'sks-ground-1f',
-        label: '正門側 1F インフォメーションロビー入口',
-        floor: 1,
-        access: 'unknown',
-      },
-      {
-        id: 'sks-shurei-2f',
-        label: '秀麗橋 高架デッキ連絡口',
-        floor: 2,
-        access: 'unknown',
-      },
-    ],
-    connectors: [
-      {
-        id: 'conn-sks-west',
-        fromBuildingId: 'shinkandaikaikan-s',
-        fromFloor: 2,
-        toBuildingId: 'area3',
-        toFloor: 2,
-        kind: 'skybridge',
-        access: 'unknown',
-        label: '第3学舎連絡デッキ',
-      },
-      {
-        id: 'conn-sks-north',
-        fromBuildingId: 'shinkandaikaikan-s',
-        fromFloor: 2,
-        toBuildingId: 'shinkandaikaikan-n',
-        toFloor: 2,
-        kind: 'skybridge',
-        access: 'unknown',
-        label: '秀麗橋（北棟へ・法文坂方面）',
-      },
-    ],
+    entrances: [],
+    connectors: [],
     rooms: [
       {
         id: 'sks-1f-info',
@@ -1993,14 +1725,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '千里山中央体育館。1階に事務室・サブアリーナA/B・トレーニングルーム、2階にメインアリーナ、3階にU字型室内ランニングレーンを備える。',
     floors: buildStandardFloors(3, 1, 0),
-    entrances: [
-      {
-        id: 'cgym-1f',
-        label: '中央体育館 1F エントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -2050,14 +1775,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote: '千里山東体育館。B1階に器械体操練習場、1階にATルーム・Sports Library・体育会各部室、2階にアリーナ・フィットネススタジオを備える。',
     floors: buildStandardFloors(3, 1, 1),
-    entrances: [
-      {
-        id: 'egym-1f',
-        label: '東体育館 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -2108,14 +1826,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '誠之館5号館（凱風館）および誠之館7号館（新凱風館）。学生センター（スポーツ振興グループ）・体育会本部・Power Gym・各種武道場・体育会部室が集まる。',
     floors: buildStandardFloors(4, 1, 0),
-    entrances: [
-      {
-        id: 'gf-1f',
-        label: '凱風館・新凱風館 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -2179,14 +1890,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       'KUシンフォニーホール（誠之館4号館）および周辺の誠之館2号館・3号館（旧館/新館）・6号館（有鄰館）・8号館（養心館）を含む課外活動エリア。',
     floors: buildStandardFloors(5, 1, 1),
-    entrances: [
-      {
-        id: 'ssk-1f',
-        label: '誠之館エリア 1F 出入口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -2250,14 +1954,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     summaryNote:
       '赤褐色レンガ外観と正面大庇が特徴の総合図書館。ラーニング・コモンズや閲覧室を備える。',
     floors: buildStandardFloors(4, 1, 1),
-    entrances: [
-      {
-        id: 'lib-front-1f',
-        label: '正面大庇エントランス（1F）',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -2292,14 +1989,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     wingLabel: '簡文館（関西大学博物館）',
     summaryNote: '村野藤吾による円形増築と螺旋階段が美しい関西大学博物館（大阪府指定有形文化財）。',
     floors: buildStandardFloors(3, 1, 0),
-    entrances: [
-      {
-        id: 'kb-south-1f',
-        label: '簡文館 1F 南側入館口',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
@@ -2326,14 +2016,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     wingLabel: 'ITセンター（円神館）',
     summaryNote: '16本の丸柱ピロティに支えられた円形建築「円神館」（ITセンター・情報処理実習室）。',
     floors: buildStandardFloors(3, 1, 0),
-    entrances: [
-      {
-        id: 'en-piloti-1f',
-        label: '1F ピロティ・エントランス',
-        floor: 1,
-        access: 'unknown',
-      },
-    ],
+    entrances: [],
     connectors: [],
     rooms: [
       {
