@@ -49,6 +49,9 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(sheet.getByText('第1学舎 D棟 2階 ↔ E棟 1階 の連絡通路')).toBeVisible();
     // 以前の出典の無い連絡（全部「2F」の表記）と出入口が出ていない
     await expect(sheet.getByText(/2F/)).toHaveCount(0);
+    // バリアフリーの箱は 3 行とリンク 1 つだけ（注記・最寄り歩行ネットワークの箱は出さない）
+    await expect(sheet.getByRole('link', { name: '大学のバリアフリーマップ' })).toBeVisible();
+    await expect(sheet.getByText(/最寄り歩行ネットワーク|改修されている可能性/)).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('access-tab.png') });
   });
 
@@ -85,11 +88,9 @@ test.describe('案内アプリの代表フロー', () => {
     const stepFree = modes.getByRole('radio', { name: /段差フリー/ });
     // 初期モードは「坂ひかえめ」
     await expect(gentle).toBeChecked();
-    await expect(panel.getByText('標高データから選んだ参考ルートです。')).toBeVisible();
 
     await shortest.click();
     await expect(shortest).toBeChecked();
-    await expect(panel.getByText('標高データから選んだ参考ルートです。')).toHaveCount(0);
     await expect(distance).toHaveText(/^\d+m$/);
 
     await stepFree.click();

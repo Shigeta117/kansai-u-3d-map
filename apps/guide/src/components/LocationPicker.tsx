@@ -197,11 +197,6 @@ export function LocationPicker({
                   </span>
                 )}
               </div>
-              <div className="truncate text-[10.5px] text-[#666F7B]">
-                {selectedBuilding?.accessibleWalkNodeId
-                  ? '段差なし経路候補あり（参考） ・ エリア/教室から選択'
-                  : '歩行ネットワーク接続'}
-              </div>
             </div>
           </div>
           <ChevronDown
