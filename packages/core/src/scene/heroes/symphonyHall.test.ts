@@ -4,7 +4,8 @@ import type { BuildingFeature } from '../../domain/types';
 import { HERO_BUILDERS } from './index';
 import { frameToLocal, makeFrame } from './localFrame';
 import { HERO_MODELED_PATH_IDS } from './modeledPaths';
-import { buildSymphonyHall } from './symphonyHall';
+import { RIMPUKAN_DECK_M, RIMPUKAN_GROUND_REF } from './rimpukan';
+import { buildSymphonyHall, stairTreads } from './symphonyHall';
 
 /** buildings.json の seishikan-4（OSM way 423067246）の輪郭。長方形の北西の面に張り出しが付く */
 const HALL_POLYGON: [number, number][] = [
@@ -104,8 +105,8 @@ describe('buildSymphonyHall', () => {
     expect(box.min.z).toBeGreaterThanOrEqual(-67);
     expect(box.max.z).toBeLessThanOrEqual(-10);
     expect(box.min.y).toBeCloseTo(groundVisualY - 0.5, 5);
-    // 屋根の上面（道から 10.6m）＋屋上の筋 0.25m より高い物は無い
-    expect(box.max.y).toBeCloseTo(groundVisualY + 10.85, 5);
+    // いちばん高い物は、大階段の上端（凜風館の 3 階の屋根のデッキ）の手すり壁（段の鼻の線 +1.0m）
+    expect(box.max.y).toBeCloseTo(groundVisualY + RIMPUKAN_DECK_M + 1.0, 5);
   });
 
   it('puts the thick roof slab over the outline with walls set back under the overhang', () => {
@@ -118,13 +119,15 @@ describe('buildSymphonyHall', () => {
     // 屋根の縁は輪郭の短手（v 0〜22.7）に一致する
     expect(Math.min(...roofV)).toBeCloseTo(0, 3);
     expect(Math.max(...roofV)).toBeCloseTo(22.7, 3);
-    // 南西の壁（手すり壁は除く: 壁の高さが屋根の下面の近くまである点）は輪郭から 2m 内側
-    const wallPts = worldVertices(walls).filter((p) => p.y > groundVisualY + 8.0);
-    const wallV = wallPts.map((p) => frameToLocal(frame, p.x, p.z)[1]);
+    // 南西の壁（手すり壁 v ≈ 25.2 は除く: 壁の高さが屋根の下面の近くまである点）は輪郭から 2m 内側
+    const wallV = worldVertices(walls)
+      .filter((p) => p.y > groundVisualY + 8.0)
+      .map((p) => frameToLocal(frame, p.x, p.z)[1])
+      .filter((v) => v < 24);
     expect(Math.max(...wallV)).toBeCloseTo(20.7, 3);
   });
 
-  it('climbs about 6m along the stairs from the road to the Rimpukan side', () => {
+  it('climbs from the road to the deck on the 3rd-floor roof of Rimpukan (the 4th-floor level)', () => {
     const stairs = meshes.get('seishikan-4-stairs');
     expect(stairs).toBeTruthy();
     if (!stairs) return;
@@ -132,26 +135,55 @@ describe('buildSymphonyHall', () => {
       const [u, v] = frameToLocal(frame, p.x, p.z);
       return { u, v, y: p.y };
     });
+    // 平らな地面では、凜風館の 1 階の床と階段の下端の地面が同じ高さなので、上端は道から RIMPUKAN_DECK_M（12.4m）
     const topY = Math.max(...pts.map((p) => p.y));
-    expect(topY).toBeCloseTo(groundVisualY + 6.0, 5);
-    // 最下段は道の側（u ≈ 0.4）で 1 段目の高さ、最上段の踊り場は凜風館の北東の棟（u ≈ 38.5）まで
+    expect(topY).toBeCloseTo(groundVisualY + RIMPUKAN_DECK_M, 5);
+    // 最下段は道の側（u ≈ 0.4）で 1 段目の高さ（0.155m 以下）、最上段の踊り場は凜風館の北東の棟（u ≈ 38.5）まで
     const firstRiser = pts.filter((p) => p.u < 0.5 && p.y > groundVisualY);
-    expect(Math.max(...firstRiser.map((p) => p.y))).toBeCloseTo(groundVisualY + 0.15, 5);
-    const topLanding = pts.filter((p) => p.y > groundVisualY + 5.99);
+    const first = Math.max(...firstRiser.map((p) => p.y)) - groundVisualY;
+    expect(first).toBeGreaterThan(0.12);
+    expect(first).toBeLessThanOrEqual(0.155 + 1e-6);
+    const topLanding = pts.filter((p) => p.y > topY - 0.01);
     expect(Math.max(...topLanding.map((p) => p.u))).toBeGreaterThan(38.4);
     // 階段はホールの南西（屋根の縁 v 22.7 より外）に収まる
     expect(Math.min(...pts.map((p) => p.v))).toBeGreaterThan(25);
   });
 
-  it('keeps the ivy bank under the roof slab', () => {
+  it('splits the rise into steps of at most 0.155m with treads of 0.3m or more and short landings', () => {
+    for (const rise of [10.9, 12.4]) {
+      const treads = stairTreads(rise);
+      const steps = treads.filter((t) => t.kind === 'step');
+      const landings = treads.filter((t) => t.kind === 'landing');
+      expect(steps.length).toBeGreaterThanOrEqual(Math.ceil(rise / 0.155 - 1e-6));
+      expect(steps[steps.length - 1]!.top).toBeCloseTo(rise, 6);
+      for (const st of steps) expect(st.u1 - st.u0).toBeGreaterThanOrEqual(0.3);
+      // 最初の上りは道から全幅の 8 段（映像 IMG_6413_000・003）、踊り場は 6 か所（いちばん上はデッキへ続く 4m）
+      expect(treads.findIndex((t) => t.kind === 'landing')).toBe(8);
+      expect(landings).toHaveLength(6);
+      const last = landings[landings.length - 1]!;
+      expect(last.u1 - last.u0).toBeCloseTo(4.0, 6);
+      let prev = 0;
+      for (const st of steps) {
+        expect(st.top - prev).toBeLessThanOrEqual(0.155 + 1e-9);
+        prev = st.top;
+      }
+    }
+  });
+
+  it('keeps the ivy bank under the roof slab and below the deck at the top of the stairs', () => {
     const bank = meshes.get('seishikan-4-bank');
     expect(bank).toBeTruthy();
     if (!bank) return;
-    const ys = worldVertices(bank).map((p) => p.y);
-    // 屋根の板の下面（道から 9.4m）・梁の下端（8.5m）より低い
-    expect(Math.max(...ys)).toBeLessThan(groundVisualY + 8.5);
-    // 平らな地面では、土手の最も高い所は階段の上端 +1.8m
-    expect(Math.max(...ys)).toBeCloseTo(groundVisualY + 7.8, 5);
+    const pts = worldVertices(bank).map((p) => {
+      const [u, v] = frameToLocal(frame, p.x, p.z);
+      return { u, v, y: p.y };
+    });
+    // 屋根の板の下（u −2.3〜33.0、v 0〜22.7）では、梁の下端（道から 8.5m）より低い
+    const underRoof = pts.filter((p) => p.u > -2.3 && p.u < 33.0 && p.v > 0 && p.v < 22.7);
+    expect(underRoof.length).toBeGreaterThan(0);
+    expect(Math.max(...underRoof.map((p) => p.y))).toBeLessThan(groundVisualY + 8.5);
+    // どこでも凜風館のデッキ（階段の上端）より低い
+    expect(Math.max(...pts.map((p) => p.y))).toBeLessThan(groundVisualY + RIMPUKAN_DECK_M);
   });
 
   it('follows sloping ground: steps never float above the terrain', () => {
@@ -180,5 +212,8 @@ describe('buildSymphonyHall', () => {
     for (const p of lowest.values()) {
       expect(p.y).toBeLessThanOrEqual(slope(p.x, p.z) + 1e-6);
     }
+    // 上端は、凜風館の重心の地面（凜風館の 1 階の床）から RIMPUKAN_DECK_M の高さ
+    const topY = Math.max(...pts.map((p) => p.y));
+    expect(topY).toBeCloseTo(slope(RIMPUKAN_GROUND_REF[0], RIMPUKAN_GROUND_REF[1]) + RIMPUKAN_DECK_M, 5);
   });
 });
