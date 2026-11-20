@@ -176,6 +176,14 @@ export function BuildingSheet({
 
   if (!mounted || !target) return null;
 
+  // 中学校・高等学校・幼稚園の施設は、名称のほかの情報（階数・設備・出入口・経路）を出さない（持ち主の決め、2026-11-20）
+  const nameOnly = target.infoPolicy === 'name-only';
+  const nameOnlyNote = (
+    <p className="mt-2 rounded-xl border border-[#E6DFD2] bg-white px-3 py-2.5 text-[12px] leading-relaxed text-[#4B5360]">
+      中学校・高等学校などの施設のため、名称だけを表示しています。
+    </p>
+  );
+
   const catColor =
     CATEGORY_OPTIONS.find((c) => c.id === target.category)?.color ?? '#64748B';
   const state = visible ? 'open' : 'closed';
@@ -629,7 +637,7 @@ export function BuildingSheet({
 
   const actionButtonSize = isSheet ? 'py-2.5' : 'py-2';
   const actions = (
-    <div className={`grid grid-cols-3 gap-1.5 ${isSheet ? '' : 'mt-3 border-t border-[#EAE3D6] pt-2.5'}`}>
+    <div className={`grid ${nameOnly ? 'grid-cols-1' : 'grid-cols-3'} gap-1.5 ${isSheet ? '' : 'mt-3 border-t border-[#EAE3D6] pt-2.5'}`}>
       <button
         type="button"
         onClick={() => onFocusBuilding(target)}
@@ -639,6 +647,7 @@ export function BuildingSheet({
         <span>注視</span>
       </button>
 
+      {!nameOnly && (
       <button
         type="button"
         onClick={() => onSetAsOrigin(target)}
@@ -648,7 +657,9 @@ export function BuildingSheet({
         <MapPin className="h-3.5 w-3.5 text-[#2B8A6E]" />
         <span>ここを出発</span>
       </button>
+      )}
 
+      {!nameOnly && (
       <button
         type="button"
         onClick={() => onNavigateTo(target)}
@@ -658,10 +669,11 @@ export function BuildingSheet({
         <Navigation className="h-3.5 w-3.5" />
         <span>ここへ行く</span>
       </button>
+      )}
     </div>
   );
 
-  const unroutableNote = !target.walkNodeId ? (
+  const unroutableNote = !target.walkNodeId && !nameOnly ? (
     <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-[#78808C]">
       <RouteIcon className="h-3 w-3" />
       <span>周辺建物のため歩道ルートノード未接続</span>
@@ -684,15 +696,15 @@ export function BuildingSheet({
           <>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                {chips}
+                {!nameOnly && chips}
                 <h2 className="mt-1.5 text-[16px] font-bold leading-snug text-[#1D2430]">
                   {target.name}
                 </h2>
-                {englishName}
+                {!nameOnly && englishName}
               </div>
               {closeButton}
             </div>
-            {tabList(`mt-3 ${TAB_LIST_BOX}`)}
+            {!nameOnly && tabList(`mt-3 ${TAB_LIST_BOX}`)}
           </>
         }
         footer={
@@ -702,7 +714,7 @@ export function BuildingSheet({
           </>
         }
       >
-        {tabBody}
+        {nameOnly ? nameOnlyNote : tabBody}
       </BottomSheet>
     );
   }
@@ -734,6 +746,9 @@ export function BuildingSheet({
         </div>
       }
     >
+      {nameOnly ? (
+        <div className="pb-3">{nameOnlyNote}</div>
+      ) : (
       <div className="pb-3">
         {chips}
         {englishName && <div className="mt-1.5">{englishName}</div>}
@@ -743,6 +758,7 @@ export function BuildingSheet({
         </div>
         {tabBody}
       </div>
+      )}
     </BottomSheet>
   );
 }

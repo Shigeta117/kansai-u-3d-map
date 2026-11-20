@@ -95,7 +95,7 @@ export function LocationPicker({
   const routableBuildings = useMemo(
     () =>
       buildings
-        .filter((b) => b.walkNodeId && (b.landmarkId || b.inCampus))
+        .filter((b) => b.walkNodeId && (b.landmarkId || b.inCampus) && b.infoPolicy !== 'name-only')
         .sort((a, b) => a.labelPriority - b.labelPriority),
     [buildings],
   );
