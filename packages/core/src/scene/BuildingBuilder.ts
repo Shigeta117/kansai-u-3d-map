@@ -8,6 +8,7 @@ import type {
   TerrainGrid,
 } from '../domain/types';
 import { SENRIYAMA_AERIAL_ROOF_HEX } from '../data/campuses/senriyama/roof-colors';
+import { SENRIYAMA_WALL_HEX } from '../data/campuses/senriyama/wall-colors';
 import { ensureExtrudeLids } from './extrudeLids';
 import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
@@ -337,11 +338,14 @@ export function buildBuildingsGroup(
     bGroup.name = `building-${b.id}`;
     bGroup.userData = { buildingId: b.id };
 
-    const wallHex = getShadeVariant(SCENE_PALETTE.buildings[b.category], b.id);
+    // 壁はエリアの色（建物ごとに明るさを少しずらす）。写真で外壁の色を確かめた建物だけ、その色で上書きする
+    const areaWallHex = getShadeVariant(SCENE_PALETTE.buildings[b.category], b.id);
+    const wallHex = SENRIYAMA_WALL_HEX[b.id] ?? areaWallHex;
     const roofOverride = SCENE_PALETTE.roofOverrides[b.category];
+    // エリアの塗り分けの屋根は、壁の上書きに引きずられないようエリアの壁の色から作る
     const areaRoofHex = roofOverride
       ? roofOverride
-      : `#${new THREE.Color(wallHex).offsetHSL(0, -0.04, 0.04).getHexString()}`;
+      : `#${new THREE.Color(areaWallHex).offsetHSL(0, -0.04, 0.04).getHexString()}`;
     const aerialRoofHex = SENRIYAMA_AERIAL_ROOF_HEX[b.id];
     const roofHex =
       (options.roofColorMode ?? 'aerial') === 'aerial' && aerialRoofHex ? aerialRoofHex : areaRoofHex;

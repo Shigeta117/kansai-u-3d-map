@@ -17,6 +17,7 @@ import type { HeroBuildContext, HeroBuilder, HeroBuildResult } from './types';
  * - 2022 年の写真では、フィンの面の下に入口（金属の庇つき）がある。西門の新アクセス道（屋根付き歩道）の終点は
  *   この西の面の前（u ≈ -312、v = 156〜167）で、輪郭の西の面には小さな張り出し（風除室と見た）がある
  * - よって塔は西端の塊。フィンの面は西の面（アクセス道の到着点を向く）、その南寄り 6 割。
+ *   東の面（中庭と A棟を向く）にも同じフィンと「関西大学」の文字がある（2023 年の持ち主の映像、A棟の上から）。
  *   写真では塔の南面の東寄りの区画（窓が 2 つずつ並ぶ）が一段高い細い塔になり、上部に校章とアンテナがある
  *
  * 座標は、南の辺に沿う u（東北東が +）と、それに直交する v（南南東が +）の枠で組み、group ごと回して置く。
@@ -54,11 +55,28 @@ const VESTIBULE = { u0: -306.5, u1: WEST_FACE_U, v0: 166.5, v1: 169.7 } as const
 /** アクセス道の屋根の終点（structures.json の access-west-canopy の T 字の端、u ≈ -312.3） */
 const ACCESS_CANOPY_END_U = -312.6;
 
+// --- 棟の割り当て（KAN-CAN! の第3学舎エリアの図と、持ち主の手書きの割り当て 2026-11-20） ---
+/**
+ * 3号館 C棟 = 西端の塔（上の塊）。1号館 A棟 = 東の奥（新関西大学会館の側）、2号館 B棟 = 南の手前、
+ * 4号館 D棟 = 北（第3学舎連絡デッキの側）。B棟と D棟は中庭の南と北の帯。
+ * A棟の西の端は、輪郭の北の面の段（点 33・34、u = -240.3）と中庭の東の端（u ≈ -240.7）にそろえる
+ * （南の面の切れ込み u = -239.4〜-236.9 もこの近く）
+ */
+const A_WEST_U = -240.3;
+/**
+ * B棟と D棟を結ぶ 5 階の通路（持ち主: A棟は 4 階までだが、B と D を結ぶ 5 階の通路がある）。
+ * 位置は、A棟の屋上のうち中庭の東の端に沿う帯（2023 年の映像で、この通路から中庭越しに塔を撮っている）。
+ * 幅は南の面の切れ込みの東の端（u = -236.9）までの 3.4m とした（推定）
+ */
+const BD_LINK = { u0: A_WEST_U, u1: -236.9, v0: 152.3, v1: 163.7 } as const;
+
 // --- 塔の段（写真で数えた階数と、面の幅に対する割合） ---
 /**
  * 西の面の北寄りは低く、フィンの面の左肩が 2 段下がる（2012 年の写真。2022 年の写真でも 1 段目が見える）。
  * フィンの部分は面の幅の約 6 割で南寄り。その北（写真の左）の段の上端はフィンの下端より 1 階ほど高く（8 階）、
- * さらに北の端の上端はフィンの下端とそろう（7 階。2012 年の写真で、フィンの下端の線の延長に乗る）
+ * さらに北の端の上端はフィンの下端とそろう（7 階。2012 年の写真で、フィンの下端の線の延長に乗る）。
+ * 2023 年の持ち主の映像でも、西の面（新アクセス路から）と東の面（A棟の上から）の両方で、フィンの北隣に
+ * フィンの上端より 1〜2 階低い段が写る（8 階の段）。7 階の段は持ち主の映像では確かめられていない
  */
 const STEP_NORTH_V = 150.5;
 const MAIN_TOWER_NORTH_V = 157.4;
@@ -66,9 +84,12 @@ const MAIN_TOWER_NORTH_V = 157.4;
 const SLENDER = { u0: -292.3, u1: TOWER_EAST_U, v0: 168.0, v1: TOWER_SOUTH_V } as const;
 
 const FLOOR_HEIGHT_M = 3.9;
+/** 3号館 C棟（塔）: 10 階（KAN-CAN! 学舎・教室一覧。6〜10 階は研究室） */
 const TOWER_FLOORS = 10;
-/** 雁行する棟（5 階） */
-const LOW_FLOORS = 5;
+/** 2号館 B棟・4号館 D棟: 5 階（KAN-CAN!。D棟は 4 階に屋上広場があるが、位置が分からないので形にしない） */
+const BD_FLOORS = 5;
+/** 1号館 A棟: 地階＋地上 4 階（KAN-CAN!）。地階は 1 階の床より下の無地の基礎として見える */
+const A_FLOORS = 4;
 /** 西の塊の土台（北の端に見える 2 段目、7 階） */
 const BASE_FLOORS = 7;
 /** 左肩の 1 段目（8 階） */
@@ -95,7 +116,7 @@ const COLORS = {
   roof: '#A9A49A',
   plinth: '#CFC7B5',
   finGlass: '#4E6273',
-  blue: '#2F56B0', // 「関西大学」の青い立体文字（模型では文字の位置に細い青い線を 4 本）
+  blue: '#2F56B0', // 「関西大学」の青い立体文字
   emblem: '#C2B9A6', // 校章（模型では壁と同系の少し濃い無地の円）
   windowFrame: '#F7F6F2', // 窓の白い枠（2012 年・2022 年の写真）
   windowGlass: '#9AAEBE', // 空を映す明るめのガラス
@@ -109,8 +130,22 @@ const COLORS = {
 const TOWER_WINDOW_TILE_M = 2.6;
 const BAND_WINDOW_TILE_M = 1.8;
 
-/** 「関西大学」の文字の代わりの細い青い線: フィンの 6 区画のうち 2〜5 番目の上に 1 本ずつ（2022 年の写真の文字の位置） */
+/**
+ * 「関西大学」の文字。フィンの 6 区画のうち 2〜5 番目の上の笠木に 1 文字ずつ（2022 年の写真と、2023 年の持ち主の映像の
+ * 西の面〈新アクセス路から〉・東の面〈A棟の上から〉の両方で同じ位置）。どちらの面も外から見て左から「関西大学」と読める。
+ * 字の高さは笠木の約 6 割、字の幅は区画の約 6 割（映像の東の面で、笠木 71px に字 43px、区画 75px に字 45px）
+ */
 const LETTER_BAYS = [1, 2, 3, 4] as const;
+const LETTER_GLYPHS = ['関', '西', '大', '学'] as const;
+const LETTER_HEIGHT_OF_CROWN = 0.6;
+const LETTER_WIDTH_OF_BAY_GLYPH = 0.6;
+const LETTER_FONT = "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif";
+/** 立体文字の厚みの代わりの影（右下へずらした濃い青）。字の大きさに対する割合 */
+const LETTER_SHADOW_OFFSET = 0.045;
+const LETTER_SHADOW_HEX = '#16295E';
+/** 笠木の面から板を浮かせる距離（m） */
+const LETTER_BOARD_GAP_M = 0.03;
+/** ブラウザの外（Node・テスト）で文字の代わりに置く細い青い線（文字 1 つにつき 1 本） */
 const LETTER_WIDTH_OF_BAY = 0.7;
 const LETTER_LINE_M = 0.3;
 /** 校章の円（2012 年の写真で、細い塔の南面の幅の約 1/5、上端から 1 階分ほど下） */
@@ -316,6 +351,117 @@ function createWindowTexture(kind: 'punched' | 'band', tileWidthM: number): THRE
   return tex;
 }
 
+/** フィンの面（西と東）。dir は面の外向き（u の正負） */
+export interface FinFace {
+  name: 'west' | 'east';
+  faceU: number;
+  dir: -1 | 1;
+}
+
+/**
+ * フィンの面は西の面（新アクセス路の到着点を向く）と東の面（中庭と A棟を向く）の 2 つ。
+ * 東の面は 2023 年の持ち主の映像（A棟の上から）で、西の面と同じ 6 区画のフィン・笠木・文字が写る。
+ * 細い塔（南東）がフィンの面の南の端の上に立ち上がる並びも、映像（左＝南に細い塔）と合う
+ */
+export const FIN_FACES: readonly FinFace[] = [
+  { name: 'west', faceU: WEST_FACE_U, dir: -1 },
+  { name: 'east', faceU: TOWER_EAST_U, dir: 1 },
+];
+
+/** 文字の板 1 面分の置き方（枠の座標 u, v, y） */
+export interface LetterBoardPlacement {
+  face: FinFace['name'];
+  /** 板の面の u（笠木の外の面より LETTER_BOARD_GAP_M 外） */
+  u: number;
+  /** 板の北の端と南の端の v（フィンの 2〜5 番目の区画） */
+  vNorth: number;
+  vSouth: number;
+  y0: number;
+  y1: number;
+  /** 外から見て左の端の v（ここに「関」が来る） */
+  vLeft: number;
+}
+
+/** 文字の板の置き方。フィンの面の南北の範囲（finV0〜finV1）と笠木の高さ（y0〜y1）から */
+export function planLetterBoards(finV0: number, finV1: number, y0: number, y1: number): LetterBoardPlacement[] {
+  const bay = (finV1 - finV0) / FIN_BAYS;
+  const first = Math.min(...LETTER_BAYS);
+  const last = Math.max(...LETTER_BAYS);
+  const vNorth = finV0 + first * bay;
+  const vSouth = finV0 + (last + 1) * bay;
+  return FIN_FACES.map((f) => ({
+    face: f.name,
+    u: f.faceU + f.dir * (FIN_DEPTH_M + LETTER_BOARD_GAP_M),
+    vNorth,
+    vSouth,
+    y0,
+    y1,
+    // 西の面を外（西）から見ると左が北、東の面を外（東）から見ると左が南
+    vLeft: f.dir < 0 ? vNorth : vSouth,
+  }));
+}
+
+/**
+ * 「関西大学」の 4 文字を 1 枚に並べたテクスチャ（透明の地に青い太いゴシック。右下に濃い青の影を付けて厚みを表す）。
+ * 板の縦横の比（widthM × heightM）に合わせて canvas の高さを決め、字がつぶれないようにする。
+ * Node（document が無い）では null を返す（その場合は細い青い線のまま）
+ */
+function createLetterTexture(widthM: number, heightM: number): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const w = 1024;
+  const h = Math.max(64, Math.round((w * heightM) / widthM));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d');
+  if (!g) return null;
+  g.clearRect(0, 0, w, h);
+  const cellW = w / LETTER_GLYPHS.length;
+  // 漢字の字面は 1em のおよそ 0.9 倍。高さと幅の両方の割合に収まる大きさにする
+  const fontPx = Math.min((h * LETTER_HEIGHT_OF_CROWN) / 0.9, (cellW * LETTER_WIDTH_OF_BAY_GLYPH) / 0.92);
+  g.font = `700 ${Math.round(fontPx)}px ${LETTER_FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const off = Math.max(1, fontPx * LETTER_SHADOW_OFFSET);
+  LETTER_GLYPHS.forEach((ch, i) => {
+    const cx = cellW * (i + 0.5);
+    const cy = h / 2;
+    g.fillStyle = LETTER_SHADOW_HEX;
+    g.fillText(ch, cx + off, cy + off);
+    g.fillStyle = COLORS.blue;
+    g.fillText(ch, cx, cy);
+  });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** 文字の板（両面分の四角形 2 枚を 1 つのジオメトリに）。どちらも外から見て左から右へ u = 0 → 1 */
+function buildLetterBoardGeometry(boards: readonly LetterBoardPlacement[]): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  boards.forEach((b, i) => {
+    const vRight = b.vLeft === b.vNorth ? b.vSouth : b.vNorth;
+    const nx = b.u < (WEST_FACE_U + TOWER_EAST_U) / 2 ? -1 : 1;
+    // 左下・右下・右上・左上
+    pos.push(b.u, b.y0, b.vLeft, b.u, b.y0, vRight, b.u, b.y1, vRight, b.u, b.y1, b.vLeft);
+    for (let k = 0; k < 4; k++) nor.push(nx, 0, 0);
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    const o = i * 4;
+    idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  return geo;
+}
+
 // ---------------------------------------------------------------------------
 
 export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult => {
@@ -417,7 +563,8 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
     [CHAMFER_U, CHAMFER_V],
     [WEST_FACE_U, CHAMFER_V],
   ];
-  const lowTopY = yAtFloor(LOW_FLOORS) + PARAPET_M;
+  const bdTopY = yAtFloor(BD_FLOORS) + PARAPET_M;
+  const aTopY = yAtFloor(A_FLOORS) + PARAPET_M;
   const baseTopY = yAtFloor(BASE_FLOORS) + BASE_PARAPET_M;
   addPrism('area3-tower-base', towerBaseRing, [], baseTopY, towerWallMat);
 
@@ -466,7 +613,7 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   antenna.position.set(SLENDER.u0 + 2.2, slenderTopY + 2.5, SLENDER.v0 + 3.0);
   frame.add(antenna);
 
-  // --- 5. フィンの面（西の面の 8〜10 階）: 窓の縦の帯 6 本・深いフィン・上の笠木と文字の代わりの青い線 ---
+  // --- 5. フィンの面（西と東の面の 8〜10 階）: 窓の縦の帯 6 本・深いフィン・上の笠木と「関西大学」の文字 ---
   const finV0 = MAIN_TOWER_NORTH_V;
   const finV1 = CHAMFER_V;
   const bay = (finV1 - finV0) / FIN_BAYS;
@@ -475,55 +622,82 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
   const dummy = new THREE.Object3D();
 
-  const fins = new THREE.InstancedMesh(unitBox, plainTileMat, FIN_BAYS + 1);
+  const fins = new THREE.InstancedMesh(unitBox, plainTileMat, (FIN_BAYS + 1) * FIN_FACES.length);
   fins.name = 'area3-fins';
-  for (let k = 0; k <= FIN_BAYS; k++) {
-    const isFrame = k === 0 || k === FIN_BAYS;
-    const w = isFrame ? FRAME_WIDTH_M : FIN_WIDTH_M;
-    const vc = k === 0 ? finV0 + w / 2 : k === FIN_BAYS ? finV1 - w / 2 : finV0 + k * bay;
-    dummy.position.set(WEST_FACE_U - FIN_DEPTH_M / 2, (finY0 + finY1) / 2, vc);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(FIN_DEPTH_M, finY1 - finY0, w);
-    dummy.updateMatrix();
-    fins.setMatrixAt(k, dummy.matrix);
+  const strips = new THREE.InstancedMesh(unitBox, finGlassMat, FIN_BAYS * FIN_FACES.length);
+  strips.name = 'area3-fin-glass';
+  let finIndex = 0;
+  let stripIndex = 0;
+  for (const face of FIN_FACES) {
+    for (let k = 0; k <= FIN_BAYS; k++) {
+      const isFrame = k === 0 || k === FIN_BAYS;
+      const w = isFrame ? FRAME_WIDTH_M : FIN_WIDTH_M;
+      const vc = k === 0 ? finV0 + w / 2 : k === FIN_BAYS ? finV1 - w / 2 : finV0 + k * bay;
+      dummy.position.set(face.faceU + (face.dir * FIN_DEPTH_M) / 2, (finY0 + finY1) / 2, vc);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(FIN_DEPTH_M, finY1 - finY0, w);
+      dummy.updateMatrix();
+      fins.setMatrixAt(finIndex++, dummy.matrix);
+    }
+    for (let k = 0; k < FIN_BAYS; k++) {
+      const v0 = finV0 + k * bay + (k === 0 ? FRAME_WIDTH_M : FIN_WIDTH_M / 2);
+      const v1 = finV0 + (k + 1) * bay - (k === FIN_BAYS - 1 ? FRAME_WIDTH_M : FIN_WIDTH_M / 2);
+      dummy.position.set(face.faceU + face.dir * 0.06, (finY0 + finY1) / 2, (v0 + v1) / 2);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(0.1, finY1 - finY0 - 0.4, v1 - v0);
+      dummy.updateMatrix();
+      strips.setMatrixAt(stripIndex++, dummy.matrix);
+    }
+
+    const lintel = new THREE.Mesh(unitBox, plainTileMat);
+    lintel.name = `area3-fin-lintel-${face.name}`;
+    lintel.position.set(face.faceU + (face.dir * FIN_DEPTH_M) / 2, (finY1 + towerTopY) / 2, (finV0 + finV1) / 2);
+    lintel.scale.set(FIN_DEPTH_M, towerTopY - finY1, finV1 - finV0);
+    lintel.castShadow = true;
+    frame.add(lintel);
   }
   fins.instanceMatrix.needsUpdate = true;
   fins.castShadow = true;
   frame.add(fins);
-
-  const strips = new THREE.InstancedMesh(unitBox, finGlassMat, FIN_BAYS);
-  strips.name = 'area3-fin-glass';
-  for (let k = 0; k < FIN_BAYS; k++) {
-    const v0 = finV0 + k * bay + (k === 0 ? FRAME_WIDTH_M : FIN_WIDTH_M / 2);
-    const v1 = finV0 + (k + 1) * bay - (k === FIN_BAYS - 1 ? FRAME_WIDTH_M : FIN_WIDTH_M / 2);
-    dummy.position.set(WEST_FACE_U - 0.06, (finY0 + finY1) / 2, (v0 + v1) / 2);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(0.1, finY1 - finY0 - 0.4, v1 - v0);
-    dummy.updateMatrix();
-    strips.setMatrixAt(k, dummy.matrix);
-  }
   strips.instanceMatrix.needsUpdate = true;
   frame.add(strips);
 
-  const lintel = new THREE.Mesh(unitBox, plainTileMat);
-  lintel.name = 'area3-fin-lintel';
-  lintel.position.set(WEST_FACE_U - FIN_DEPTH_M / 2, (finY1 + towerTopY) / 2, (finV0 + finV1) / 2);
-  lintel.scale.set(FIN_DEPTH_M, towerTopY - finY1, finV1 - finV0);
-  lintel.castShadow = true;
-  frame.add(lintel);
-
-  // 「関西大学」の青い立体文字の代わり: 壁と同じ色の笠木の面に、文字 1 つにつき 1 本の細い青い線（控えめに）
-  const letters = new THREE.InstancedMesh(unitBox, blueMat, LETTER_BAYS.length);
-  letters.name = 'area3-letter-lines';
-  LETTER_BAYS.forEach((k, i) => {
-    dummy.position.set(WEST_FACE_U - FIN_DEPTH_M - 0.04, (finY1 + towerTopY) / 2, finV0 + (k + 0.5) * bay);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(0.08, LETTER_LINE_M, bay * LETTER_WIDTH_OF_BAY);
-    dummy.updateMatrix();
-    letters.setMatrixAt(i, dummy.matrix);
-  });
-  letters.instanceMatrix.needsUpdate = true;
-  frame.add(letters);
+  // 「関西大学」の青い立体文字: 4 文字を 1 枚のテクスチャに並べ、笠木の面の少し手前に透明な板で貼る
+  // （両面で 1 つのメッシュ＝描画命令 1 回）。ブラウザの外では文字 1 つにつき 1 本の細い青い線で代える
+  const boards = planLetterBoards(finV0, finV1, finY1, towerTopY);
+  const letterTex = createLetterTexture(bay * LETTER_BAYS.length, towerTopY - finY1);
+  if (letterTex) {
+    const letterMat = new THREE.MeshStandardMaterial({
+      color: '#FFFFFF',
+      map: letterTex,
+      transparent: true,
+      depthWrite: false,
+      roughness: 0.45,
+      metalness: 0.08,
+    });
+    const board = new THREE.Mesh(buildLetterBoardGeometry(boards), letterMat);
+    board.name = 'area3-letters';
+    frame.add(board);
+  } else {
+    const letters = new THREE.InstancedMesh(unitBox, blueMat, LETTER_BAYS.length * FIN_FACES.length);
+    letters.name = 'area3-letter-lines';
+    let li = 0;
+    for (const face of FIN_FACES) {
+      for (const k of LETTER_BAYS) {
+        dummy.position.set(
+          face.faceU + face.dir * (FIN_DEPTH_M + 0.04),
+          (finY1 + towerTopY) / 2,
+          finV0 + (k + 0.5) * bay,
+        );
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(0.08, LETTER_LINE_M, bay * LETTER_WIDTH_OF_BAY);
+        dummy.updateMatrix();
+        letters.setMatrixAt(li++, dummy.matrix);
+      }
+    }
+    letters.instanceMatrix.needsUpdate = true;
+    frame.add(letters);
+  }
 
   // --- 6. 入口の風除室（輪郭の西の張り出し）と、アクセス道の屋根の終点までの庇（2022 年の写真の金属の庇） ---
   const vestibuleTopY = floorY + 3.6;
@@ -545,18 +719,31 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   canopy.castShadow = true;
   frame.add(canopy);
 
-  // --- 7. 雁行する棟（5 階。輪郭のうち塔の東。中庭の穴は輪郭どおり） ---
+  // --- 7. 雁行する棟（輪郭のうち塔の東。中庭の穴は輪郭どおり）。棟ごとの階数は KAN-CAN! の学舎・教室一覧 ---
+  // 2号館 B棟（南）と 4号館 D棟（北）は 5 階、その東の 1号館 A棟は地上 4 階。B と D を結ぶ 5 階の通路は A棟の屋上に載せる
   const outerFrame = polygon.map(([x, z]) => toFrame(x, z));
-  const wingRing = clipRingByU(outerFrame, TOWER_EAST_U, true);
+  const eastOfTower = clipRingByU(outerFrame, TOWER_EAST_U, true);
+  const bdRing = clipRingByU(eastOfTower, A_WEST_U, false);
+  const aRing = clipRingByU(outerFrame, A_WEST_U, true);
   const holesFrame = (ctx.building.holes ?? [])
     .map((h) => h.map(([x, z]) => toFrame(x, z)))
-    .filter((h) => h.length >= 3 && h.every(([u]) => u > TOWER_EAST_U));
-  const wingTopY = lowTopY;
-  if (wingRing.length >= 3) {
-    addPrism('area3-wing', wingRing, holesFrame, wingTopY, wingWallMat);
+    .filter((h) => h.length >= 3 && h.every(([u]) => u > TOWER_EAST_U && u < A_WEST_U));
+  if (bdRing.length >= 3) {
+    addPrism('area3-wing-bd', bdRing, holesFrame, bdTopY, wingWallMat);
   }
+  if (aRing.length >= 3) {
+    addPrism('area3-wing-a', aRing, [], aTopY, wingWallMat);
+  }
+  addPrism(
+    'area3-link-bd',
+    rect(BD_LINK.u0, BD_LINK.u1, BD_LINK.v0, BD_LINK.v1),
+    [],
+    bdTopY,
+    wingWallMat,
+    aTopY,
+  );
 
-  // 屋上の機械室（2012 年の写真で、雁行の区画の継ぎ目あたりに灰色の箱が 2〜3 個）
+  // 屋上の機械室（2012 年の写真で、雁行の区画の継ぎ目あたりに灰色の箱が 2〜3 個）。載る棟の屋上の高さに置く
   const penthouses: [number, number, number, number][] = [
     [-279, -271, 166.5, 172.5],
     [-259, -249, 168.0, 175.0],
@@ -565,7 +752,8 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   const ph = new THREE.InstancedMesh(unitBox, penthouseMat, penthouses.length);
   ph.name = 'area3-penthouses';
   penthouses.forEach(([u0, u1, v0, v1], i) => {
-    dummy.position.set((u0 + u1) / 2, wingTopY + 1.4, (v0 + v1) / 2);
+    const roofY = (u0 + u1) / 2 > A_WEST_U ? aTopY : bdTopY;
+    dummy.position.set((u0 + u1) / 2, roofY + 1.4, (v0 + v1) / 2);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(u1 - u0, 3.2, v1 - v0);
     dummy.updateMatrix();

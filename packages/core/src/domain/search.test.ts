@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { BuildingFloorPlan } from './indoor-types';
 import {
@@ -159,4 +161,17 @@ describe('search', () => {
     expect(rangeHit[0]?.wing).toBe('D棟');
     expect(rangeHit[0]?.floor).toBe(1);
   });
+});
+
+describe('第3学舎の棟の呼び名（KAN-CAN!）', () => {
+  const buildings = JSON.parse(
+    fs.readFileSync(path.resolve(process.cwd(), 'public/data/senriyama/buildings.json'), 'utf8'),
+  ) as BuildingFeature[];
+
+  it.each(['第3学舎1号館', '1号館A棟', '第3学舎 2号館 B棟', '3号館C棟', '第3学舎4号館D棟'])(
+    'finds 第3学舎 by "%s"',
+    (query) => {
+      expect(searchBuildings(buildings, query).map((b) => b.id)).toContain('area3');
+    },
+  );
 });

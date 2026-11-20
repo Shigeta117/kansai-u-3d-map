@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import type { BuildingFeature } from '../../domain/types';
-import { buildArea3 } from './area3';
+import { buildArea3, FIN_FACES, planLetterBoards } from './area3';
 
 /** buildings.json の area3（rel_14656532）の輪郭と中庭 */
 const AREA3_POLYGON: [number, number][] = [
@@ -159,7 +159,7 @@ describe('buildArea3', () => {
 
   it('puts the 10-storey tower at the west end, taller than the 5-storey wing, with a taller slender tower', () => {
     const main = result.group.getObjectByName('area3-tower-main');
-    const wing = result.group.getObjectByName('area3-wing');
+    const wing = result.group.getObjectByName('area3-wing-bd');
     const slender = result.group.getObjectByName('area3-tower-slender');
     if (!main || !wing || !slender) throw new Error('parts missing');
     const mainBox = worldBox(main);
@@ -172,30 +172,74 @@ describe('buildArea3', () => {
     // 塔は輪郭の西端（関西大学会館側から見て左、西門のアクセス道の到着点）にある
     const mainCx = (mainBox.min.x + mainBox.max.x) / 2;
     const wingCx = (wingBox.min.x + wingBox.max.x) / 2;
-    expect(mainCx).toBeLessThan(wingCx - 30);
+    expect(mainCx).toBeLessThan(wingCx - 20);
     expect(mainBox.min.x).toBeLessThan(-225);
   });
 
-  it('puts 5 deep fins plus the 2 frame edges and 4 thin blue lines (not a board) on the west face of the tower', () => {
+  it('puts 5 deep fins plus the 2 frame edges on both the west and the east face of the tower', () => {
     const fins = result.group.getObjectByName('area3-fins');
-    const letters = result.group.getObjectByName('area3-letter-lines');
     const main = result.group.getObjectByName('area3-tower-main');
-    if (!(fins instanceof THREE.InstancedMesh) || !(letters instanceof THREE.InstancedMesh) || !main) {
-      throw new Error('fins missing');
-    }
-    expect(fins.count).toBe(7);
-    expect(letters.count).toBe(4);
+    if (!(fins instanceof THREE.InstancedMesh) || !main) throw new Error('fins missing');
+    expect(fins.count).toBe(7 * 2);
     expect(result.group.getObjectByName('area3-blue-band')).toBeUndefined();
-    const finBox = worldBox(fins);
-    const letterBox = worldBox(letters);
-    const mainBox = worldBox(main);
-    // フィンと青い線は塔の西の面より外（西）に出る
-    expect(finBox.min.x).toBeLessThan(mainBox.min.x);
-    expect(letterBox.min.x).toBeLessThan(mainBox.min.x);
-    // 青い線は細い（一枚板にしない）
-    expect(letterBox.max.y - letterBox.min.y).toBeLessThan(0.5);
+    // インスタンスの行列は枠（u, v）の座標。西の面（u = -301.7）より西に 7 本、東の面（u = -284.3）より東に 7 本
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    let west = 0;
+    let east = 0;
+    for (let i = 0; i < fins.count; i++) {
+      fins.getMatrixAt(i, m);
+      p.setFromMatrixPosition(m);
+      if (p.x < -301.7) west++;
+      if (p.x > -284.3) east++;
+    }
+    expect(west).toBe(7);
+    expect(east).toBe(7);
     // フィンは塔の上部（8〜10 階）
-    expect(finBox.min.y - groundVisualY).toBeGreaterThan(20);
+    expect(worldBox(fins).min.y - groundVisualY).toBeGreaterThan(20);
+  });
+
+  it('falls back to 4 thin blue lines per face (not a board) where a canvas cannot be made', () => {
+    // Node には document が無いので、文字の板（CanvasTexture）の代わりに細い線になる
+    expect(result.group.getObjectByName('area3-letters')).toBeUndefined();
+    const letters = result.group.getObjectByName('area3-letter-lines');
+    if (!(letters instanceof THREE.InstancedMesh)) throw new Error('letter lines missing');
+    expect(letters.count).toBe(4 * 2);
+    const box = worldBox(letters);
+    // 細い線（一枚板にしない）
+    expect(box.max.y - box.min.y).toBeLessThan(0.5);
+    const m = new THREE.Matrix4();
+    const h = new THREE.Vector3();
+    const sc = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    for (let i = 0; i < letters.count; i++) {
+      letters.getMatrixAt(i, m);
+      m.decompose(h, q, sc);
+      expect(sc.y).toBeLessThan(0.5);
+    }
+  });
+
+  it('places the 「関西大学」 board over bays 2-5 of 6, reading left to right from outside on both faces', () => {
+    const finV0 = 157.4;
+    const finV1 = 173.2;
+    const bay = (finV1 - finV0) / 6;
+    const boards = planLetterBoards(finV0, finV1, 80, 82.2);
+    expect(boards.map((b) => b.face)).toEqual(FIN_FACES.map((f) => f.name));
+    for (const b of boards) {
+      expect(b.vNorth).toBeCloseTo(finV0 + bay, 6);
+      expect(b.vSouth).toBeCloseTo(finV0 + 5 * bay, 6);
+      expect(b.y0).toBe(80);
+      expect(b.y1).toBe(82.2);
+    }
+    const west = boards.find((b) => b.face === 'west');
+    const east = boards.find((b) => b.face === 'east');
+    if (!west || !east) throw new Error('faces missing');
+    // 板は笠木（フィンの外の面）より外に浮かせる
+    expect(west.u).toBeLessThan(-301.7 - 1.4);
+    expect(east.u).toBeGreaterThan(-284.3 + 1.4);
+    // 西の面は外（西）から見て左＝北に「関」、東の面は外（東）から見て左＝南に「関」
+    expect(west.vLeft).toBe(west.vNorth);
+    expect(east.vLeft).toBe(east.vSouth);
   });
 
   it('steps the left shoulder of the fin face down twice (8 storeys, then 7 storeys at the north end)', () => {
@@ -232,8 +276,34 @@ describe('buildArea3', () => {
     expect(discSpan).toBeLessThan(slenderSpan / 3);
   });
 
+  it('matches the KAN-CAN! floor counts per wing: C 10, B and D 5, A 4 (with a 5th-floor link between B and D)', () => {
+    // 1 階の床: 平らな地面では、底（地面 −0.5m）から 1m 上（area3.ts の floorY）
+    const floorY = groundVisualY + 0.5;
+    const top = (name: string): THREE.Box3 => {
+      const obj = result.group.getObjectByName(name);
+      if (!obj) throw new Error(`${name} missing`);
+      return worldBox(obj);
+    };
+    const storey = 3.9;
+    // 3号館 C棟（塔）: 10 階＋笠木 2.2m
+    expect(top('area3-tower-main').max.y - floorY).toBeCloseTo(10 * storey + 2.2, 3);
+    // 2号館 B棟・4号館 D棟: 5 階＋パラペット 1m
+    const bd = top('area3-wing-bd');
+    expect(bd.max.y - floorY).toBeCloseTo(5 * storey + 1.0, 3);
+    // 1号館 A棟: 地上 4 階＋パラペット 1m。B・D の東（新関西大学会館の側）
+    const a = top('area3-wing-a');
+    expect(a.max.y - floorY).toBeCloseTo(4 * storey + 1.0, 3);
+    expect((a.min.x + a.max.x) / 2).toBeGreaterThan((bd.min.x + bd.max.x) / 2 + 15);
+    // B と D を結ぶ 5 階の通路は A棟の屋上に載り、上端は B・D とそろう
+    const link = top('area3-link-bd');
+    expect(link.min.y).toBeCloseTo(a.max.y, 3);
+    expect(link.max.y).toBeCloseTo(bd.max.y, 3);
+    // 今のモデルにあった「雁行する棟は全部 5 階」の 1 つの塊は無い
+    expect(result.group.getObjectByName('area3-wing')).toBeUndefined();
+  });
+
   it('keeps the courtyard open', () => {
-    const wing = result.group.getObjectByName('area3-wing');
+    const wing = result.group.getObjectByName('area3-wing-bd');
     if (!(wing instanceof THREE.Mesh)) throw new Error('wing missing');
     const ray = new THREE.Raycaster(new THREE.Vector3(-197, groundVisualY + 100, 236), new THREE.Vector3(0, -1, 0));
     expect(ray.intersectObject(wing).length).toBe(0);
@@ -256,7 +326,7 @@ describe('buildArea3', () => {
       for (const [x, z] of AREA3_POLYGON) lowest = Math.min(lowest, ground(x, z));
       const box = worldBox(sloped.group);
       expect(box.min.y).toBeLessThanOrEqual(lowest - 0.5 + 1e-6);
-      for (const name of ['area3-tower-base', 'area3-wing', 'area3-vestibule']) {
+      for (const name of ['area3-tower-base', 'area3-wing-bd', 'area3-wing-a', 'area3-vestibule']) {
         const obj = sloped.group.getObjectByName(name);
         if (!obj) throw new Error(`${name} missing`);
         expect(worldBox(obj).min.y).toBeLessThanOrEqual(lowest - 0.5 + 1e-6);
