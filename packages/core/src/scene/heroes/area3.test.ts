@@ -199,6 +199,30 @@ describe('buildArea3', () => {
     expect(worldBox(fins).min.y - groundVisualY).toBeGreaterThan(20);
   });
 
+  it('glazes the 6 slits on both fin faces and puts 2 large windows per floor (2F-10F) on the slender tower south face, in one mesh', () => {
+    const glass = result.group.getObjectByName('area3-fin-glass');
+    if (!(glass instanceof THREE.Mesh) || glass instanceof THREE.InstancedMesh) throw new Error('glazing mesh missing');
+    const pos = glass.geometry.getAttribute('position');
+    const nor = glass.geometry.getAttribute('normal');
+    // 4 頂点で 1 枚。フィンの間 6 × 2 面 + 窓 2 × 9 階
+    expect(pos.count / 4).toBe(6 * 2 + 2 * 9);
+    let south = 0;
+    const p = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i += 4) {
+      if (nor.getZ(i) < 0.9) continue;
+      south++;
+      for (let k = 0; k < 4; k++) {
+        p.fromBufferAttribute(pos, i + k);
+        // 枠の座標で、細い塔の南面（u = -292.3〜-284.3、v = 176.9）のすぐ外
+        expect(p.x).toBeGreaterThanOrEqual(-292.3);
+        expect(p.x).toBeLessThanOrEqual(-284.3);
+        expect(p.z).toBeGreaterThan(176.9);
+        expect(p.z).toBeLessThan(177.1);
+      }
+    }
+    expect(south).toBe(2 * 9);
+  });
+
   it('falls back to 4 thin blue lines per face (not a board) where a canvas cannot be made', () => {
     // Node には document が無いので、文字の板（CanvasTexture）の代わりに細い線になる
     expect(result.group.getObjectByName('area3-letters')).toBeUndefined();

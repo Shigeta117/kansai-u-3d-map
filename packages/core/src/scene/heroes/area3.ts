@@ -119,11 +119,14 @@ const COLORS = {
   tile: '#DCD4C3', // ベージュ〜オフホワイトのタイル（Commons の観察 #d3cdbc を少し明るく）
   roof: '#A9A49A',
   plinth: '#CFC7B5',
-  finGlass: '#4E6273',
+  /** フィンの間のガラスの帯の平均の色（Node の無地の代わり。ブラウザでは方立てと窓の模様を描く） */
+  finGlass: '#76808A',
   blue: '#2F56B0', // 「関西大学」の青い立体文字
   emblem: '#C2B9A6', // 校章（模型では壁と同系の少し濃い無地の円）
   windowFrame: '#F7F6F2', // 窓の白い枠（2012 年・2022 年の写真）
   windowGlass: '#9AAEBE', // 空を映す明るめのガラス
+  /** 塔の窓のガラス。2022 年の写真の近景では室内が暗く、壁との差がはっきりする（明るすぎると窓が小さく見える） */
+  towerWindowGlass: '#7E8F9C',
   penthouse: '#8C9093',
   vestibuleGlass: '#5F7A88',
   canopy: '#C9CCCE',
@@ -133,6 +136,9 @@ const COLORS = {
 /** 窓の模様の 1 枚の横幅（m）。塔は四角い窓、低い棟は横長の窓の帯 */
 const TOWER_WINDOW_TILE_M = 2.6;
 const BAND_WINDOW_TILE_M = 1.8;
+/** 塔の窓（枠を含む）の幅と高さの割合（1 枚の横幅・1 階分に対して） */
+const TOWER_WINDOW_W_OF_TILE = 0.54;
+const TOWER_WINDOW_H_OF_FLOOR = 0.47;
 
 /**
  * 「関西大学」の文字。フィンの 6 区画のうち 2〜5 番目の上の笠木に 1 文字ずつ（2022 年の写真と、2023 年の持ち主の映像の
@@ -155,6 +161,31 @@ const LETTER_LINE_M = 0.3;
 /** 校章の円（2012 年の写真で、細い塔の南面の幅の約 1/5、上端から 1 階分ほど下） */
 const EMBLEM_RADIUS_M = 0.8;
 const EMBLEM_BELOW_TOP_M = 2.0;
+
+/**
+ * フィンの間のガラスの帯（2022 年の写真の近景）: 明るい灰色の枠と方立てで、細い列（帯の幅の約 1/3、左）と
+ * 広い列に分かれ、細い列は 1 階に 3 枚、広い列は 2 枚のガラスが縦に並ぶ。ガラスは空と室内を映して濃い灰〜明るい灰で、
+ * 紺一色ではない。床の高さで枠の太い横の帯（約 0.35m）。寸法は写真の比から読んだ推定
+ */
+const GLAZING_FRAME_HEX = '#C9CBC8';
+const GLAZING_PANE_HEXES = ['#59636B', '#77838B', '#96A2A8', '#67727A', '#85919A'] as const;
+/** 細い塔の南面の窓のガラス（2012 年の写真は晴れて、空を映して明るい） */
+const SLENDER_PANE_HEXES = ['#9AA7AE', '#B4BFC4', '#A6B2B8', '#8E9BA3'] as const;
+/** 細い列の幅（帯の幅に対する割合）と、床の高さの横の帯の高さ（1 階分に対する割合） */
+const GLAZING_NARROW_COLUMN = 0.36;
+const GLAZING_SLAB_BAND = 0.09;
+/**
+ * 細い塔の南面の窓（2012 年の写真）: 1 階に大きな窓が 2 つ並び、それぞれ白い枠と方立てで 4 枚に分かれる。
+ * 写真の比（面の幅 8m に対し窓 1 つの幅 約 2.3m、間の壁 約 0.6m、高さ 約 1.9m）から読んだ推定。
+ * 上端は西の面の窓の上端（1 階分の 0.72）にそろえる。1 階は写真で木に隠れるので 2〜10 階だけ
+ */
+const SLENDER_WINDOW_W_M = 2.2;
+const SLENDER_WINDOW_H_M = 1.9;
+const SLENDER_WINDOW_GAP_M = 0.6;
+const SLENDER_WINDOW_TOP_OF_FLOOR = 0.72;
+const SLENDER_WINDOW_FROM_FLOOR = 2;
+const SLENDER_WINDOW_LIGHTS = 4;
+const SLENDER_WINDOW_FRAME_HEX = '#F4F3EF';
 
 // ---------------------------------------------------------------------------
 // 小道具
@@ -331,16 +362,18 @@ function createWindowTexture(kind: 'punched' | 'band', tileWidthM: number): THRE
   if (!g) return null;
   g.fillStyle = COLORS.tile;
   g.fillRect(0, 0, size, size);
-  // 窓の高さ 1.6m（1 階分の 0.30〜0.72）。canvas の上が v = 1（1 階分の上端）
+  // 窓の上端は 1 階分の 0.72。canvas の上が v = 1（1 階分の上端）。
+  // 塔の窓は 2022 年の写真の近景（西の面）で、枠を含めて柱間の約 0.54・1 階分の約 0.47（幅 1.4m・高さ 1.8m）。
+  // 前の 1.3m × 1.6m は小さく見えた（2 回目のレビュー）。低い棟は高さ 1.6m（1 階分の 0.42）のまま
   const y0 = Math.round(size * (1 - 0.72));
-  const h = Math.round(size * 0.42);
-  // 塔は四角い窓（幅 1.3m）、低い棟は幅 1.5m の窓が細い柱を挟んで並ぶ帯
-  const w = kind === 'punched' ? Math.round(size * 0.5) : Math.round(size * (1.5 / tileWidthM));
+  const h = Math.round(size * (kind === 'punched' ? TOWER_WINDOW_H_OF_FLOOR : 0.42));
+  // 塔は四角い窓、低い棟は幅 1.5m の窓が細い柱を挟んで並ぶ帯
+  const w = kind === 'punched' ? Math.round(size * TOWER_WINDOW_W_OF_TILE) : Math.round(size * (1.5 / tileWidthM));
   const x0 = Math.round((size - w) / 2);
   const frame = Math.max(2, Math.round((0.09 / tileWidthM) * size));
   g.fillStyle = COLORS.windowFrame;
   g.fillRect(x0, y0, w, h);
-  g.fillStyle = COLORS.windowGlass;
+  g.fillStyle = kind === 'punched' ? COLORS.towerWindowGlass : COLORS.windowGlass;
   g.fillRect(x0 + frame, y0 + frame, w - frame * 2, h - frame * 2);
   // 縦の方立てと、上寄りの無目（白）
   g.fillStyle = COLORS.windowFrame;
@@ -353,6 +386,102 @@ function createWindowTexture(kind: 'punched' | 'band', tileWidthM: number): THRE
   tex.repeat.set(1 / tileWidthM, 1 / FLOOR_HEIGHT_M);
   tex.needsUpdate = true;
   return tex;
+}
+
+/**
+ * ガラスの模様の 1 枚の絵（左半分 = フィンの間の帯の 1 階分、右半分 = 細い塔の南面の窓 1 つ）。
+ * 帯は縦に繰り返し（UV の v = 階）、横は左半分の中だけを使う。色をそのまま描くので、材質の color は白にする。
+ * Node（document が無い）では null を返す
+ */
+const GLAZING_ATLAS_GUTTER = 2 / 256;
+function createGlazingTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const cell = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = cell * 2;
+  canvas.height = cell;
+  const g = canvas.getContext('2d');
+  if (!g) return null;
+  const pane = (i: number): string => GLAZING_PANE_HEXES[i % GLAZING_PANE_HEXES.length] ?? '#6D7880';
+
+  // 左半分: 帯の 1 階分（canvas の上が 1 階分の上端）
+  g.fillStyle = GLAZING_FRAME_HEX;
+  g.fillRect(0, 0, cell, cell);
+  const frame = 4;
+  const slab = Math.round(cell * GLAZING_SLAB_BAND);
+  const top = frame;
+  const bottom = cell - slab;
+  const split = Math.round(cell * GLAZING_NARROW_COLUMN);
+  const columns: [number, number, number][] = [
+    [frame, split - frame / 2, 3],
+    [split + frame / 2, cell - frame, 2],
+  ];
+  let k = 0;
+  for (const [x0, x1, rows] of columns) {
+    const h = (bottom - top - frame * (rows - 1)) / rows;
+    for (let r = 0; r < rows; r++) {
+      const y0 = top + r * (h + frame);
+      g.fillStyle = pane(k++ * 2 + (rows === 2 ? 1 : 0));
+      g.fillRect(Math.round(x0), Math.round(y0), Math.round(x1 - x0), Math.round(h));
+    }
+  }
+
+  // 右半分: 細い塔の南面の窓 1 つ（白い枠と 4 枚のガラス、上寄りに無目）
+  const ox = cell;
+  g.fillStyle = SLENDER_WINDOW_FRAME_HEX;
+  g.fillRect(ox, 0, cell, cell);
+  const wf = 5;
+  const lightW = (cell - wf * (SLENDER_WINDOW_LIGHTS + 1)) / SLENDER_WINDOW_LIGHTS;
+  const transomY = Math.round(cell * 0.3);
+  for (let i = 0; i < SLENDER_WINDOW_LIGHTS; i++) {
+    const x0 = ox + wf + i * (lightW + wf);
+    g.fillStyle = SLENDER_PANE_HEXES[i % SLENDER_PANE_HEXES.length] ?? '#A6B2B8';
+    g.fillRect(Math.round(x0), wf, Math.round(lightW), transomY - wf);
+    g.fillStyle = SLENDER_PANE_HEXES[(i + 2) % SLENDER_PANE_HEXES.length] ?? '#A6B2B8';
+    g.fillRect(Math.round(x0), transomY + 3, Math.round(lightW), cell - wf - transomY - 3);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** ガラスの面 1 枚（枠の座標の 4 隅を、外から見て左下・右下・右上・左上の順で）と UV の範囲 */
+interface GlazingQuad {
+  corners: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
+  normal: [number, number, number];
+  u0: number;
+  u1: number;
+  v0: number;
+  v1: number;
+}
+
+function buildGlazingGeometry(quads: readonly GlazingQuad[]): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  quads.forEach((q, i) => {
+    for (const c of q.corners) {
+      pos.push(c.x, c.y, c.z);
+      nor.push(...q.normal);
+    }
+    uv.push(q.u0, q.v0, q.u1, q.v0, q.u1, q.v1, q.u0, q.v1);
+    const o = i * 4;
+    idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
 }
 
 /** フィンの面（西と東）。dir は面の外向き（u の正負） */
@@ -512,7 +641,13 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   });
   const roofMat = new THREE.MeshStandardMaterial({ color: COLORS.roof, roughness: 0.86, metalness: 0.02 });
   const plinthMat = new THREE.MeshStandardMaterial({ color: COLORS.plinth, roughness: 0.85, metalness: 0.02 });
-  const finGlassMat = new THREE.MeshStandardMaterial({ color: COLORS.finGlass, roughness: 0.3, metalness: 0.1 });
+  const glazingTex = createGlazingTexture();
+  const finGlassMat = new THREE.MeshStandardMaterial({
+    color: glazingTex ? '#FFFFFF' : COLORS.finGlass,
+    map: glazingTex,
+    roughness: 0.3,
+    metalness: 0.05,
+  });
   const plainTileMat = new THREE.MeshStandardMaterial({ color: COLORS.tile, roughness: 0.8, metalness: 0.03 });
   const blueMat = new THREE.MeshStandardMaterial({ color: COLORS.blue, roughness: 0.45, metalness: 0.08 });
   const emblemMat = new THREE.MeshStandardMaterial({ color: COLORS.emblem, roughness: 0.75, metalness: 0.03 });
@@ -527,13 +662,14 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
 
   /**
    * 窓の無い無地の面: 塔の南西の隅。2012 年の写真で、塔の南面のうち細い塔より西の部分は地面から上まで窓が無く、
-   * 2022 年の写真でも、フィンの面の右（南）の隅の面は無地
+   * 2022 年の写真でも、フィンの面の右（南）の隅の面は無地。
+   * 細い塔の南面も壁の模様は無地にし、大きな窓 2 つ（ガラスの帯と同じメッシュの面）を上に貼る
    */
   const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.05;
   const isPlainWall: PlainWallTest = (mu, mv, n) => {
     const facesSouth = n[1] > 0.9;
     const facesWest = n[0] < -0.9;
-    if (facesSouth && near(mv, TOWER_SOUTH_V) && mu < SLENDER.u0) return true;
+    if (facesSouth && near(mv, TOWER_SOUTH_V)) return true;
     if (facesWest && near(mu, CHAMFER_U) && mv > CHAMFER_V) return true;
     if (facesSouth && near(mv, CHAMFER_V) && mu < CHAMFER_U) return true;
     return false;
@@ -631,10 +767,11 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
 
   const fins = new THREE.InstancedMesh(unitBox, plainTileMat, (FIN_BAYS + 1) * FIN_FACES.length);
   fins.name = 'area3-fins';
-  const strips = new THREE.InstancedMesh(unitBox, finGlassMat, FIN_BAYS * FIN_FACES.length);
-  strips.name = 'area3-fin-glass';
+  // ガラスの帯（フィンの間）と細い塔の南面の窓は、1 枚の模様の絵を分けて使う 1 つのメッシュ（描画命令 1 回。前のインスタンスと同じ）
+  const glazing: GlazingQuad[] = [];
+  const stripU0 = GLAZING_ATLAS_GUTTER;
+  const stripU1 = 0.5 - GLAZING_ATLAS_GUTTER;
   let finIndex = 0;
-  let stripIndex = 0;
   for (const face of FIN_FACES) {
     for (let k = 0; k <= FIN_BAYS; k++) {
       const isFrame = k === 0 || k === FIN_BAYS;
@@ -649,11 +786,25 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
     for (let k = 0; k < FIN_BAYS; k++) {
       const v0 = finV0 + k * bay + (k === 0 ? FRAME_WIDTH_M : FIN_WIDTH_M / 2);
       const v1 = finV0 + (k + 1) * bay - (k === FIN_BAYS - 1 ? FRAME_WIDTH_M : FIN_WIDTH_M / 2);
-      dummy.position.set(face.faceU + face.dir * 0.06, (finY0 + finY1) / 2, (v0 + v1) / 2);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(0.1, finY1 - finY0 - 0.4, v1 - v0);
-      dummy.updateMatrix();
-      strips.setMatrixAt(stripIndex++, dummy.matrix);
+      const u = face.faceU + face.dir * 0.06;
+      const y0 = finY0 + 0.2;
+      const y1 = finY1 - 0.2;
+      // 外から見て左: 西の面は北（v の小さい側）、東の面は南（v の大きい側）。細い列が左に来る
+      const [vl, vr] = face.dir < 0 ? [v0, v1] : [v1, v0];
+      glazing.push({
+        corners: [
+          new THREE.Vector3(u, y0, vl),
+          new THREE.Vector3(u, y0, vr),
+          new THREE.Vector3(u, y1, vr),
+          new THREE.Vector3(u, y1, vl),
+        ],
+        normal: [face.dir, 0, 0],
+        u0: stripU0,
+        u1: stripU1,
+        // v は階（床の高さで 1 つ繰り返す）
+        v0: (y0 - finY0) / FLOOR_HEIGHT_M,
+        v1: (y1 - finY0) / FLOOR_HEIGHT_M,
+      });
     }
 
     const lintel = new THREE.Mesh(unitBox, plainTileMat);
@@ -666,7 +817,35 @@ export const buildArea3: HeroBuilder = (ctx: HeroBuildContext): HeroBuildResult 
   fins.instanceMatrix.needsUpdate = true;
   fins.castShadow = true;
   frame.add(fins);
-  strips.instanceMatrix.needsUpdate = true;
+
+  // 細い塔の南面の大きな窓（1 階に 2 つ、2〜10 階）。壁は無地にしてあり、窓の面を壁の 0.05m 外に貼る
+  const slenderMidU = (SLENDER.u0 + SLENDER.u1) / 2;
+  const windowFaceV = TOWER_SOUTH_V + 0.05;
+  for (let floor = SLENDER_WINDOW_FROM_FLOOR; floor <= TOWER_FLOORS; floor++) {
+    const y1 = yAtFloor(floor - 1) + FLOOR_HEIGHT_M * SLENDER_WINDOW_TOP_OF_FLOOR;
+    const y0 = y1 - SLENDER_WINDOW_H_M;
+    for (const side of [-1, 1]) {
+      const inner = slenderMidU + (side * SLENDER_WINDOW_GAP_M) / 2;
+      const outer = inner + side * SLENDER_WINDOW_W_M;
+      const [ul, ur] = side < 0 ? [outer, inner] : [inner, outer];
+      // 南の面を外（南）から見ると左が西（u の小さい側）
+      glazing.push({
+        corners: [
+          new THREE.Vector3(ul, y0, windowFaceV),
+          new THREE.Vector3(ur, y0, windowFaceV),
+          new THREE.Vector3(ur, y1, windowFaceV),
+          new THREE.Vector3(ul, y1, windowFaceV),
+        ],
+        normal: [0, 0, 1],
+        u0: 0.5 + GLAZING_ATLAS_GUTTER,
+        u1: 1 - GLAZING_ATLAS_GUTTER,
+        v0: 0.01,
+        v1: 0.99,
+      });
+    }
+  }
+  const strips = new THREE.Mesh(buildGlazingGeometry(glazing), finGlassMat);
+  strips.name = 'area3-fin-glass';
   frame.add(strips);
 
   // 「関西大学」の青い立体文字: 4 文字を 1 枚のテクスチャに並べ、笠木の面の少し手前に透明な板で貼る
