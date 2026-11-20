@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { sampleElevation } from '../../domain/projection';
 import type { BuildingFeature, TerrainGrid } from '../../domain/types';
+import { HERO_MODELED_PATH_IDS } from './modeledPaths';
 import { RIMPUKAN_DECK_M, RIMPUKAN_GROUND_REF, buildRimpukan } from './rimpukan';
 
 const RIMPUKAN_POLYGON: [number, number][] = [
@@ -380,6 +381,8 @@ describe('buildRimpukan: the upper floors (owner 2026-11-20 and the 2017 aerial 
   });
 
   it('climbs from the deck to the roof garden by the stairs along the south-east edge (OSM steps way 423060533)', () => {
+    // 段は専用モデルが作るので、地面の道の帯は描かない
+    expect(HERO_MODELED_PATH_IDS.has('path_423060533')).toBe(true);
     const stairs = worldVertices(mesh('rimpukan-upper-stair'));
     const ys = stairs.map((v) => v.y);
     expect(Math.min(...ys)).toBeCloseTo(deckY, 5);
