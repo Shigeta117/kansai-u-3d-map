@@ -434,6 +434,9 @@ function buildRibbonGeometry(
   return geo;
 }
 
+/** 道の帯の group の名前（CampusScene が描画命令をまとめるときに探す） */
+export const TERRAIN_PATHS_GROUP_NAME = 'terrain-paths';
+
 function buildPathsOverlay(
   paths: PathFeature[],
   terrain: TerrainGrid,
@@ -441,7 +444,7 @@ function buildPathsOverlay(
   exag: number,
 ): THREE.Group {
   const group = new THREE.Group();
-  group.name = 'terrain-paths';
+  group.name = TERRAIN_PATHS_GROUP_NAME;
 
   const byKind: Record<PathKind, THREE.BufferGeometry[]> = {
     'road-minor': [],

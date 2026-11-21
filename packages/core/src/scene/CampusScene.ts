@@ -29,9 +29,9 @@ import { carveTerrainForExpressways } from './ExpresswayBuilder';
 import { buildFoliageGroup } from './FoliageBuilder';
 import { buildGroundsGroup, carveTerrainForGrounds } from './GroundsBuilder';
 import { LightingRig } from './LightingRig';
-import { buildStaticBatches, type StaticBatches } from './staticBatches';
+import { buildStaticBatches, type StaticBatchSource, type StaticBatches } from './staticBatches';
 import { RouteOverlay } from './RouteOverlay';
-import { buildTerrainGroup } from './TerrainBuilder';
+import { buildTerrainGroup, TERRAIN_PATHS_GROUP_NAME } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
 import { resolveBuildingPick, WingHighlighter } from './wingSelection';
 
@@ -229,21 +229,6 @@ export class CampusScene {
     );
     this.scene.add(canopiesGroup);
 
-    // 建物（選択で光らせる・浮かせる・当たり判定がある）と、新アクセス路の上屋・橋（動かない）の部品を、
-    // 建物をまたいで描き方の設定ごとに 1 つのメッシュにまとめる。建物の元のメッシュは当たり判定と、
-    // 選んで浮かせている間の描画に使うので、見えないまま残す
-    this.staticBatches = buildStaticBatches([
-      ...[...this.campusRecords.values()].map((rec) => ({
-        root: rec.group,
-        keep: this.animatedRotors,
-        movable: rec.group,
-        pickable: true,
-      })),
-      { root: canopiesGroup, pickable: false },
-      { root: bridgesGroup, pickable: false },
-    ]);
-    this.scene.add(this.staticBatches.group);
-
     const foliageGroup = buildFoliageGroup(
       terrain,
       dataset.landcover,
@@ -254,6 +239,22 @@ export class CampusScene {
       { campusOnly: options.campusOnly },
     );
     this.scene.add(foliageGroup);
+
+    // 建物（選択で光らせる・浮かせる・当たり判定がある）・新アクセス路の上屋・橋・道の帯・駅（動かない）の部品を、
+    // 建物をまたいで描き方の設定ごとに 1 つのメッシュにまとめる（staticBatches.ts）。建物と駅の元のメッシュは
+    // 当たり判定に、建物の元のメッシュは選んで浮かせている間の描画にも使うので、見えないまま残す
+    const batchSources: StaticBatchSource[] = [
+      ...[...this.campusRecords.values()].map((rec) => ({
+        root: rec.group,
+        keep: this.animatedRotors,
+        movable: rec.group,
+        pickable: true,
+      })),
+      { root: canopiesGroup, pickable: false },
+      { root: bridgesGroup, pickable: false },
+    ];
+    const pathsGroup = terrainGroup.getObjectByName(TERRAIN_PATHS_GROUP_NAME);
+    if (pathsGroup) batchSources.push({ root: pathsGroup, pickable: false });
 
     if (options.campusOnly) {
       this.transportCars = [];
@@ -269,7 +270,12 @@ export class CampusScene {
       this.interactiveMeshes.push(...transportResult.interactive);
       this.transportCars = transportResult.cars;
       this.updateTransport = transportResult.update;
+      // 走る電車はまとめない
+      batchSources.push({ root: transportResult.group, keep: transportResult.cars, pickable: true });
     }
+
+    this.staticBatches = buildStaticBatches(batchSources);
+    this.scene.add(this.staticBatches.group);
 
     this.routeOverlay = new RouteOverlay();
     this.scene.add(this.routeOverlay.group);
