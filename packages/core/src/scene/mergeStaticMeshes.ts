@@ -28,7 +28,8 @@ export interface MergeStaticMeshesResult {
 const ALLOWED_ATTRIBUTES = new Set(['position', 'normal', 'uv', 'uv1', 'uv2', 'uv3', 'color']);
 const UV_ATTRIBUTES = new Set(['uv', 'uv1', 'uv2', 'uv3']);
 
-interface Piece {
+/** まとめる単位（メッシュの 1 つの材質の範囲）。staticBatches.ts と共有する */
+export interface MeshPiece {
   mesh: THREE.Mesh;
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
@@ -74,7 +75,7 @@ function attributeSignature(
   return out;
 }
 
-function isVisibleWithin(obj: THREE.Object3D, root: THREE.Object3D): boolean {
+export function isVisibleWithin(obj: THREE.Object3D, root: THREE.Object3D): boolean {
   let cur: THREE.Object3D | null = obj;
   while (cur && cur !== root) {
     if (!cur.visible) return false;
@@ -83,7 +84,11 @@ function isVisibleWithin(obj: THREE.Object3D, root: THREE.Object3D): boolean {
   return true;
 }
 
-function collectPieces(mesh: THREE.Mesh, matrix: THREE.Matrix4): Piece[] | null {
+/**
+ * メッシュを材質ごとの部品に切り分ける（材質の配列なら geometry.groups ごと）。まとめられない物（透明な材質・
+ * ShaderMaterial・モーフ・drawRange を絞った物・許していない属性など）が 1 つでもあれば null
+ */
+export function collectMeshPieces(mesh: THREE.Mesh, matrix: THREE.Matrix4): MeshPiece[] | null {
   const geometry = mesh.geometry as THREE.BufferGeometry;
   const position = geometry.getAttribute('position');
   if (!position || position.itemSize !== 3) return null;
@@ -105,7 +110,7 @@ function collectPieces(mesh: THREE.Mesh, matrix: THREE.Matrix4): Piece[] | null 
     ranges.push({ material: mesh.material, start: 0, count: total });
   }
 
-  const pieces: Piece[] = [];
+  const pieces: MeshPiece[] = [];
   for (const r of ranges) {
     if (!isMergeableMaterial(r.material)) return null;
     if (r.count <= 0) continue;
@@ -116,7 +121,7 @@ function collectPieces(mesh: THREE.Mesh, matrix: THREE.Matrix4): Piece[] | null 
   return pieces;
 }
 
-function pieceKey(p: Piece): string {
+function pieceKey(p: MeshPiece): string {
   const m = p.mesh;
   const attrs = p.attributes.map((a) => `${a.name}:${a.itemSize}`).join(',');
   return [
@@ -129,7 +134,14 @@ function pieceKey(p: Piece): string {
   ].join('|');
 }
 
-function mergePieces(pieces: Piece[]): THREE.BufferGeometry {
+/**
+ * 部品を 1 つの形にまとめる（各部品の行列を頂点に焼き込む）。perPiece を渡すと、部品ごとに 1 つの値を持つ
+ * 属性（要素数 1）を足す（staticBatches.ts の材質の番号）
+ */
+export function mergeMeshPieces(
+  pieces: MeshPiece[],
+  perPiece?: { name: string; values: ArrayLike<number> },
+): THREE.BufferGeometry {
   const first = pieces[0];
   if (!first) return new THREE.BufferGeometry();
   const attrDefs = first.attributes;
@@ -160,6 +172,7 @@ function mergePieces(pieces: Piece[]): THREE.BufferGeometry {
   }
 
   const outArrays = attrDefs.map((a) => new Float32Array(vertexTotal * a.itemSize));
+  const perPieceArray = perPiece ? new Float32Array(vertexTotal) : null;
   const indices = vertexTotal > 65535 ? new Uint32Array(indexTotal) : new Uint16Array(indexTotal);
   const v3 = new THREE.Vector3();
   const normalMatrix = new THREE.Matrix3();
@@ -222,6 +235,7 @@ function mergePieces(pieces: Piece[]): THREE.BufferGeometry {
         indices[indexOffset + i + 2] = vertexOffset + (flip ? i + 1 : i + 2);
       }
     }
+    if (perPieceArray && perPiece) perPieceArray.fill(perPiece.values[pi] ?? 0, vertexOffset, vertexOffset + used);
     vertexOffset += used;
     indexOffset += p.count;
   });
@@ -231,6 +245,7 @@ function mergePieces(pieces: Piece[]): THREE.BufferGeometry {
     const arr = outArrays[ai];
     if (arr) merged.setAttribute(def.name, new THREE.BufferAttribute(arr, def.itemSize));
   });
+  if (perPieceArray && perPiece) merged.setAttribute(perPiece.name, new THREE.BufferAttribute(perPieceArray, 1));
   merged.setIndex(new THREE.BufferAttribute(indices, 1));
   merged.computeBoundingBox();
   merged.computeBoundingSphere();
@@ -238,7 +253,7 @@ function mergePieces(pieces: Piece[]): THREE.BufferGeometry {
 }
 
 /** 取り除くメッシュに子があれば、同じ位置の空の Group に子を移して差し替える */
-function detachMesh(mesh: THREE.Mesh): void {
+export function detachMesh(mesh: THREE.Mesh): void {
   const parent = mesh.parent;
   if (!parent) return;
   if (mesh.children.length === 0) {
@@ -278,8 +293,8 @@ export function mergeStaticMeshes(
   root.updateMatrixWorld(true);
   const rootInverse = root.matrixWorld.clone().invert();
 
-  const buckets = new Map<string, Piece[]>();
-  const piecesByMesh = new Map<THREE.Mesh, Piece[]>();
+  const buckets = new Map<string, MeshPiece[]>();
+  const piecesByMesh = new Map<THREE.Mesh, MeshPiece[]>();
 
   const visit = (obj: THREE.Object3D): void => {
     if (keep.has(obj)) return;
@@ -292,7 +307,7 @@ export function mergeStaticMeshes(
       isVisibleWithin(obj, root)
     ) {
       const matrix = rootInverse.clone().multiply(obj.matrixWorld);
-      const pieces = collectPieces(obj, matrix);
+      const pieces = collectMeshPieces(obj, matrix);
       if (pieces && pieces.length > 0) {
         piecesByMesh.set(obj, pieces);
         for (const p of pieces) {
@@ -319,7 +334,7 @@ export function mergeStaticMeshes(
   for (const list of buckets.values()) {
     const first = list[0];
     if (!first || !replaced.has(first.mesh)) continue;
-    const geometry = mergePieces(list);
+    const geometry = mergeMeshPieces(list);
     const mesh = new THREE.Mesh(geometry, first.material);
     mesh.name = `${root.name || 'group'}:merged-${merged.length}`;
     mesh.castShadow = first.mesh.castShadow;

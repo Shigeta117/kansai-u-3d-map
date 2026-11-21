@@ -29,8 +29,9 @@ import { carveTerrainForExpressways } from './ExpresswayBuilder';
 import { buildFoliageGroup } from './FoliageBuilder';
 import { buildGroundsGroup, carveTerrainForGrounds } from './GroundsBuilder';
 import { LightingRig } from './LightingRig';
+import { buildStaticBatches, type StaticBatchSource, type StaticBatches } from './staticBatches';
 import { RouteOverlay } from './RouteOverlay';
-import { buildTerrainGroup } from './TerrainBuilder';
+import { buildTerrainGroup, TERRAIN_PATHS_GROUP_NAME } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
 import { resolveBuildingPick, WingHighlighter } from './wingSelection';
 
@@ -92,6 +93,8 @@ export class CampusScene {
   private readonly wingHighlighter: WingHighlighter;
 
   private readonly campusRecords: Map<string, BuildingMeshRecord>;
+  /** 建物・上屋・橋の動かない部品を、建物をまたいで材質の設定ごとにまとめたメッシュ（staticBatches.ts） */
+  private readonly staticBatches: StaticBatches;
   private readonly interactiveMeshes: THREE.Object3D[];
   private readonly animatedRotors: THREE.Object3D[];
   private readonly transportCars: THREE.Object3D[];
@@ -237,6 +240,22 @@ export class CampusScene {
     );
     this.scene.add(foliageGroup);
 
+    // 建物（選択で光らせる・浮かせる・当たり判定がある）・新アクセス路の上屋・橋・道の帯・駅（動かない）の部品を、
+    // 建物をまたいで描き方の設定ごとに 1 つのメッシュにまとめる（staticBatches.ts）。建物と駅の元のメッシュは
+    // 当たり判定に、建物の元のメッシュは選んで浮かせている間の描画にも使うので、見えないまま残す
+    const batchSources: StaticBatchSource[] = [
+      ...[...this.campusRecords.values()].map((rec) => ({
+        root: rec.group,
+        keep: this.animatedRotors,
+        movable: rec.group,
+        pickable: true,
+      })),
+      { root: canopiesGroup, pickable: false },
+      { root: bridgesGroup, pickable: false },
+    ];
+    const pathsGroup = terrainGroup.getObjectByName(TERRAIN_PATHS_GROUP_NAME);
+    if (pathsGroup) batchSources.push({ root: pathsGroup, pickable: false });
+
     if (options.campusOnly) {
       this.transportCars = [];
       this.updateTransport = () => false;
@@ -251,7 +270,12 @@ export class CampusScene {
       this.interactiveMeshes.push(...transportResult.interactive);
       this.transportCars = transportResult.cars;
       this.updateTransport = transportResult.update;
+      // 走る電車はまとめない
+      batchSources.push({ root: transportResult.group, keep: transportResult.cars, pickable: true });
     }
+
+    this.staticBatches = buildStaticBatches(batchSources);
+    this.scene.add(this.staticBatches.group);
 
     this.routeOverlay = new RouteOverlay();
     this.scene.add(this.routeOverlay.group);
@@ -485,6 +509,8 @@ export class CampusScene {
 
       if (this.needsRender) {
         this.needsRender = false;
+        // 材質の色・選んだ建物の浮かせ方を、まとめたメッシュへ写してから描く
+        this.staticBatches.sync();
         this.renderer.render(this.scene, this.cameraRig.camera);
         this.emitRenderStats();
         if (this.labelsDirty) {
@@ -707,6 +733,7 @@ export class CampusScene {
 
     this.routeOverlay.clear();
     this.wingHighlighter.dispose();
+    this.staticBatches.dispose();
     for (const rec of this.campusRecords.values()) {
       for (const shell of rec.wingShells?.values() ?? []) shell.dispose();
     }
