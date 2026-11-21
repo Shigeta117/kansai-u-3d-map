@@ -77,6 +77,10 @@
    - `public/data/` の JSON は OpenStreetMap から抜き出して加工した **Derivative Database** として **Open Database License (ODbL) v1.0** で提供します（`© OpenStreetMap contributors`）。標高データ（`terrain.json` と各データの標高値）は「出典：国土地理院 地理院タイル（標高タイル）を加工して作成」が適用されます。詳細は [`public/data/senriyama/LICENSE.md`](../public/data/senriyama/LICENSE.md) を参照してください。
 4. **3Dモデル出力（`exports/` — Produced Work）**:
    - `npm run export:3d` が書き出す `.glb`/`.obj`（Git 管理外）は ODbL の **Produced Work** として、出典表記および `THIRD_PARTY_NOTICES.md` を付けて配布します。
+5. **館内のデータ（`apps/guide/src/data/indoor/` — `public/data/` とは別）**:
+   - 大学が公開している資料（KAN-CAN! の部屋の一覧・バリアフリーマップ）から事実だけを自前の形にした物で、OSM の Derivative Database（ODbL）には入れない。出典と版はデータの中（`IndoorSource`、`BuildingFloorPlan.sourceName` など）に持つ（`docs/indoor-plan.md` 3 節）
+   - バリアフリーマップの事実は `apps/guide/src/data/indoor/barrier-free/`。資料の画像・文章・図の上の位置（px）は入れていない
+   - 第1学舎の入口・連絡路の口の平面の点（`apps/guide/src/data/indoor/l1/area1.ts`）は、バリアフリーマップの図を OSM の輪郭の角に合わせて移した推定で、点は OSM の輪郭の上に置いた
 
 ---
 
@@ -86,7 +90,7 @@
 |---|---|
 | 関西大学 教務ガイド KAN-CAN!「学舎・教室一覧（千里山）」 | 教室番号・棟の呼び名・部屋のある最上階（階数の下限として。`building-facts.ts`） |
 | 関西大学 年史編纂室「CAMPUS GUIDE MAP」 | 建物の正式名・竣工年・設計者・階数（明記のあるもの） |
-| 関西大学 学生相談・支援センター「バリアフリーマップ 千里山キャンパス施設一覧」（2025年12月現在） | 建物ごとのエレベーター・自動扉の入口・多機能トイレの有無（`senriyama-official-access.ts`） |
+| 関西大学 学生相談・支援センター「バリアフリーマップ 千里山キャンパス施設一覧」（2025年12月現在） | 建物ごとのエレベーター・自動扉の入口・多機能トイレの有無（`senriyama-official-access.ts`）。入口ごとの階・扉の種類・段差、エレベーターの印、多機能トイレの階、棟の間の連絡路の階（`apps/guide/src/data/indoor/barrier-free/senriyama.ts`、2026-11-21） |
 | 関西大学 広報課「CAMPUSMAP」（2023 年 4 月） | 番号つきの建物の一覧の名前。鳥瞰のイラストの位置・形と OSM の輪郭が合う物だけ（`scripts/build-campus-data.mjs` の `OFFICIAL_MAP_BUILDINGS`、`landmarks.ts`） |
 
 - いずれも事実（名前・年・階数・設備の有無）だけを使い、文章・図・写真はリポジトリに写していない

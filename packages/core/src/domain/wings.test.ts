@@ -4,6 +4,7 @@ import {
   findWing,
   findWingAt,
   joinBuildingWings,
+  pickableWingBuildingIds,
   WING_ID_RULE,
   wingFloorsText,
   wingFootprintCentroid,
@@ -61,11 +62,28 @@ describe('棟（館内の単位）と建物との対応', () => {
     expect(findWingAt({ wings: joined.get('small') }, 1e6, -1e6)?.id).toBe('area8-c');
   });
 
-  it('keeps wing ids apart from building ids (学舎の id ＋ 棟の記号)', () => {
-    expect(WING_ID_RULE.test('area3-c')).toBe(true);
-    expect(WING_ID_RULE.test('area3')).toBe(false);
-    expect(WING_ID_RULE.test('area1-1')).toBe(false);
-    expect(WING_ID_RULE.test('c')).toBe(false);
+  it('keeps wing ids apart from building ids (学舎の鍵 ＋ 棟の記号)', () => {
+    for (const id of ['area3-c', 'area1-a', 'area2-f', 'iwasaki-f', 'area4-h3', 'area4-h1p', 'area4-h2a', 'area4-x6', 'shobunkan-main']) {
+      expect(WING_ID_RULE.test(id), id).toBe(true);
+    }
+    for (const id of ['area3', 'area1-1', 'area4-2', 'area2-bighall', 'shinkandaikaikan-n', 'east-gym', 'way_423067247', 'c', 'area3-g', 'area4-h']) {
+      expect(WING_ID_RULE.test(id), id).toBe(false);
+    }
+  });
+
+  it('lets the map pick wings only in buildings whose wings all have a region (2 or more)', () => {
+    const region = { axisU: [1, 0] as [number, number], uMax: 0 };
+    const pickable = pickableWingBuildingIds([
+      { wingId: 'area9-a', buildingId: 'split', region },
+      { wingId: 'area9-b', buildingId: 'split', region: { axisU: [1, 0], uMin: 0 } },
+      { wingId: 'area8-a', buildingId: 'single' },
+      { wingId: 'area8-b', buildingId: 'single-with-region', region },
+      { wingId: 'area7-a', buildingId: 'unsplit' },
+      { wingId: 'area7-b', buildingId: 'unsplit' },
+      { wingId: 'area6-a', buildingId: 'half', region },
+      { wingId: 'area6-b', buildingId: 'half' },
+    ]);
+    expect([...pickable]).toEqual(['split']);
   });
 
   it('tells which wing region a point on the building is in', () => {

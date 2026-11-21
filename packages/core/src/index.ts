@@ -2,6 +2,7 @@
 export * from './domain/types';
 export * from './domain/indoor-types';
 export * from './domain/wings';
+export * from './domain/indoor-l1';
 
 // Domain logic
 export * from './domain/campus-registry';
@@ -15,6 +16,7 @@ export * from './data/loadCampusData';
 export { SENRIYAMA_CONFIG } from './data/campuses/senriyama/config';
 export { SENRIYAMA_LANDMARKS } from './data/campuses/senriyama/landmarks';
 export {
+  AREA1_WING_IDS,
   AREA3_WING_IDS,
   SENRIYAMA_WING_BUILDINGS,
   SENRIYAMA_WINGS,
