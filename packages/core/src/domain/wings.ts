@@ -13,11 +13,19 @@ import type { BuildingFeature, LocalPoint2D } from './types';
  */
 
 /**
- * 棟の id の決め方（P0b の最初の形）: 学舎の id（BuildingCategory。'area3' など）＋「-」＋棟の記号の小文字
- * （KAN-CAN! の部屋の番号の頭の文字。C301 の C）。例: 'area3-c'。建物の id（'area3'・'area1-1' など、数字で分ける）とは重ならない。
- * 棟の記号の無い学舎（第4学舎の号館など）の決め方は P0b で決める
+ * 棟の id の決め方（P0b）: 「学舎の鍵」＋「-」＋「棟の記号」。単位は KAN-CAN! の学舎・教室一覧の見出し（1 見出し = 1 棟）。
+ *
+ * - 学舎の鍵: 第1〜第4学舎は学舎の id（BuildingCategory。'area1'〜'area4'）。第1〜第4学舎に入らない建物
+ *   （岩崎記念館・尚文館・以文館）は建物の id（'iwasaki' など）
+ * - 棟の記号:
+ *   1. 英字の棟の記号（KAN-CAN! の部屋の番号の頭の文字。C301 の C）がある棟は、その小文字。例 'area1-a'・'area2-f'・'area3-c'・'iwasaki-f'
+ *   2. 記号の無い号館（第4学舎）は h ＋号館の数字。KAN-CAN! が 1 つの号館を役割で分けている見出しは、役割の頭文字を足す
+ *      （p = 教授棟、r = 研究棟、a = 別館）。例 'area4-h3'（3号館）・'area4-h1p'（1号館 教授棟）・'area4-h2a'（2号館 研究棟別館）
+ *   3. 実験棟は x ＋番号。例 'area4-x1'（第1実験棟）
+ *   4. 号館にも棟にも分かれない建物は main。例 'shobunkan-main'
+ * - 建物の id（'area3'・'area1-1'・'area4-2' など、数字か名前で終わる）とは重ならない（棟の記号は a〜f か h・x ＋数字か main）
  */
-export const WING_ID_RULE = /^area[1-4]-[a-z]$/;
+export const WING_ID_RULE = /^[a-z][a-z0-9]*-(?:[a-f]|h[1-9][pra]?|x[1-9]|main)$/;
 
 /** 枠の座標。u = (x, z)・axisU、v = (x, z)・(−axisU[1], axisU[0])（u 軸を x から z の向きへ 90° 回した軸） */
 export interface WingRegion {
@@ -44,9 +52,15 @@ export interface Wing {
   floorsAbove: number;
   /** 地下の階の数（資料に無ければ 0） */
   floorsBelow: number;
-  /** 階高（m）。推定の値なら note に書く */
-  floorHeightM: number;
-  /** 棟の入口（館内の案内の L1 で足す。今は空） */
+  /**
+   * 階高（m）。地図で棟に寄るときのカメラの高さにだけ使う（無ければ建物の高さ ÷ 階の数）。推定の値なら note に書く。
+   * 館内の案内の L1 は階の高さを使わない（docs/indoor-plan.md 5 節）ので、棟を押して選べない建物の棟には入れない
+   */
+  floorHeightM?: number;
+  /**
+   * 棟の入口（今は空）。L1 の入口は館内の L1 のグラフのノード（apps/guide/src/data/indoor/l1/）に試しの形で持つ。
+   * どちらに寄せるかは P2 の型の移行（docs/indoor-plan.md 17 節）で決める
+   */
   entrances: BuildingEntrance[];
   /** 検索で棟に当てる別名（学舎・号館・棟の名前の組み合わせは wingSearchAliases が作るので、それ以外だけ） */
   aliases?: string[];
@@ -63,6 +77,21 @@ export interface WingBuildingLink {
 /** 建物に付けた棟（棟と、その建物の中の塊の範囲） */
 export interface BuildingWing extends Wing {
   region?: WingRegion;
+}
+
+/**
+ * 地図で棟を押して選べる建物（BuildingFeature.wings を付ける建物）: 棟が 2 つ以上対応し、そのすべてに塊の範囲がある建物。
+ * 棟が 1 つの建物は建物を選べば棟を選んだことになり、範囲の無い棟がある建物は押した所の棟を決められないので、
+ * どちらも付けない（棟の表と対応の表には載る）
+ */
+export function pickableWingBuildingIds(links: readonly WingBuildingLink[]): Set<string> {
+  const byBuilding = new Map<string, WingBuildingLink[]>();
+  for (const link of links) byBuilding.set(link.buildingId, [...(byBuilding.get(link.buildingId) ?? []), link]);
+  const out = new Set<string>();
+  for (const [buildingId, list] of byBuilding) {
+    if (list.length >= 2 && list.every((l) => l.region)) out.add(buildingId);
+  }
+  return out;
 }
 
 /** 棟の表と対応の表を合わせて、建物ごとの棟の並びにする（対応の表の順） */

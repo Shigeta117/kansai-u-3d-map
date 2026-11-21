@@ -53,8 +53,8 @@ export interface RoomEntry {
   /** 棟の表示の名前（自由な文字列。例: '3号館 C棟'） */
   wing?: string;
   /**
-   * 棟の id（docs/indoor-plan.md 17 節の移行の先。建物との対応は棟の対応の表）。今は第3学舎の部屋だけが持つ。
-   * ほかの部屋は wing の文字列のまま（P2 で移す）
+   * 棟の id（docs/indoor-plan.md 17 節の移行の先。建物との対応は棟の対応の表）。学舎（第1〜第4学舎・岩崎記念館・尚文館・以文館）の
+   * 部屋はすべて持つ（P0b）。学舎でない建物（体育館・図書館など）の部屋は持たない。表示の名前は wing のまま
    */
   wingId?: string;
   searchableCodes?: string[];
