@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AREA3_WING_IDS,
   SENRIYAMA_LANDMARKS,
+  SENRIYAMA_WING_BUILDINGS,
   SENRIYAMA_WINGS,
   searchLocationItems,
   type BuildingFeature,
@@ -185,7 +186,7 @@ describe('SENRIYAMA_FLOOR_PLANS sourced connectors (P0a)', () => {
   });
 });
 
-describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行。今は第3学舎だけ）', () => {
+describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行の先取り）', () => {
   const area3Ids = new Map(SENRIYAMA_WINGS.filter((w) => w.id.startsWith('area3-')).map((w) => [w.id, w]));
 
   it('gives every 第3学舎 room the id of its wing, matching the wing name and the room code letter', () => {
@@ -206,10 +207,46 @@ describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行。今は第3�
     expect(rooms.find((r) => r.id === 'a3-cafe-socio')?.wingId).toBe(AREA3_WING_IDS.a);
   });
 
-  it('keeps the other buildings on the free wing names for now (moved in P2)', () => {
-    for (const [id, plan] of Object.entries(SENRIYAMA_FLOOR_PLANS)) {
-      if (id === 'area3') continue;
-      for (const room of plan.rooms) expect(room.wingId, room.id).toBeUndefined();
+  it('gives every room of the other 学舎 a wing id from the table, linked to the same building (P0b)', () => {
+    const wings = new Map(SENRIYAMA_WINGS.map((w) => [w.id, w]));
+    const linkOf = new Map(SENRIYAMA_WING_BUILDINGS.map((l) => [l.wingId, l.buildingId]));
+    const schoolPlans = Object.values(SENRIYAMA_FLOOR_PLANS).filter((plan) => plan.rooms.some((r) => r.wingId));
+    expect(schoolPlans.map((p) => p.buildingId).sort()).toEqual(
+      [
+        'area1-1', 'area1-2', 'area1-3', 'area1-4', 'area1-5', 'iwasaki', 'shobunkan', 'ibunkan',
+        'area2-1', 'area2-2', 'area2-3', 'area2-bighall', 'area3',
+        'area4-1', 'area4-2', 'area4-3', 'area4-4', 'hitech-core',
+      ].sort(),
+    );
+    let count = 0;
+    for (const plan of schoolPlans) {
+      for (const room of plan.rooms) {
+        const wing = room.wingId ? wings.get(room.wingId) : undefined;
+        expect(wing, room.id).toBeDefined();
+        if (!wing || !room.wingId) continue;
+        count++;
+        if (plan.buildingId === 'hitech-core') {
+          // 部屋のデータは実験棟 6 棟をハイテク・リサーチ・コアにまとめている。棟は OSM の実験棟ごとの輪郭に対応する
+          expect(room.wing, room.id).toContain(wing.name);
+        } else {
+          expect(linkOf.get(room.wingId), room.id).toBe(plan.buildingId);
+        }
+        // 表示の名前（'A棟'・'③2号館（教室棟）' など）に棟の名前が入る（大学院学舎の部屋は表示の名前が無い）
+        if (room.wing) expect(room.wing, room.id).toContain(wing.name);
+      }
+    }
+    expect(count).toBe(121);
+    // 1 つの建物の中で、表示の名前と棟の id は 1 対 1（建物シートの棟のボタンの数と名前が変わらない）
+    for (const plan of schoolPlans) {
+      const pairs = new Set(plan.rooms.map((r) => `${r.wing ?? ''}|${r.wingId}`));
+      expect(new Set(plan.rooms.map((r) => r.wingId)).size, plan.buildingId).toBe(pairs.size);
+      expect(new Set(plan.rooms.map((r) => r.wing ?? '')).size, plan.buildingId).toBe(pairs.size);
+    }
+  });
+
+  it('leaves the rooms of buildings that are not 学舎 without a wing id', () => {
+    for (const id of ['rimpukan', 'shinkandaikaikan-n', 'shinkandaikaikan-s', 'central-gym', 'east-gym', 'gaifukan', 'seishikan-4', 'library', 'kanbunkan', 'enshinkan']) {
+      for (const room of SENRIYAMA_FLOOR_PLANS[id]?.rooms ?? []) expect(room.wingId, room.id).toBeUndefined();
     }
   });
 });

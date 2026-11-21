@@ -15,6 +15,7 @@ export * from './data/loadCampusData';
 export { SENRIYAMA_CONFIG } from './data/campuses/senriyama/config';
 export { SENRIYAMA_LANDMARKS } from './data/campuses/senriyama/landmarks';
 export {
+  AREA1_WING_IDS,
   AREA3_WING_IDS,
   SENRIYAMA_WING_BUILDINGS,
   SENRIYAMA_WINGS,

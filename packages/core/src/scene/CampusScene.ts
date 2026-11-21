@@ -607,7 +607,8 @@ export class CampusScene {
         this.dataset.terrain.minElevation,
         this.config.verticalExaggeration,
       );
-      const ty = groundY + wing.floorsAbove * wing.floorHeightM * 0.45;
+      const floorHeightM = wing.floorHeightM ?? building.height / Math.max(1, building.levels);
+      const ty = groundY + wing.floorsAbove * floorHeightM * 0.45;
       this.cameraRig.focusOn(
         [footprint.centroid.x, ty, footprint.centroid.z],
         WING_FOCUS_HORIZ_M,

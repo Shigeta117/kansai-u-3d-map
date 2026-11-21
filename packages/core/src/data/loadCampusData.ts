@@ -11,7 +11,7 @@ import type {
   WalkGraph,
 } from '../domain/types';
 import { heightForLevels, SENRIYAMA_BUILDING_FACTS } from './campuses/senriyama/building-facts';
-import { joinBuildingWings } from '../domain/wings';
+import { joinBuildingWings, pickableWingBuildingIds } from '../domain/wings';
 import { SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './campuses/senriyama/wings';
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -58,9 +58,17 @@ export function applyBuildingFacts(buildings: BuildingFeature[]): BuildingFeatur
   });
 }
 
-/** 棟の表と建物との対応の表（wings.ts）を合わせて、建物に棟（第3学舎の A〜D棟など）を付ける */
+/**
+ * 棟の表と建物との対応の表（wings.ts）を合わせて、地図で棟を押して選べる建物（今は第3学舎の A〜D棟だけ）に棟を付ける。
+ * 棟が 1 つの建物と、塊の範囲の無い棟がある建物には付けない（pickableWingBuildingIds）。地図・シート・検索の棟の扱いは
+ * BuildingFeature.wings で決まるので、表に棟を足しても、範囲を書くまでは今の画面の動きは変わらない
+ */
 export function applyBuildingWings(buildings: BuildingFeature[]): BuildingFeature[] {
-  const byBuilding = joinBuildingWings(SENRIYAMA_WINGS, SENRIYAMA_WING_BUILDINGS);
+  const pickable = pickableWingBuildingIds(SENRIYAMA_WING_BUILDINGS);
+  const byBuilding = joinBuildingWings(
+    SENRIYAMA_WINGS,
+    SENRIYAMA_WING_BUILDINGS.filter((l) => pickable.has(l.buildingId)),
+  );
   return buildings.map((b) => {
     const wings = byBuilding.get(b.id);
     return wings && wings.length > 0 ? { ...b, wings } : b;

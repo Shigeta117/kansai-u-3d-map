@@ -6,7 +6,7 @@ import { WING_ID_RULE, wingFootprintCentroid, wingRegionContains } from '../../.
 import type { BuildingFeature } from '../../../domain/types';
 import { buildArea3 } from '../../../scene/heroes/area3';
 import { applyBuildingWings } from '../../loadCampusData';
-import { AREA3_AXIS_U, AREA3_WING_IDS, SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './wings';
+import { AREA1_WING_IDS, AREA3_AXIS_U, AREA3_WING_IDS, SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './wings';
 
 const buildings = applyBuildingWings(
   JSON.parse(
@@ -68,11 +68,14 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
     const buildingIds = new Set(buildings.map((b) => b.id));
     for (const link of SENRIYAMA_WING_BUILDINGS) {
       expect(ids).toContain(link.wingId);
-      expect(buildingIds.has(link.buildingId)).toBe(true);
+      expect(buildingIds.has(link.buildingId), link.buildingId).toBe(true);
     }
-    // 1 つの棟は 1 つの建物に対応する
+    // 1 つの棟は 1 つの建物に対応し、どの棟も対応がある
     const linked = SENRIYAMA_WING_BUILDINGS.map((l) => l.wingId);
     expect(new Set(linked).size).toBe(linked.length);
+    expect(new Set(linked)).toEqual(new Set(ids));
+    // 棟の id は建物の id と重ならない
+    for (const b of buildings) expect(WING_ID_RULE.test(b.id), b.id).toBe(false);
   });
 
   it('splits the outline into the 4 wings with no gap and no overlap', () => {
@@ -161,6 +164,56 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
     expect(hero.group.getObjectByName('area3-wing-a')?.userData.wingId).toBe(a);
     for (const name of ['area3-wing-bd', 'area3-penthouses', 'area3-link-bd']) {
       expect(hero.group.getObjectByName(name)?.userData.wingId, name).toBeUndefined();
+    }
+  });
+});
+
+describe('第1・第2・第4学舎と大学院学舎の棟（P0b）', () => {
+  const byId = new Map(SENRIYAMA_WINGS.map((w) => [w.id, w]));
+  const linkOf = (wingId: string) => SENRIYAMA_WING_BUILDINGS.find((l) => l.wingId === wingId);
+
+  it('lists every 学舎 heading of KAN-CAN! as one wing (5 + 1 + 2 + 6 + 4 + 13 = 31)', () => {
+    expect(SENRIYAMA_WINGS).toHaveLength(31);
+    const count = (school: string) => SENRIYAMA_WINGS.filter((w) => w.school === school).length;
+    expect([count('第1学舎'), count('岩崎記念館'), count('大学院学舎'), count('第2学舎'), count('第3学舎'), count('第4学舎')]).toEqual([
+      5, 1, 2, 6, 4, 13,
+    ]);
+  });
+
+  it('maps 第2学舎 1号館 to A・B, 3号館 to D・E and BIG ホールの 4号館 to F (docs/indoor-plan.md 5 節)', () => {
+    expect(['area2-a', 'area2-b', 'area2-c', 'area2-d', 'area2-e', 'area2-f'].map((id) => linkOf(id)?.buildingId)).toEqual([
+      'area2-1',
+      'area2-1',
+      'area2-2',
+      'area2-3',
+      'area2-3',
+      'area2-bighall',
+    ]);
+    expect(byId.get('area2-f')?.hallName).toBe('4号館');
+  });
+
+  it('maps 第1学舎 A〜E to the 5 buildings and 第4学舎 実験棟 to their own OSM outlines', () => {
+    expect(Object.values(AREA1_WING_IDS).map((id) => linkOf(id)?.buildingId)).toEqual([
+      'area1-1',
+      'area1-2',
+      'area1-3',
+      'area1-4',
+      'area1-5',
+    ]);
+    for (let n = 1; n <= 6; n++) {
+      const building = buildings.find((b) => b.id === linkOf(`area4-x${n}`)?.buildingId);
+      expect(building?.name, `x${n}`).toBe(`第4学舎 第${n}実験棟`);
+    }
+  });
+
+  it('draws no region outside 第3学舎, so only 第3学舎 gets pickable wings (the screen stays as it was)', () => {
+    for (const link of SENRIYAMA_WING_BUILDINGS) {
+      if (link.buildingId !== 'area3') expect(link.region, link.wingId).toBeUndefined();
+    }
+    for (const w of SENRIYAMA_WINGS) {
+      if (!w.id.startsWith('area3-')) expect(w.floorHeightM, w.id).toBeUndefined();
+      expect(w.floorsAbove, w.id).toBeGreaterThan(0);
+      expect(w.floorsBelow, w.id).toBeGreaterThanOrEqual(0);
     }
   });
 });
