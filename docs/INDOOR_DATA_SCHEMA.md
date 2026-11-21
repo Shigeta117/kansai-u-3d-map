@@ -62,6 +62,11 @@ export type AccessStatus = 'yes' | 'no' | 'unknown';
 - 出典が無い場合は推測で `'yes'` や `'no'` にせず、必ず `'unknown'`（未確認）にします。
 - UI では `'yes'` のときのみ肯定バッジを表示し、`'no'` のときは「段差あり」、`'unknown'` のときは個別バッジを出さず未確認である旨の注意と大学公式アクセスマップへの案内を表示します。
 
+### 棟の id とバリアフリーマップの事実（2026-11-21）
+
+- `RoomEntry.wingId`: 学舎（第1〜第4学舎・岩崎記念館・尚文館・以文館）の部屋はすべて棟の id を持つ。棟の表と建物との対応の表は `packages/core/src/data/campuses/senriyama/wings.ts`、決め方は `WING_ID_RULE`（`docs/indoor-plan.md` 16 節の P0b）
+- 入口ごとの階・扉の種類・段差、エレベーターの印、多機能トイレの階、棟の間の連絡路は、`BuildingFloorPlan` ではなく `apps/guide/src/data/indoor/barrier-free/senriyama.ts`（型は `packages/core/src/domain/indoor-l1.ts`）に出典と版つきで持つ。上の表のバリアフリー系の欄（`unknown` のまま）を移すのは P2 の型の移行
+
 ### `RoomEntry` とレンジ展開検索（`searchableCodes`）
 
 KAN-CAN! 上で `D101〜D119教室` や `2201〜2208教室` のように連番表記されている教室群は、`expandRoomRange('D', 101, 119)` により `searchableCodes` へ個別教室番号を展開しています。これにより、検索バーや地点ピッカーで **`D112`** や **`2205`** のような単一教室番号を入力しても該当建物の該当階が即座にヒットします。
