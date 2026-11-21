@@ -29,6 +29,7 @@ import { carveTerrainForExpressways } from './ExpresswayBuilder';
 import { buildFoliageGroup } from './FoliageBuilder';
 import { buildGroundsGroup, carveTerrainForGrounds } from './GroundsBuilder';
 import { LightingRig } from './LightingRig';
+import { buildStaticBatches, type StaticBatches } from './staticBatches';
 import { RouteOverlay } from './RouteOverlay';
 import { buildTerrainGroup } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
@@ -92,6 +93,8 @@ export class CampusScene {
   private readonly wingHighlighter: WingHighlighter;
 
   private readonly campusRecords: Map<string, BuildingMeshRecord>;
+  /** 建物・上屋・橋の動かない部品を、建物をまたいで材質の設定ごとにまとめたメッシュ（staticBatches.ts） */
+  private readonly staticBatches: StaticBatches;
   private readonly interactiveMeshes: THREE.Object3D[];
   private readonly animatedRotors: THREE.Object3D[];
   private readonly transportCars: THREE.Object3D[];
@@ -225,6 +228,21 @@ export class CampusScene {
       config,
     );
     this.scene.add(canopiesGroup);
+
+    // 建物（選択で光らせる・浮かせる・当たり判定がある）と、新アクセス路の上屋・橋（動かない）の部品を、
+    // 建物をまたいで描き方の設定ごとに 1 つのメッシュにまとめる。建物の元のメッシュは当たり判定と、
+    // 選んで浮かせている間の描画に使うので、見えないまま残す
+    this.staticBatches = buildStaticBatches([
+      ...[...this.campusRecords.values()].map((rec) => ({
+        root: rec.group,
+        keep: this.animatedRotors,
+        movable: rec.group,
+        pickable: true,
+      })),
+      { root: canopiesGroup, pickable: false },
+      { root: bridgesGroup, pickable: false },
+    ]);
+    this.scene.add(this.staticBatches.group);
 
     const foliageGroup = buildFoliageGroup(
       terrain,
@@ -485,6 +503,8 @@ export class CampusScene {
 
       if (this.needsRender) {
         this.needsRender = false;
+        // 材質の色・選んだ建物の浮かせ方を、まとめたメッシュへ写してから描く
+        this.staticBatches.sync();
         this.renderer.render(this.scene, this.cameraRig.camera);
         this.emitRenderStats();
         if (this.labelsDirty) {
@@ -706,6 +726,7 @@ export class CampusScene {
 
     this.routeOverlay.clear();
     this.wingHighlighter.dispose();
+    this.staticBatches.dispose();
     for (const rec of this.campusRecords.values()) {
       for (const shell of rec.wingShells?.values() ?? []) shell.dispose();
     }
