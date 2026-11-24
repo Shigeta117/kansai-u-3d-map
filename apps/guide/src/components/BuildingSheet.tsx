@@ -536,7 +536,9 @@ export function BuildingSheet({
                 <span>一般教室一覧の対象外施設（フロア図は保留）</span>
               </div>
               <p className="text-[11.5px] leading-relaxed">
-                この建物は推定 {target.levels}階建として3Dモデル化されています。
+                {target.parts?.length
+                  ? `この建物は塊ごとに ${Math.min(...target.parts.map((p) => p.levels))}〜${Math.max(...target.parts.map((p) => p.levels))}階建として3Dモデル化されています。`
+                  : `この建物は推定 ${target.levels}階建として3Dモデル化されています。`}
                 教務ガイド KAN-CAN! の一般教室一覧対象外の施設（研究棟・本部等）です。
               </p>
             </div>

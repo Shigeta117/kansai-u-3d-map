@@ -11,6 +11,7 @@ import type {
   WalkGraph,
 } from '../domain/types';
 import { heightForLevels, SENRIYAMA_BUILDING_FACTS } from './campuses/senriyama/building-facts';
+import { SENRIYAMA_BUILDING_PARTS } from './campuses/senriyama/building-parts';
 import { joinBuildingWings, joinSheetWings, pickableWingBuildingIds } from '../domain/wings';
 import { SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './campuses/senriyama/wings';
 
@@ -39,7 +40,10 @@ export async function loadCampusDataset(campusId: CampusId): Promise<CampusDatas
   return {
     meta,
     terrain,
-    buildings: campusId === 'senriyama' ? applyBuildingWings(applyBuildingFacts(buildings)) : buildings,
+    buildings:
+      campusId === 'senriyama'
+        ? applyBuildingWings(applyBuildingParts(applyBuildingFacts(buildings)))
+        : buildings,
     landcover,
     paths,
     structures,
@@ -63,6 +67,26 @@ export function applyBuildingFacts(buildings: BuildingFeature[]): BuildingFeatur
     }
     if (fact.levelsAbove <= b.levels) return b;
     return { ...b, levels: fact.levelsAbove, height: Math.max(b.height, heightForLevels(fact.levelsAbove)) };
+  });
+}
+
+/**
+ * 高さの違う塊に分かれる建物（building-parts.ts）に塊を付ける。建物の levels・height は最も高い塊の値にする
+ * （ラベルの高さ・カメラの寄り方・建物シートの階数に使う）
+ */
+export function applyBuildingParts(buildings: BuildingFeature[]): BuildingFeature[] {
+  const specs = new Map(SENRIYAMA_BUILDING_PARTS.map((s) => [s.buildingId, s]));
+  return buildings.map((b) => {
+    const spec = specs.get(b.id);
+    if (!spec) return b;
+    const parts = spec.parts.map((p) => ({
+      name: p.name,
+      levels: p.levels,
+      height: heightForLevels(p.levels),
+      polygon: p.polygon,
+    }));
+    const top = parts.reduce((a, p) => (p.height > a.height ? p : a));
+    return { ...b, parts, levels: top.levels, height: top.height };
   });
 }
 

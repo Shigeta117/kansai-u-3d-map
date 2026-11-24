@@ -412,12 +412,12 @@ export function buildBuildingsGroup(
     const roofHex =
       (options.roofColorMode ?? 'aerial') === 'aerial' && aerialRoofHex ? aerialRoofHex : areaRoofHex;
 
-    const { geometry, roofVisualY, groundVisualY } = createExtrudedBuildingGeometry(
-      b,
-      minElevation,
-      exag,
-      true,
-    );
+    // 高さの違う塊に分かれる建物（BuildingFeature.parts）は塊ごとに押し出す。材質は同じ物を使い、部品をまとめる所で 1 つになる
+    const massings = b.parts?.length
+      ? b.parts.map((p) => createExtrudedBuildingGeometry({ ...b, polygon: p.polygon, holes: undefined, height: p.height }, minElevation, exag, true))
+      : [createExtrudedBuildingGeometry(b, minElevation, exag, true)];
+    const groundVisualY = massings[0]!.groundVisualY;
+    const roofVisualY = Math.max(...massings.map((m) => m.roofVisualY));
 
     const roofMat = new THREE.MeshStandardMaterial({
       color: roofHex,
@@ -433,11 +433,13 @@ export function buildBuildingsGroup(
     });
 
     const bodyMaterials = options.forExport ? wallMat : [roofMat, wallMat];
-    const bodyMesh = new THREE.Mesh(geometry, bodyMaterials);
-    bodyMesh.castShadow = true;
-    bodyMesh.receiveShadow = true;
-    bodyMesh.userData = { buildingId: b.id };
-    bGroup.add(bodyMesh);
+    for (const { geometry } of massings) {
+      const bodyMesh = new THREE.Mesh(geometry, bodyMaterials);
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      bodyMesh.userData = { buildingId: b.id };
+      bGroup.add(bodyMesh);
+    }
 
     const sculpted = sculptLandmarkDetails(b, roofVisualY, groundVisualY, wallHex);
     for (const m of sculpted.meshes) {
