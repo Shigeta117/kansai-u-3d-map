@@ -19,7 +19,11 @@
 - **利用規約**: 国土地理院コンテンツ利用規約（政府標準利用規約 第2.0版 / CC BY 4.0 互換）
   - https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html
 
-## 3. ソースコードおよび 3D モデル出力との区別
+## 3. 現地確認から作ったデータ（`closures.json`）
+
+工事などで一時的に入れない範囲（範囲の多角形・囲いの線・通路の扱い）。リポジトリの持ち主の現地確認（確認日と出典はファイルの中の `asOf`・`sources`）から作った物で、OpenStreetMap には無い。座標は上の OSM 由来のデータと同じローカル座標で、経路の節点の id（`walk-graph.json`）を参照するので、ほかの JSON と同じく ODbL v1.0 の条件で提供する。
+
+## 4. ソースコードおよび 3D モデル出力との区別
 
 - **ソースコード**（`packages/`・`apps/`・`scripts/`）: MIT License
 - **本フォルダの JSON**（`public/data/senriyama/*.json`）: ODbL v1.0（Derivative Database）＋国土地理院の出典表記
