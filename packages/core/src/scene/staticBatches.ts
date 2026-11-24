@@ -7,10 +7,10 @@ import { collectMeshPieces, detachMesh, isVisibleWithin, mergeMeshPieces, type M
  * - 材質の色・明るさ（emissive）・粗さ・金属感は部品ごとに違ってよい。材質（と建物）ごとに番号（slot）を振り、
  *   頂点に番号の属性（kumSlot）を持たせ、値はデータテクスチャから shader で引く（onBeforeCompile）。
  *   それ以外の設定（テクスチャ・両面・flatShading・影の設定など）が同じ部品どうしを 1 つのメッシュにまとめる
- * - 元の材質が値の正本。選択の光らせ方・カテゴリの薄め方・屋根の色の切り替えは今までどおり元の材質を書き換え、
+ * - 元の材質が値の正本。薄め方（カテゴリの絞り込み・選んでいない建物）・屋根の色の切り替えは元の材質を書き換え、
  *   sync() でテクスチャへ写す（描く前に毎回呼ぶ。変わっていなければ写さない）
  * - 当たり判定は元のメッシュで行う（pickable のとき、元のメッシュを見えないまま残す。three の当たり判定は
- *   visible を見ない）。棟の殻・回る物・透明な物は元の group に残って描かれる
+ *   visible を見ない）。選んだ物に重ねる輪郭と塗り・回る物・透明な物は元の group に残って描かれる
  * - movable（選んだ建物を浮かせる group）が組んだ時の位置から動いている間は、その建物の分をまとめたメッシュから
  *   消し（shader で三角形を潰す。影の地図も同じ）、見えないまま残した元のメッシュを描く。動かした建物は前と
  *   同じ描き方になる（描画命令はその建物の分だけ増える）
@@ -24,7 +24,7 @@ export interface StaticBatchSource {
   /** まとめずに残す物（回る物など）。この物とその子孫はまとめない */
   keep?: Iterable<THREE.Object3D>;
   /**
-   * true: 元のメッシュを見えないまま残す（当たり判定・棟の殻・動かした間の描画に使う）。
+   * true: 元のメッシュを見えないまま残す（当たり判定・動かした間の描画に使う）。
    * false: 元のメッシュを取り除く（当たり判定が要らず、動かない物）
    */
   pickable: boolean;
@@ -241,7 +241,7 @@ export function buildStaticBatches(sources: readonly StaticBatchSource[], name =
         obj instanceof THREE.Mesh &&
         !(obj instanceof THREE.SkinnedMesh) &&
         !(obj as THREE.Mesh & { isBatchedMesh?: boolean }).isBatchedMesh &&
-        !obj.userData?.wingShell &&
+        !obj.userData?.selectionOverlay &&
         obj.visible &&
         isVisibleWithin(obj, source.root)
       ) {

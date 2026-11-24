@@ -153,7 +153,7 @@ describe('建物をまたいだまとめ（buildStaticBatches）', () => {
     expect(counts.get('area4-h2r') ?? 0).toBeGreaterThan(100);
   });
 
-  it('光らせる・薄める・屋根の色の切り替えは、元の材質の値がテクスチャに写る', () => {
+  it('薄める・持ち上げる・屋根の色の切り替えは、元の材質の値がテクスチャに写る', () => {
     const rec = built.campusRecords.get('rimpukan');
     const other = built.campusRecords.get('area1-1');
     expect(rec && other).toBeTruthy();
@@ -181,10 +181,11 @@ describe('建物をまたいだまとめ（buildStaticBatches）', () => {
     // 変わっていなければ写さない
     expect(batches.sync()).toBe(false);
 
-    // 第1学舎1号館を選ぶ: 浮かせている間は、まとめた分を消して元のメッシュを描く
-    applyBuildingVisualStates(built.campusRecords, 'area1-1', 'all');
+    // 第1学舎1号館を選んで持ち上げる（sel=lift）: 持ち上げている間は、まとめた分を消して元のメッシュを描く。
+    // 選んでも材質は光らせない（輪郭と塗りは殻で重ねる）
+    applyBuildingVisualStates(built.campusRecords, 'area1-1', 'all', { lift: true });
     batches.sync();
-    expect(otherWall.mat.emissiveIntensity).toBeGreaterThan(0);
+    expect(batches.slotValues(otherSlot).slice(4, 7)).toEqual([0, 0, 0]);
     expect(batches.slotValues(otherSlot)[8]).toBe(0);
     expect(batches.slotValues(slot)[8]).toBe(1);
     const shown = drawnMeshes(other.group).filter((m) => m.userData.buildingId === 'area1-1');
@@ -195,6 +196,14 @@ describe('建物をまたいだまとめ（buildStaticBatches）', () => {
     expect(batches.slotValues(otherSlot)[8]).toBe(1);
     expect(batches.slotValues(otherSlot).slice(4, 7)).toEqual([0, 0, 0]);
     expect(drawnMeshes(other.group)).toHaveLength(0);
+
+    // 持ち上げずに選ぶ（既定）と、まとめたメッシュのまま描く（元のメッシュを描かないので描画命令が増えない）
+    applyBuildingVisualStates(built.campusRecords, 'area1-1', 'all');
+    batches.sync();
+    expect(batches.slotValues(otherSlot)[8]).toBe(1);
+    expect(drawnMeshes(other.group)).toHaveLength(0);
+    applyBuildingVisualStates(built.campusRecords, null, 'all');
+    batches.sync();
 
     // 屋根の色（主役以外）を切り替えると、屋根の番号の色が変わる
     const roof = other.roofColors?.entry.mat;

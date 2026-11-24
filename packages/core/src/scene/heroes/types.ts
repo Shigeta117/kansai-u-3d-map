@@ -24,7 +24,7 @@ export interface HeroBuildContext {
 export interface HeroBuildResult {
   /** 建物を構成するメッシュをまとめた group（すべてのメッシュが選択の当たり判定の対象になる） */
   group: THREE.Group;
-  /** 選択時に光らせる・カテゴリの絞り込みで薄くする主な材質（外壁など）。baseHex はその材質の元の色 */
+  /** 主な材質（外壁など）。baseHex はその材質の元の色。選択の見た目と薄める処理には使わない（建物全体の殻と group の全部の材質を使う） */
   primaryMaterials: { mat: THREE.MeshStandardMaterial; baseHex: string }[];
   /** 回転などのアニメーションをする物（無ければ空配列） */
   animated: THREE.Object3D[];

@@ -31,9 +31,17 @@ export {
   isBuildingWithinDiorama,
   type BuildingMeshRecord,
   type BuildingsBuildResult,
+  type BuildingVisualOptions,
   type MaterialColorEntry,
   type RoofColorMode,
 } from './scene/BuildingBuilder';
+export {
+  DEFAULT_SELECTION_LOOK,
+  parseSelectionLook,
+  SelectionHighlighter,
+  type SelectionLook,
+  type SelectionOutline,
+} from './scene/selectionHighlight';
 export {
   buildDioramaBaseGroup,
   createDioramaClippingPlanes,
