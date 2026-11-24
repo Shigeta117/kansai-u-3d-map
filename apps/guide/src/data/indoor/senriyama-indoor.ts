@@ -1397,7 +1397,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
-      '第4学舎2号館（③教室棟・④研究棟・⑤研究棟別館）。2101〜2502教室、情報処理室（4ST）、第2製図室、OD1・OD2教室および化学・材料・建築系研究室群を備える。',
+      '第4学舎2号館（③教室棟・④研究棟・⑤研究棟別館）。2101〜2502教室、情報処理室（4ST）、第2製図室、OD1・OD2教室を備える。研究棟は部外者・学部生が入れないため、館内の情報は載せない。',
     floors: buildStandardFloors(5, 1, 1),
     entrances: [],
     connectors: [BF_A4_24_B1, BF_A4_24_1F, BF_A4_24_2F, BF_A4_24_3F],
