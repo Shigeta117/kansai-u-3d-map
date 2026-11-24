@@ -25,6 +25,9 @@ const EXCLUDED_CANOPY_BUILDING_IDS = new Set([
 
 // 建物の箱にせず、GroundsBuilder がグラウンドの一部として描く OSM の建物（千里山中央グラウンドの観客席）
 const GROUND_STRUCTURE_BUILDING_IDS = new Set([805366951]);
+// 取り壊された建物（OSM にはまだ残っている）。輪郭を描かず、名前・検索・経路の行き先からも外す
+// - 624589992: 誠之館3号館（別棟）。誠之館の建て替えで取り壊し済み（持ち主の現地確認 2026-11-24。docs/DATA_SOURCES.md 5 節）
+const DEMOLISHED_BUILDING_IDS = new Set([624589992]);
 
 // 公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）の番号つきの一覧で名前を確かめた建物（OSM の osmId → 名前など）。
 // OSM の輪郭と地図のイラストの位置・形が合う物だけ（突き合わせの記録は docs/DATA_SOURCES.md 5 節）。
@@ -45,13 +48,13 @@ const OFFICIAL_MAP_BUILDINGS = new Map([
   ['way_490258123', { name: '弓道場', keywords: ['弓道', 'Kyudo Range'], levels: 1 }],
   // 26: 誠之館の群（4 つの箱と茶室）。KAN-CAN! の誠之館の鳥瞰図（公開）の札と輪郭を突き合わせて名前を決めた（2026-11-24。
   // docs/DATA_SOURCES.md 5 節）。OSM の名前は 2 号館と 3 号館が入れ替わり、2 棟は「関西大学 施設棟」のままだった
-  // - 3号館（新館）= 最も東の南西に開くコの字。3号館（旧館）= 2号館の北西に平行。3号館（別棟）= 6号館（有鄰館）の南東
+  // - 3号館（新館）= 最も東の南西に開くコの字。3号館（旧館）= 2号館の北西に平行。3号館（別棟、way 624589992）= 6号館（有鄰館）の南東。
+  //   別棟は取り壊し済みなので DEMOLISHED_BUILDING_IDS で外す（2026-11-24）
   // - 2号館 = 最も南東の長い棟（約 61m）。千里庵 = 3号館和室（茶室）。図では平屋の小さな建物なので levels 1（高さは推定）
   // - 関西大学共済会事務局: CAMPUSMAP の 26 の番号が載るのは OSM の「誠之館　2号館旧館」（way 624589997）。
   //   どの館に事務局があるかは資料で確かめられていないので、番号が載る輪郭（今の 3号館（旧館））に付けたまま。要確認
   ['way_423067245', { name: '誠之館3号館（新館）', keywords: ['誠之館3号館', '誠之館3号館新館', '3号館新館'] }],
   ['way_624589997', { name: '誠之館3号館（旧館）', keywords: ['誠之館3号館', '誠之館3号館旧館', '3号館旧館', '誠之館2号館旧館', '関西大学共済会事務局', '関西大学共済会'] }],
-  ['way_624589992', { name: '誠之館3号館（別棟）', keywords: ['誠之館3号館', '誠之館3号館別棟', '3号館別棟'] }],
   ['way_624589994', { name: '誠之館2号館', keywords: ['誠之館2号館'] }],
   ['way_819790904', { name: '千里庵（誠之館3号館和室）', keywords: ['千里庵', '誠之館3号館和室', '3号館和室', '茶室'], levels: 1 }],
   // 第4学舎2号館の研究棟別館（KAN-CAN! ⑤）。OSM は名前の無い building=university で、2号館の中庭に建つ別の輪郭
@@ -967,6 +970,7 @@ async function main() {
     if (
       EXCLUDED_CANOPY_BUILDING_IDS.has(el.id) ||
       GROUND_STRUCTURE_BUILDING_IDS.has(el.id) ||
+      DEMOLISHED_BUILDING_IDS.has(el.id) ||
       stationBuildingWayIds.has(el.id) ||
       el.tags.building === 'roof'
     ) {
