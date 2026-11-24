@@ -150,4 +150,26 @@ test.describe('案内アプリの代表フロー', () => {
     await expect(panel.getByText('屋外エスカレーター利用')).toHaveCount(0);
     await expect(note).toHaveCount(0);
   });
+
+  test('経路: 誠之館3号館（新館）を段差フリーで選ぶと、工事で段差の無い経路が無い一言が出る。ほかの建物では出ない', async ({ page }) => {
+    await page.getByRole('button', { name: 'ルート案内' }).click();
+    const panel = page.getByRole('complementary', { name: 'キャンパス内徒歩ルート案内' });
+    await expect(panel).toBeVisible();
+    await pickPlace(page, '出発', '関大前', '関大前');
+    await pickPlace(page, '到着', '誠之館3号館', '誠之館3号館（新館）');
+    const note = panel.getByTestId('stepfree-closure-note');
+
+    // 坂ひかえめ・最短では経路が引け、一言は出ない
+    await expect(panel.getByTestId('route-distance')).toHaveText(/^\d+m$/);
+    await expect(note).toHaveCount(0);
+
+    await panel.getByRole('radiogroup', { name: 'ルート探索モード' }).getByRole('radio', { name: /段差フリー/ }).click();
+    await expect(note).toHaveText('工事のため、今は段差の無い経路がありません（2026 年 11 月時点）');
+    await page.screenshot({ path: test.info().outputPath('stepfree-closure.png') });
+
+    // 封鎖と関係ない建物の段差フリーでは出ない
+    await pickPlace(page, '到着', '総合図書館', '総合図書館');
+    await expect(panel.getByTestId('route-distance')).toHaveText(/^\d+m$/);
+    await expect(note).toHaveCount(0);
+  });
 });

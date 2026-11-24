@@ -5,6 +5,7 @@ import {
   edgeDepthInside,
   edgeKey,
   pointInPolygon,
+  stepFreeClosureMessage,
   type CampusClosure,
   type CampusClosuresData,
 } from './closures';
@@ -165,6 +166,21 @@ describe('誠之館の建て替えの範囲（closures.json を実データに�
       expect(b.construction?.asOfLabel).toBe('2026 年 11 月時点');
     }
     expect(byId.get('way_624589997')?.construction?.look).toBe('sheet');
+  });
+
+  it('says the closure is the reason when 新館 has no step-free route, and only for the listed buildings', () => {
+    const listed = closure.walk.noStepFree!.map((n) => n.buildingId);
+    expect(listed).toContain('way_423067245');
+    // データの一覧は、実際に段差の無い入口が外れた建物と食い違わない
+    for (const id of listed) expect(byId.get(id)!.accessibleWalkNodeId).toBeNull();
+    expect(route('main-gate', 'way_423067245', 'step-free')).toBeNull();
+    const msg = '工事のため、今は段差の無い経路がありません（2026 年 11 月時点）';
+    expect(stepFreeClosureMessage(closures, ['main-gate', 'way_423067245'])).toBe(msg);
+    expect(stepFreeClosureMessage(closures, ['way_423067245', 'main-gate'])).toBe(msg);
+    // 一覧に無い建物（範囲の中で行き先でない建物を含む）では出さない
+    expect(stepFreeClosureMessage(closures, ['main-gate', 'kanbunkan'])).toBeNull();
+    expect(stepFreeClosureMessage(closures, ['way_624589997'])).toBeNull();
+    expect(stepFreeClosureMessage([], ['way_423067245'])).toBeNull();
   });
 
   it('keeps 悠久の庭 open (two thirds outside the area) and reachable from the open side', () => {

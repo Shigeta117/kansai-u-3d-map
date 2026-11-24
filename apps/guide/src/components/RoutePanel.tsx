@@ -15,9 +15,11 @@ import {
 } from 'lucide-react';
 import {
   STEEP_SLOPE_RATIO,
+  stepFreeClosureMessage,
   usesRushHourDownEscalator,
   type BuildingFeature,
   type BuildingFloorPlan,
+  type CampusClosure,
   type RouteMode,
   type RouteResult,
 } from '@kansai-u-3d/core';
@@ -38,6 +40,8 @@ interface RoutePanelProps {
   mode: RouteMode;
   pickingTarget: 'origin' | 'dest' | null;
   route: RouteResult | null;
+  /** 工事の封鎖（段差フリーで経路が無い理由に使う） */
+  closures?: CampusClosure[];
   /** スマホで開いたときの段（建物の「ここへ行く」から来たら低い段など） */
   initialSnap?: SheetSnap;
   onChangeOrigin: (next: RouteEndpointSelection) => void;
@@ -93,6 +97,7 @@ export function RoutePanel({
   mode,
   pickingTarget,
   route,
+  closures = [],
   initialSnap = 'half',
   onChangeOrigin,
   onChangeDest,
@@ -139,6 +144,10 @@ export function RoutePanel({
     originSelection.buildingId === destSelection.buildingId;
   const isSameWalkNode =
     !isSameBuilding && route !== null && route.totalDistanceM === 0;
+  const closureMessage =
+    mode === 'step-free'
+      ? stepFreeClosureMessage(closures, [originSelection.buildingId, destSelection.buildingId])
+      : null;
   const routePopKey = route
     ? `${route.mode}:${route.fromId}:${route.toId}:${route.totalDistanceM.toFixed(1)}`
     : 'none';
@@ -391,7 +400,20 @@ export function RoutePanel({
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#C85A3A]" />
             <div>
-              {mode === 'step-free' ? (
+              {mode === 'step-free' && closureMessage ? (
+                <>
+                  <p className="font-semibold" data-testid="stepfree-closure-note">
+                    {closureMessage}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onChangeMode('gentle')}
+                    className="t-interactive mt-2 rounded-lg bg-[#2B8A6E] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#23745B]"
+                  >
+                    「坂ひかえめ」に切り替える
+                  </button>
+                </>
+              ) : mode === 'step-free' ? (
                 <>
                   <p className="font-semibold">
                     この組み合わせでは階段・屋外エスカレーターを使わない段差フリー経路が見つかりませんでした。
