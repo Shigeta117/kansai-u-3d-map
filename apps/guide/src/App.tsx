@@ -6,6 +6,7 @@ import {
   getCampusConfig,
   loadCampusDataset,
   parseCameraParam,
+  parseSelectionLook,
   sheetWingFloorPlan,
   type BuildingCategory,
   type BuildingFeature,
@@ -15,6 +16,7 @@ import {
   type RoofColorMode,
   type LocationSearchItem,
   type RouteMode,
+  type SelectionLook,
 } from '@kansai-u-3d/core';
 import { BuildingSheet } from './components/BuildingSheet';
 import type { SheetSnap } from './components/bottomSheetSnap';
@@ -35,11 +37,19 @@ interface GuideUrlParams {
   roofColorMode: RoofColorMode;
   /** 描画の重さ（描画命令・三角形）を DOM に出す（URL の stats=1） */
   renderStats: boolean;
+  /** 選んだ建物の見た目（URL の sel=。比べるための仕組み。無ければ既定） */
+  selectionLook: SelectionLook;
 }
 
 function parseGuideUrlParams(): GuideUrlParams {
   if (typeof window === 'undefined') {
-    return { hideUi: false, freeCamera: false, roofColorMode: 'aerial', renderStats: false };
+    return {
+      hideUi: false,
+      freeCamera: false,
+      roofColorMode: 'aerial',
+      renderStats: false,
+      selectionLook: parseSelectionLook(null),
+    };
   }
   const params = new URLSearchParams(window.location.search);
   return {
@@ -48,6 +58,7 @@ function parseGuideUrlParams(): GuideUrlParams {
     freeCamera: params.get('free') === '1',
     roofColorMode: params.get('roof') === 'area' ? 'area' : 'aerial',
     renderStats: params.get('stats') === '1',
+    selectionLook: parseSelectionLook(params.get('sel')),
   };
 }
 
@@ -293,6 +304,7 @@ export function App() {
           initialCamera={urlParams.initialCamera}
           freeCamera={urlParams.freeCamera}
           renderStats={urlParams.renderStats}
+          selectionLook={urlParams.selectionLook}
           onSelectBuilding={handleSelectBuilding}
           onSceneChange={setScene}
           sceneRef={sceneRef}

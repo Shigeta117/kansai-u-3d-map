@@ -9,6 +9,7 @@ import {
   type RenderStats,
   type RoofColorMode,
   type RouteResult,
+  type SelectionLook,
 } from '@kansai-u-3d/core';
 
 type KumWindow = Window & {
@@ -54,6 +55,8 @@ interface CampusViewportProps {
   freeCamera?: boolean;
   /** URL の stats=1。開発時は指定が無くても出す */
   renderStats?: boolean;
+  /** 選んだ建物の見た目（URL の sel=）。無ければ既定 */
+  selectionLook?: SelectionLook;
   onSelectBuilding: (buildingId: string | null, wingId?: string | null) => void;
   onSceneChange: (scene: CampusScene | null) => void;
   sceneRef: React.MutableRefObject<CampusScene | null>;
@@ -83,6 +86,7 @@ export function CampusViewport({
   initialCamera,
   freeCamera,
   renderStats,
+  selectionLook,
   onSelectBuilding,
   onSceneChange,
   sceneRef,
@@ -114,6 +118,7 @@ export function CampusViewport({
       {
         initialCamera,
         freeCamera,
+        ...(selectionLook ? { selectionLook } : {}),
         ...(statsEnabled ? { onRenderStats: publishRenderStats } : {}),
       },
     );
@@ -136,7 +141,7 @@ export function CampusViewport({
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [dataset, config, sceneRef, initialCamera, freeCamera, renderStats]);
+  }, [dataset, config, sceneRef, initialCamera, freeCamera, renderStats, selectionLook]);
 
   useEffect(() => {
     sceneRef.current?.setHighlightState(selectedId, activeCategory, selectedWingId);
