@@ -6,7 +6,15 @@ import { WING_ID_RULE, wingFootprintCentroid, wingRegionContains } from '../../.
 import type { BuildingFeature } from '../../../domain/types';
 import { buildArea3 } from '../../../scene/heroes/area3';
 import { applyBuildingWings } from '../../loadCampusData';
-import { AREA1_WING_IDS, AREA3_AXIS_U, AREA3_WING_IDS, SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './wings';
+import {
+  AREA1_WING_IDS,
+  AREA3_AXIS_U,
+  AREA3_WING_IDS,
+  AREA4_2_AXIS_U,
+  AREA4_2_WING_BOUNDS,
+  SENRIYAMA_WING_BUILDINGS,
+  SENRIYAMA_WINGS,
+} from './wings';
 
 const buildings = applyBuildingWings(
   JSON.parse(
@@ -15,6 +23,8 @@ const buildings = applyBuildingWings(
 );
 const area3 = buildings.find((b) => b.id === 'area3');
 if (!area3) throw new Error('area3 missing');
+const area42 = buildings.find((b) => b.id === 'area4-2');
+if (!area42) throw new Error('area4-2 missing');
 
 function pointInRing(x: number, z: number, ring: readonly [number, number][]): boolean {
   let inside = false;
@@ -46,8 +56,9 @@ function frameOf(x: number, z: number): [number, number] {
 describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
   const wings = area3.wings ?? [];
 
-  it('attaches the 4 wings to area3 only, with the KAN-CAN! floor counts', () => {
-    expect(buildings.filter((b) => b.wings).map((b) => b.id)).toEqual(['area3']);
+  it('attaches the 4 wings to area3, with the KAN-CAN! floor counts', () => {
+    // 地図で棟を押して選べるのは第3学舎と第4学舎2号館だけ
+    expect(buildings.filter((b) => b.wings).map((b) => b.id).sort()).toEqual(['area3', 'area4-2']);
     expect(wings.map((w) => [w.id, w.school, w.hallName, w.name, w.floorsBelow, w.floorsAbove])).toEqual([
       ['area3-a', '第3学舎', '1号館', 'A棟', 1, 4],
       ['area3-b', '第3学舎', '2号館', 'B棟', 0, 5],
@@ -206,14 +217,108 @@ describe('第1・第2・第4学舎と大学院学舎の棟（P0b）', () => {
     }
   });
 
-  it('draws no region outside 第3学舎, so only 第3学舎 gets pickable wings (the screen stays as it was)', () => {
+  it('maps 第4学舎 2号館 研究棟別館 to the separate outline in the courtyard of 2号館', () => {
+    const annex = buildings.find((b) => b.id === linkOf('area4-h2a')?.buildingId);
+    if (!annex) throw new Error('the annex outline missing');
+    expect(annex.id).toBe('way_624663829');
+    // 別館の輪郭の角はどれも 2号館の輪郭の外（中庭）で、2号館の外形の枠の中
+    const xs = area42.polygon.map(([x]) => x);
+    const zs = area42.polygon.map(([, z]) => z);
+    for (const [x, z] of annex.polygon) {
+      expect(pointInRing(x, z, area42.polygon), `${x},${z}`).toBe(false);
+      expect(x > Math.min(...xs) && x < Math.max(...xs) && z > Math.min(...zs) && z < Math.max(...zs)).toBe(true);
+    }
+    // 2号館の教室棟と研究棟は 2号館の輪郭のまま
+    expect(linkOf('area4-h2')?.buildingId).toBe('area4-2');
+    expect(linkOf('area4-h2r')?.buildingId).toBe('area4-2');
+  });
+
+  it('draws regions only for 第3学舎 and 第4学舎 2号館, so only those get pickable wings', () => {
     for (const link of SENRIYAMA_WING_BUILDINGS) {
-      if (link.buildingId !== 'area3') expect(link.region, link.wingId).toBeUndefined();
+      if (link.buildingId !== 'area3' && link.buildingId !== 'area4-2') expect(link.region, link.wingId).toBeUndefined();
     }
     for (const w of SENRIYAMA_WINGS) {
       if (!w.id.startsWith('area3-')) expect(w.floorHeightM, w.id).toBeUndefined();
       expect(w.floorsAbove, w.id).toBeGreaterThan(0);
       expect(w.floorsBelow, w.id).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('第4学舎2号館の教室棟と研究棟', () => {
+  const wings = area42.wings ?? [];
+  const frame42 = (x: number, z: number): [number, number] => {
+    const [ax, az] = AREA4_2_AXIS_U;
+    return [x * ax + z * az, -x * az + z * ax];
+  };
+  const wingAt = (x: number, z: number): string[] =>
+    wings.filter((w) => wingRegionContains(w.region, x, z)).map((w) => w.id);
+
+  it('attaches 教室棟 and 研究棟 (研究棟 is restricted; 研究棟別館 is not on this outline)', () => {
+    expect(wings.map((w) => [w.id, w.name, w.floorsBelow, w.floorsAbove, w.restricted ?? false])).toEqual([
+      ['area4-h2', '教室棟', 1, 5, false],
+      ['area4-h2r', '研究棟', 1, 5, true],
+    ]);
+    for (const w of wings) expect(w.region).toBeDefined();
+  });
+
+  it('takes the u axis from the long north-west edge (V11→V10) and puts the boundary on the courtyard wall of 研究棟 (V5→V4)', () => {
+    const p = area42.polygon;
+    const [v11, v10, v4, v5] = [p[11], p[10], p[4], p[5]];
+    if (!v11 || !v10 || !v4 || !v5) throw new Error('vertex missing');
+    const len = Math.hypot(v10[0] - v11[0], v10[1] - v11[1]);
+    expect(AREA4_2_AXIS_U[0]).toBeCloseTo((v10[0] - v11[0]) / len, 4);
+    expect(AREA4_2_AXIS_U[1]).toBeCloseTo((v10[1] - v11[1]) / len, 4);
+    // 境目は中庭側の壁の線（v = 154.32）の 0.02m 北西。壁は研究棟に入る
+    for (const q of [v4, v5]) {
+      const [, v] = frame42(q[0], q[1]);
+      expect(v - AREA4_2_WING_BOUNDS.classroomResearchV).toBeGreaterThan(0);
+      expect(v - AREA4_2_WING_BOUNDS.classroomResearchV).toBeLessThan(0.05);
+    }
+  });
+
+  it('splits the outline into the 2 wings with no gap and no overlap', () => {
+    const xs = area42.polygon.map(([x]) => x);
+    const zs = area42.polygon.map(([, z]) => z);
+    const counts = new Map<string, number>();
+    for (let x = Math.floor(Math.min(...xs)); x <= Math.max(...xs); x += 1) {
+      for (let z = Math.floor(Math.min(...zs)); z <= Math.max(...zs); z += 1) {
+        const px = x + 0.37;
+        const pz = z + 0.61;
+        if (!pointInRing(px, pz, area42.polygon)) continue;
+        const hits = wingAt(px, pz);
+        expect(hits).toHaveLength(1);
+        const id = hits[0] ?? '';
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+    // 1m 間隔の点の数 ≒ 面積: 教室棟 約 1,800 m²（北西の長い棟 1,280・南西の腕 200・北東の腕 320）、研究棟 約 1,520 m²
+    expect(counts.get('area4-h2') ?? 0).toBeGreaterThan(1700);
+    expect(counts.get('area4-h2r') ?? 0).toBeGreaterThan(1400);
+    const total = wings.reduce((sum, w) => sum + (wingFootprintCentroid(area42, w)?.area ?? 0), 0);
+    expect(total).toBeCloseTo(ringArea(area42.polygon), 1);
+  });
+
+  it('puts the long north-west wing, the south-west arm and the north-east arm in 教室棟, the south-east band and the south arm in 研究棟', () => {
+    /** 輪郭の角を、枠の中で 1m 内へ寄せた点（角の上は境目と同じく両方に入りうるので避ける） */
+    const inset = (i: number, du: number, dv: number): [number, number] => {
+      const q = area42.polygon[i];
+      if (!q) throw new Error(`V${i}`);
+      const [ax, az] = AREA4_2_AXIS_U;
+      return [q[0] + du * ax - dv * az, q[1] + du * az + dv * ax];
+    };
+    const at = (i: number, du: number, dv: number): string[] => wingAt(...inset(i, du, dv));
+    // 北西の長い棟の両端（V11・V10）、南西の腕の先（V0・V1）、北東の腕の中庭の角（V3）
+    expect(at(11, 1, 1)).toEqual(['area4-h2']);
+    expect(at(10, -1, 1)).toEqual(['area4-h2']);
+    expect(at(0, 1, -1)).toEqual(['area4-h2']);
+    expect(at(1, -1, -1)).toEqual(['area4-h2']);
+    expect(at(3, 1, 1)).toEqual(['area4-h2']);
+    // 南東の帯の東の角（V9）と中庭の角（V4・V5）、南の腕の先（V6・V7）
+    expect(at(9, -1, -1)).toEqual(['area4-h2r']);
+    expect(at(4, -1, 1)).toEqual(['area4-h2r']);
+    expect(at(5, 1, 1)).toEqual(['area4-h2r']);
+    expect(at(6, 1, -1)).toEqual(['area4-h2r']);
+    expect(at(7, -1, -1)).toEqual(['area4-h2r']);
   });
 });

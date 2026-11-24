@@ -20,6 +20,7 @@ import {
   getCategoryLabel,
   normalizeSearchText,
   wingHasFloor,
+  wingLabel,
   wingTitle,
   type BuildingFeature,
   type BuildingWing,
@@ -149,12 +150,17 @@ export function BuildingSheet({
   // 建物が棟を持てば（第3学舎）、棟の絞り込みは選んでいる棟（地図の光らせ方と同じ）に従う。持たなければシートの中だけの絞り込み
   const wingControlled = Boolean(onSelectWing) && (target?.wings?.length ?? 0) > 0;
   const activeWing = wingControlled ? findWing(target, wing?.id) : null;
-  const wingFilter: string | 'all' = wingControlled ? (activeWing?.id ?? 'all') : selectedWing;
+  // 地図で選んでいる棟が無ければ、シートの中だけの絞り込み（建物に部屋がまとめてある別の輪郭の棟。第4学舎2号館の研究棟別館など）
+  const wingFilter: string | 'all' = activeWing?.id ?? selectedWing;
   // 選んでいる階がその棟に無ければ（棟を替えたとき）、全フロアに戻して見せる
   const floorFilter: number | 'all' =
     selectedFloor !== 'all' && activeWing && !wingHasFloor(activeWing, selectedFloor) ? 'all' : selectedFloor;
 
-  /** 部屋の棟の絞り込みの鍵: 棟の id があれば id、無ければ棟の表示の名前 */
+  /**
+   * 部屋の棟の絞り込みの鍵: 棟の id があれば id、無ければ棟の表示の名前。
+   * 地図で押して選べる棟は、部屋が 1 件も無くても（館内の情報を載せない研究棟など）ボタンに出す。並びは建物の棟の順
+   */
+  const buildingWings = wingControlled ? target?.wings : undefined;
   const availableWings = useMemo(() => {
     if (!floorPlan) return [];
     const seen = new Map<string, string>();
@@ -162,16 +168,27 @@ export function BuildingSheet({
       const key = r.wingId ?? r.wing;
       if (key && !seen.has(key)) seen.set(key, r.wing ?? key);
     }
-    return [...seen].map(([key, label]) => ({ key, label }));
-  }, [floorPlan]);
+    const fromRooms = [...seen].map(([key, label]) => ({ key, label }));
+    if (!buildingWings || buildingWings.length === 0) return fromRooms;
+    const ids = new Set(buildingWings.map((w) => w.id));
+    return [
+      ...buildingWings.map((w) => ({ key: w.id, label: wingLabel(w) })),
+      ...fromRooms.filter((x) => !ids.has(x.key)),
+    ];
+  }, [floorPlan, buildingWings]);
 
   // 階のボタンは、棟を選んでいればその棟の階だけ
   const floorChips = (floorPlan?.floors ?? []).filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor));
+  // 部外者・学部生が入れない棟（研究棟など）を選んでいれば、番号規則・階・部屋の代わりに断り書きだけを出す（docs/indoor-plan.md 3 節）
+  const restrictedWing = activeWing?.restricted ? activeWing : null;
 
   const chooseWing = (key: string | 'all') => {
     if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
+      setSelectedWing('all');
       onSelectWing(key === 'all' ? null : key);
     } else {
+      // 地図で押して選べない棟（部屋だけがこの建物にまとめてある棟）は、地図の棟の選択を外してシートの中だけで絞る
+      if (wingControlled && onSelectWing && activeWing) onSelectWing(null);
       setSelectedWing(key);
     }
   };
@@ -204,6 +221,11 @@ export function BuildingSheet({
   const nameOnlyNote = (
     <p className="mt-2 rounded-xl border border-[#E6DFD2] bg-white px-3 py-2.5 text-[12px] leading-relaxed text-[#4B5360]">
       中学校・高等学校などの施設のため、名称だけを表示しています。
+    </p>
+  );
+  const restrictedNote = (
+    <p className="rounded-xl border border-[#E6DFD2] bg-white px-3 py-2.5 text-[12px] leading-relaxed text-[#4B5360]">
+      部外者・学部生は入れない区域のため、館内の情報は載せていません。
     </p>
   );
 
@@ -290,6 +312,43 @@ export function BuildingSheet({
   );
   const TAB_LIST_BOX = 'grid grid-cols-3 gap-1 rounded-xl border border-[#E5DEC9] bg-[#F1ECE1] p-1';
 
+  // 棟の絞り込みのボタン（全棟と棟ごと）
+  const wingChips =
+    availableWings.length > 1 ? (
+      <div className="no-scrollbar flex items-center gap-1 overflow-x-auto pb-0.5">
+        <button
+          type="button"
+          onClick={() => chooseWing('all')}
+          aria-pressed={wingFilter === 'all'}
+          className={`t-interactive shrink-0 rounded-lg border px-2 py-0.5 text-[10.5px] font-bold ${
+            wingFilter === 'all'
+              ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
+              : 'border-[#DCD4C5] bg-white text-[#47505E]'
+          }`}
+        >
+          全棟
+        </button>
+        {availableWings.map((w) => {
+          const active = wingFilter === w.key;
+          return (
+            <button
+              key={w.key}
+              type="button"
+              onClick={() => chooseWing(w.key)}
+              aria-pressed={active}
+              className={`t-interactive shrink-0 rounded-lg border px-2 py-0.5 text-[10.5px] font-bold ${
+                active
+                  ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
+                  : 'border-[#DCD4C5] bg-white text-[#47505E]'
+              }`}
+            >
+              {w.label}
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
+
   const tabBody = (
     <>
       {activeTab === 'overview' && (
@@ -317,7 +376,12 @@ export function BuildingSheet({
 
       {activeTab === 'floors' && (
         <div key="floors" className="t-tab-panel space-y-2">
-          {floorPlan ? (
+          {restrictedWing ? (
+            <>
+              {wingChips}
+              {restrictedNote}
+            </>
+          ) : floorPlan ? (
             <>
               {floorPlan.numberingRule && (
                 <div className="rounded-xl border border-[#E5DEC9] bg-[#F5F0E6] px-3 py-2 text-[11px] font-bold leading-relaxed text-[#1B365D]">
@@ -325,40 +389,7 @@ export function BuildingSheet({
                 </div>
               )}
 
-              {availableWings.length > 1 && (
-                <div className="no-scrollbar flex items-center gap-1 overflow-x-auto pb-0.5">
-                  <button
-                    type="button"
-                    onClick={() => chooseWing('all')}
-                    aria-pressed={wingFilter === 'all'}
-                    className={`t-interactive shrink-0 rounded-lg border px-2 py-0.5 text-[10.5px] font-bold ${
-                      wingFilter === 'all'
-                        ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
-                        : 'border-[#DCD4C5] bg-white text-[#47505E]'
-                    }`}
-                  >
-                    全棟
-                  </button>
-                  {availableWings.map((w) => {
-                    const active = wingFilter === w.key;
-                    return (
-                      <button
-                        key={w.key}
-                        type="button"
-                        onClick={() => chooseWing(w.key)}
-                        aria-pressed={active}
-                        className={`t-interactive shrink-0 rounded-lg border px-2 py-0.5 text-[10.5px] font-bold ${
-                          active
-                            ? 'border-[#C85A3A] bg-[#C85A3A] text-white'
-                            : 'border-[#DCD4C5] bg-white text-[#47505E]'
-                        }`}
-                      >
-                        {w.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {wingChips}
 
               <div className="no-scrollbar flex items-center gap-1 overflow-x-auto pb-0.5">
                 <button

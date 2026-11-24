@@ -7,7 +7,7 @@ import type { Wing, WingBuildingLink } from '../../../domain/wings';
  * 体育館・図書館・学生会館などの学舎でない建物は館内の案内の範囲の外（docs/indoor-plan.md 1 節）なので、まだ載せない。
  *
  * 読み込み時に BuildingFeature.wings に付くのは、地図で棟を押して選べる建物だけ（domain/wings.ts の pickableWingBuildingIds。
- * 今は第3学舎だけ）。ほかの建物の棟は表に載るだけで、地図・シート・検索の動きは変えない。
+ * 今は第3学舎と第4学舎2号館）。ほかの建物の棟は表に載るだけで、地図・シート・検索の動きは変えない。
  *
  * 第3学舎（area3）: OSM の輪郭は 1 つ（屋外の入口も共有）なので建物は 1 つのまま、1〜4 号館 A〜D 棟を部品にする。
  * 棟の割り当てと階の数は KAN-CAN! の学舎・教室一覧と第3学舎エリアの図（持ち主の手書きの割り当て 2026-11-20 で確かめた）。
@@ -19,11 +19,37 @@ import type { Wing, WingBuildingLink } from '../../../domain/wings';
  * ほかの学舎（P0b、2026-11-21）:
  * - 階の数: 建物に棟が 1 つなら部屋のデータの階（buildStandardFloors）と同じ。1 つの建物に棟が複数なら、KAN-CAN! のその見出しで
  *   部屋のある最上階と地階（屋上階・塔屋は含まないので下限）
- * - 塊の範囲: 1 つの建物に棟が複数ある所（第2学舎 1号館・3号館、第4学舎 1号館・2号館）は、資料（バリアフリーマップの図は模式図）
- *   から OSM の輪郭の上の境目を決められないので書かない。押して選ぶのは第3学舎だけのまま
+ * - 塊の範囲: 1 つの建物に棟が複数ある所（第2学舎 1号館・3号館、第4学舎 1号館）は、資料（バリアフリーマップの図は模式図）
+ *   から OSM の輪郭の上の境目を決められないので書かない。第4学舎2号館は下の境目で切る（2026-11-24）
  * - 第4学舎の第1〜第6実験棟は、OSM に実験棟ごとの輪郭がある（名前は公式の地図で直した。docs/DATA_SOURCES.md 5 節）ので、
  *   その輪郭に対応させる。部屋のデータは 6 棟の部屋をハイテク・リサーチ・コア（hitech-core）の建物にまとめている
+ * - 第4学舎2号館の研究棟別館（⑤）は、2号館の輪郭（area4-2）の中ではなく、その中庭に建つ OSM の別の輪郭（way 624663829。
+ *   名前の無い building=university で、今の名前は「関西大学 施設棟」）に対応させる（2026-11-24）。根拠: KAN-CAN! の第4学舎の
+ *   鳥瞰イラストで ⑤ は ③教室棟・④研究棟・⑦4号館に囲まれた中庭の低い別棟として描かれる。空中写真（2017 年）でも中庭に
+ *   2号館と縁の離れた別の屋根がある（2号館の内壁から北西 約 3.3m・南東 約 4.2m）。KAN-CAN! の部屋は B1F〜1F だけ。
+ *   部屋のデータは別館の部屋を 2号館（area4-2）にまとめたまま
  */
+
+/**
+ * 第4学舎2号館（area4-2）の教室棟と研究棟（2026-11-24。持ち主の決め: 研究棟と教室棟〈授業棟〉で押して選ぶ判定を分ける）。
+ * OSM の輪郭は 1 つ（14 角。点を V0〜V13 と呼ぶ）。中庭を北西の長い棟・南西の短い腕・北東の腕が囲み、南東の帯と南の腕が付く形。
+ * - 枠: 北西の長い辺（V11→V10、107.7m）の向きを u（北東が +）、それに直交する v（南東が +）
+ * - 境目（推定）: v = 154.3。南東の帯の中庭側の壁（V5→V4、v = 154.32）の線を、北東の腕を横切って北東の外の辺（V9–V10）まで
+ *   延ばした線。北西の長い棟・南西の腕・北東の腕（v ≤ 154.3）が教室棟、南東の帯と南の腕（v ≥ 154.3）が研究棟。
+ *   中庭側の壁がそのまま研究棟に入るよう、壁の線より 0.02m 北西に置く
+ * - 根拠: 空中写真（国土地理院、2017 年）で、北東の腕の屋根が v ≈ 154〜155 で温かい白（R−B ≈ +17）から設備の並ぶ灰色
+ *   （R−B ≈ 0〜+8）に変わる。南東の帯・南の腕も灰色、北西の長い棟は白。色の変わり目は OSM の中庭側の壁の線と 1m 以内で合う。
+ *   KAN-CAN! の第4学舎の鳥瞰イラストは ③教室棟を北西の長い棟に、④研究棟を南東の帯に描く（⑤研究棟別館は中庭の低い別棟）。
+ *   屋根の色の変わり目を棟の境と見るのは推定
+ * - 研究棟は部外者・学部生が入れないので、押して選べても館内の情報は出さない（棟の表の restricted）
+ * - 研究棟別館（⑤）は 2号館の輪郭の外（中庭の別の輪郭）なので、この切り分けに入らない
+ */
+export const AREA4_2_AXIS_U: [number, number] = [0.75973, -0.65024];
+
+export const AREA4_2_WING_BOUNDS = {
+  /** 教室棟（北西が小さい v）と研究棟の境目（研究棟の中庭側の壁 V5→V4 の v = 154.32 の 0.02m 北西） */
+  classroomResearchV: 154.3,
+} as const;
 
 /** 第3学舎の枠の u 軸（南の長い辺の向き） */
 export const AREA3_AXIS_U: [number, number] = [0.94101, -0.33837];
@@ -153,8 +179,25 @@ const AREA4_WINGS: readonly WingRow[] = [
   { id: 'area4-h1', school: '第4学舎', name: '1号館', floorsAbove: 4, floorsBelow: 0, note: 'KAN-CAN! ①' },
   { id: 'area4-h1p', school: '第4学舎', hallName: '1号館', name: '教授棟', floorsAbove: 5, floorsBelow: 0, note: 'KAN-CAN! ②' },
   { id: 'area4-h2', school: '第4学舎', hallName: '2号館', name: '教室棟', floorsAbove: 5, floorsBelow: 1, note: 'KAN-CAN! ③' },
-  { id: 'area4-h2r', school: '第4学舎', hallName: '2号館', name: '研究棟', floorsAbove: 5, floorsBelow: 1, note: 'KAN-CAN! ④' },
-  { id: 'area4-h2a', school: '第4学舎', hallName: '2号館', name: '研究棟別館', floorsAbove: 1, floorsBelow: 1, note: 'KAN-CAN! ⑤' },
+  {
+    id: 'area4-h2r',
+    school: '第4学舎',
+    hallName: '2号館',
+    name: '研究棟',
+    floorsAbove: 5,
+    floorsBelow: 1,
+    restricted: true,
+    note: 'KAN-CAN! ④。部外者・学部生は入れないので、館内の情報（部屋の一覧など）は載せない（持ち主の決め 2026-11-24）',
+  },
+  {
+    id: 'area4-h2a',
+    school: '第4学舎',
+    hallName: '2号館',
+    name: '研究棟別館',
+    floorsAbove: 1,
+    floorsBelow: 1,
+    note: 'KAN-CAN! ⑤。2号館の中庭に建つ別の輪郭（OSM の way 624663829）',
+  },
   { id: 'area4-h3', school: '第4学舎', name: '3号館', floorsAbove: 4, floorsBelow: 0, note: 'KAN-CAN! ⑥' },
   { id: 'area4-h4', school: '第4学舎', name: '4号館', floorsAbove: 3, floorsBelow: 1, note: 'KAN-CAN! ⑦' },
   { id: 'area4-x1', school: '第4学舎', name: '第1実験棟', floorsAbove: 4, floorsBelow: 0, note: 'KAN-CAN! ⑧' },
@@ -180,7 +223,7 @@ export const SENRIYAMA_WINGS: readonly Wing[] = [
   ...AREA4_WINGS,
 ].map((w) => ({ ...w, entrances: [] }));
 
-/** 建物と棟の対応の表（第3学舎は 1 つの建物に 4 棟。塊の範囲は上の枠と境目で切る） */
+/** 建物と棟の対応の表（第3学舎は 1 つの建物に 4 棟、第4学舎2号館は 2 棟。塊の範囲は上の枠と境目で切る） */
 export const SENRIYAMA_WING_BUILDINGS: readonly WingBuildingLink[] = [
   // 第1学舎・岩崎記念館・大学院学舎（建物に棟が 1 つ）
   { wingId: AREA1_WING_IDS.a, buildingId: 'area1-1' },
@@ -229,12 +272,22 @@ export const SENRIYAMA_WING_BUILDINGS: readonly WingBuildingLink[] = [
       vMax: AREA3_WING_BOUNDS.bdSplitV,
     },
   },
-  // 第4学舎（1号館・2号館は棟が複数で、範囲は書かない。教授棟・研究棟・別館の輪郭は OSM で分かれていない）
+  // 第4学舎（1号館は棟が 2 つで、範囲は資料から決まらないので書かない。教授棟の輪郭は OSM で分かれていない）
   { wingId: 'area4-h1', buildingId: 'area4-1' },
   { wingId: 'area4-h1p', buildingId: 'area4-1' },
-  { wingId: 'area4-h2', buildingId: 'area4-2' },
-  { wingId: 'area4-h2r', buildingId: 'area4-2' },
-  { wingId: 'area4-h2a', buildingId: 'area4-2' },
+  // 2号館は教室棟と研究棟を上の枠と境目で切る
+  {
+    wingId: 'area4-h2',
+    buildingId: 'area4-2',
+    region: { axisU: AREA4_2_AXIS_U, vMax: AREA4_2_WING_BOUNDS.classroomResearchV },
+  },
+  {
+    wingId: 'area4-h2r',
+    buildingId: 'area4-2',
+    region: { axisU: AREA4_2_AXIS_U, vMin: AREA4_2_WING_BOUNDS.classroomResearchV },
+  },
+  // 研究棟別館は 2号館の中庭の別の輪郭（上の注釈）
+  { wingId: 'area4-h2a', buildingId: 'way_624663829' },
   { wingId: 'area4-h3', buildingId: 'area4-3' },
   { wingId: 'area4-h4', buildingId: 'area4-4' },
   // 実験棟は OSM の実験棟ごとの輪郭（way の id）

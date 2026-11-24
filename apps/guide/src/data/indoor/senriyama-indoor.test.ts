@@ -228,6 +228,10 @@ describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行の先取り�
         if (plan.buildingId === 'hitech-core') {
           // 部屋のデータは実験棟 6 棟をハイテク・リサーチ・コアにまとめている。棟は OSM の実験棟ごとの輪郭に対応する
           expect(room.wing, room.id).toContain(wing.name);
+        } else if (room.wingId === 'area4-h2a') {
+          // 研究棟別館の部屋は 2号館にまとめている。棟は 2号館の中庭に建つ別の輪郭に対応する
+          expect(plan.buildingId, room.id).toBe('area4-2');
+          expect(linkOf.get(room.wingId), room.id).toBe('way_624663829');
         } else {
           expect(linkOf.get(room.wingId), room.id).toBe(plan.buildingId);
         }
@@ -235,12 +239,27 @@ describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行の先取り�
         if (room.wing) expect(room.wing, room.id).toContain(wing.name);
       }
     }
-    expect(count).toBe(121);
+    // 121 件から、部外者・学部生が入れない第4学舎2号館の研究棟の 1 件を外した（持ち主の決め 2026-11-24）
+    expect(count).toBe(120);
     // 1 つの建物の中で、表示の名前と棟の id は 1 対 1（建物シートの棟のボタンの数と名前が変わらない）
     for (const plan of schoolPlans) {
       const pairs = new Set(plan.rooms.map((r) => `${r.wing ?? ''}|${r.wingId}`));
       expect(new Set(plan.rooms.map((r) => r.wingId)).size, plan.buildingId).toBe(pairs.size);
       expect(new Set(plan.rooms.map((r) => r.wing ?? '')).size, plan.buildingId).toBe(pairs.size);
+    }
+  });
+
+  it('lists no room of a wing that outsiders and undergraduates cannot enter (docs/indoor-plan.md 3 節)', () => {
+    const restricted = SENRIYAMA_WINGS.filter((w) => w.restricted).map((w) => w.id);
+    // 今は第4学舎2号館の研究棟だけ（持ち主の決め 2026-11-24）。棟の名前は棟の表に残す
+    expect(restricted).toEqual(['area4-h2r']);
+    for (const plan of Object.values(SENRIYAMA_FLOOR_PLANS)) {
+      for (const room of plan.rooms) expect(restricted, room.id).not.toContain(room.wingId);
+    }
+    // 検索でも研究棟の部屋は出ない（前に載っていた部屋の名前で探しても当たらない）
+    const buildings = buildFixtureBuildings();
+    for (const q of ['高磁場NMR室', '建築設計製図室', '電子顕微鏡室']) {
+      expect(searchLocationItems(buildings, SENRIYAMA_FLOOR_PLANS, q).filter((i) => i.kind === 'room'), q).toEqual([]);
     }
   });
 

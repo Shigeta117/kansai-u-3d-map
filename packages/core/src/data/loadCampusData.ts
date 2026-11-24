@@ -59,7 +59,7 @@ export function applyBuildingFacts(buildings: BuildingFeature[]): BuildingFeatur
 }
 
 /**
- * 棟の表と建物との対応の表（wings.ts）を合わせて、地図で棟を押して選べる建物（今は第3学舎の A〜D棟だけ）に棟を付ける。
+ * 棟の表と建物との対応の表（wings.ts）を合わせて、地図で棟を押して選べる建物（今は第3学舎の A〜D棟と第4学舎2号館の教室棟・研究棟）に棟を付ける。
  * 棟が 1 つの建物と、塊の範囲の無い棟がある建物には付けない（pickableWingBuildingIds）。地図・シート・検索の棟の扱いは
  * BuildingFeature.wings で決まるので、表に棟を足しても、範囲を書くまでは今の画面の動きは変わらない
  */
