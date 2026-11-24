@@ -48,12 +48,20 @@ export async function loadCampusDataset(campusId: CampusId): Promise<CampusDatas
   };
 }
 
-/** 公式の資料で確かめた階数を当てる（OSM の階数より多いときだけ。building-facts.ts の注を参照） */
+/**
+ * 公式の資料で確かめた階数を当てる（OSM の階数より多いときだけ。building-facts.ts の注を参照）。
+ * 現地で数えた階数（observedOnSite）だけは少ない方へも直し、高さを今の式（階数 × 3.8m ＋ 1.4m）にそろえる
+ */
 export function applyBuildingFacts(buildings: BuildingFeature[]): BuildingFeature[] {
   const facts = new Map(SENRIYAMA_BUILDING_FACTS.map((f) => [f.id, f]));
   return buildings.map((b) => {
     const fact = facts.get(b.id);
-    if (!fact || fact.levelsAbove <= b.levels) return b;
+    if (!fact) return b;
+    if (fact.observedOnSite) {
+      if (fact.levelsAbove === b.levels) return b;
+      return { ...b, levels: fact.levelsAbove, height: heightForLevels(fact.levelsAbove) };
+    }
+    if (fact.levelsAbove <= b.levels) return b;
     return { ...b, levels: fact.levelsAbove, height: Math.max(b.height, heightForLevels(fact.levelsAbove)) };
   });
 }
