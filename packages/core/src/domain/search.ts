@@ -221,7 +221,15 @@ export function searchLocationItems(
   if (normalized.length > 0) {
     // 建物の中の棟（第3学舎の A〜D棟など）。選ぶとその棟を選んだ状態で開く
     for (const b of matchedBuildingsForWings(buildings, categoryFilter)) {
-      const shared = sharedWingAliases(b.wings ?? []);
+      // 別の輪郭の棟（2号館の研究棟別館）は、シートに並べる建物の棟と号館の名前を共有するので、同じ組で数える
+      const family = [
+        ...(b.wings ?? []),
+        ...(b.sheetWings ?? []),
+        ...buildings
+          .filter((h) => h.sheetWings?.some((w) => b.wings?.some((x) => x.id === w.id)))
+          .flatMap((h) => [...(h.wings ?? []), ...(h.sheetWings ?? [])]),
+      ];
+      const shared = sharedWingAliases([...new Map(family.map((w) => [w.id, w])).values()]);
       for (const wing of b.wings ?? []) {
         const score = scoreWingMatch(wing, normalized, shared);
         if (score <= 0) continue;

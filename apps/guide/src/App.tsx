@@ -6,6 +6,7 @@ import {
   getCampusConfig,
   loadCampusDataset,
   parseCameraParam,
+  sheetWingFloorPlan,
   type BuildingCategory,
   type BuildingFeature,
   type CameraPose,
@@ -397,7 +398,8 @@ export function App() {
               building={selectedBuilding}
               floorPlan={
                 selectedBuilding
-                  ? SENRIYAMA_FLOOR_PLANS[selectedBuilding.id]
+                  ? (SENRIYAMA_FLOOR_PLANS[selectedBuilding.id] ??
+                    sheetWingFloorPlan(selectedBuilding, dataset.buildings, SENRIYAMA_FLOOR_PLANS))
                   : undefined
               }
               wing={selectedWing}

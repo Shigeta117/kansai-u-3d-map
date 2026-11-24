@@ -57,8 +57,8 @@ describe('第3学舎の 4 棟（1〜4 号館 A〜D 棟）', () => {
   const wings = area3.wings ?? [];
 
   it('attaches the 4 wings to area3, with the KAN-CAN! floor counts', () => {
-    // 地図で棟を押して選べるのは第3学舎と第4学舎2号館だけ
-    expect(buildings.filter((b) => b.wings).map((b) => b.id).sort()).toEqual(['area3', 'area4-2']);
+    // 地図で棟を押して選べるのは第3学舎と第4学舎2号館と、入れない棟の輪郭（研究棟別館）だけ
+    expect(buildings.filter((b) => b.wings).map((b) => b.id).sort()).toEqual(['area3', 'area4-2', 'way_624663829']);
     expect(wings.map((w) => [w.id, w.school, w.hallName, w.name, w.floorsBelow, w.floorsAbove])).toEqual([
       ['area3-a', '第3学舎', '1号館', 'A棟', 1, 4],
       ['area3-b', '第3学舎', '2号館', 'B棟', 0, 5],
@@ -233,6 +233,18 @@ describe('第1・第2・第4学舎と大学院学舎の棟（P0b）', () => {
     expect(linkOf('area4-h2r')?.buildingId).toBe('area4-2');
   });
 
+  it('restricts 研究棟別館 like 研究棟: the annex outline gets its wing, and the 2号館 sheet lists it as a sheet-only button', () => {
+    const annex = buildings.find((b) => b.id === 'way_624663829');
+    expect(annex?.wings?.map((w) => [w.id, w.restricted ?? false])).toEqual([['area4-h2a', true]]);
+    expect(annex?.wings?.[0]?.region).toBeUndefined();
+    // 2号館には地図で選べる 2 棟と、シートだけに並べる研究棟別館。地図の棟には入れない
+    expect(area42.wings?.map((w) => w.id)).toEqual(['area4-h2', 'area4-h2r']);
+    expect(area42.sheetWings?.map((w) => [w.id, w.restricted ?? false])).toEqual([['area4-h2a', true]]);
+    expect(buildings.filter((b) => b.sheetWings).map((b) => b.id)).toEqual(['area4-2']);
+    // 部外者・学部生が入れない棟は、この 2 つだけ
+    expect(SENRIYAMA_WINGS.filter((w) => w.restricted).map((w) => w.id)).toEqual(['area4-h2r', 'area4-h2a']);
+  });
+
   it('draws regions only for 第3学舎 and 第4学舎 2号館, so only those get pickable wings', () => {
     for (const link of SENRIYAMA_WING_BUILDINGS) {
       if (link.buildingId !== 'area3' && link.buildingId !== 'area4-2') expect(link.region, link.wingId).toBeUndefined();
@@ -254,7 +266,7 @@ describe('第4学舎2号館の教室棟と研究棟', () => {
   const wingAt = (x: number, z: number): string[] =>
     wings.filter((w) => wingRegionContains(w.region, x, z)).map((w) => w.id);
 
-  it('attaches 教室棟 and 研究棟 (研究棟 is restricted; 研究棟別館 is not on this outline)', () => {
+  it('attaches 教室棟 and 研究棟 (研究棟 is restricted; 研究棟別館 is not on this outline, see below)', () => {
     expect(wings.map((w) => [w.id, w.name, w.floorsBelow, w.floorsAbove, w.restricted ?? false])).toEqual([
       ['area4-h2', '教室棟', 1, 5, false],
       ['area4-h2r', '研究棟', 1, 5, true],

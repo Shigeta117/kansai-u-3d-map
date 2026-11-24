@@ -54,6 +54,10 @@ const OFFICIAL_MAP_BUILDINGS = new Map([
   ['way_624589992', { name: '誠之館3号館（別棟）', keywords: ['誠之館3号館', '誠之館3号館別棟', '3号館別棟'] }],
   ['way_624589994', { name: '誠之館2号館', keywords: ['誠之館2号館'] }],
   ['way_819790904', { name: '千里庵（誠之館3号館和室）', keywords: ['千里庵', '誠之館3号館和室', '3号館和室', '茶室'], levels: 1 }],
+  // 第4学舎2号館の研究棟別館（KAN-CAN! ⑤）。OSM は名前の無い building=university で、2号館の中庭に建つ別の輪郭
+  // （docs/DATA_SOURCES.md 5 節）。部屋の一覧が B1F〜1F だけで、鳥瞰イラストでも中庭の低い別棟なので levels 1（地上 1 階）。
+  // 高さ 5.2m は levels 1 から出る推定の値（周りの 2号館の 1 階ぶん程度）
+  ['way_624663829', { name: '第4学舎2号館 研究棟別館', keywords: ['研究棟別館', '2号館別館'], levels: 1 }],
   // 39〜41・19: 名前は OSM のままで地図と同じ
   // 中学校・高等学校・幼稚園の施設は名称だけを出す（nameOnly。持ち主の決め、2026-11-20）
   ['way_497645752', { name: '関西大学第一高等学校', keywords: ['一高', '関大一高'], inCampus: true, nameOnly: true }],

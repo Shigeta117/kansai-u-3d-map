@@ -11,7 +11,7 @@ import type {
   WalkGraph,
 } from '../domain/types';
 import { heightForLevels, SENRIYAMA_BUILDING_FACTS } from './campuses/senriyama/building-facts';
-import { joinBuildingWings, pickableWingBuildingIds } from '../domain/wings';
+import { joinBuildingWings, joinSheetWings, pickableWingBuildingIds } from '../domain/wings';
 import { SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './campuses/senriyama/wings';
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -59,18 +59,24 @@ export function applyBuildingFacts(buildings: BuildingFeature[]): BuildingFeatur
 }
 
 /**
- * 棟の表と建物との対応の表（wings.ts）を合わせて、地図で棟を押して選べる建物（今は第3学舎の A〜D棟と第4学舎2号館の教室棟・研究棟）に棟を付ける。
- * 棟が 1 つの建物と、塊の範囲の無い棟がある建物には付けない（pickableWingBuildingIds）。地図・シート・検索の棟の扱いは
+ * 棟の表と建物との対応の表（wings.ts）を合わせて、地図で棟を押して選べる建物（今は第3学舎の A〜D棟と第4学舎2号館の教室棟・研究棟、入れない棟の輪郭の研究棟別館）に棟を付ける。
+ * 棟が 1 つの建物（入れない棟の輪郭を除く）と、塊の範囲の無い棟がある建物には付けない（pickableWingBuildingIds）。別の輪郭の棟をシートに並べる棟は sheetWings に付ける。地図・シート・検索の棟の扱いは
  * BuildingFeature.wings で決まるので、表に棟を足しても、範囲を書くまでは今の画面の動きは変わらない
  */
 export function applyBuildingWings(buildings: BuildingFeature[]): BuildingFeature[] {
-  const pickable = pickableWingBuildingIds(SENRIYAMA_WING_BUILDINGS);
+  const pickable = pickableWingBuildingIds(SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS);
   const byBuilding = joinBuildingWings(
     SENRIYAMA_WINGS,
     SENRIYAMA_WING_BUILDINGS.filter((l) => pickable.has(l.buildingId)),
   );
+  const sheetWings = joinSheetWings(SENRIYAMA_WINGS, SENRIYAMA_WING_BUILDINGS);
   return buildings.map((b) => {
     const wings = byBuilding.get(b.id);
-    return wings && wings.length > 0 ? { ...b, wings } : b;
+    const listed = sheetWings.get(b.id);
+    return {
+      ...b,
+      ...(wings && wings.length > 0 ? { wings } : {}),
+      ...(listed && listed.length > 0 ? { sheetWings: listed } : {}),
+    };
   });
 }

@@ -68,8 +68,8 @@ test.describe('第3学舎の棟を選ぶ', () => {
   });
 });
 
-// 第4学舎2号館の研究棟は部外者・学部生が入れないので、館内の情報を載せない（docs/indoor-plan.md 3 節、持ち主の決め 2026-11-24）
-test.describe('第4学舎2号館の研究棟', () => {
+// 第4学舎2号館の研究棟と研究棟別館は部外者・学部生が入れない。KAN-CAN! にある情報だけ載せ、一言を出す（docs/indoor-plan.md 3 節、持ち主の決め 2026-11-24）
+test.describe('第4学舎2号館の研究棟と研究棟別館', () => {
   const consoleErrors: string[] = [];
 
   test.beforeEach(async ({ page }) => {
@@ -86,26 +86,17 @@ test.describe('第4学舎2号館の研究棟', () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test('研究棟の部屋は検索にも建物シートにも出ない（教室棟と研究棟別館の部屋は出る）', async ({ page }) => {
-    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
-    // 前に載っていた研究棟の部屋の名前で探しても、どこにも当たらない
-    await search.fill('高磁場NMR室');
-    await expect(page.getByText('一致する建物・教室が見つかりません')).toBeVisible();
-    await expect(page.getByRole('option')).toHaveCount(0);
+  const NOTE = '部外者・学部生は入れません';
 
-    await search.fill('第4学舎2号館');
-    await page.getByRole('option', { name: /第4学舎 ?2号館/ }).first().click();
-    const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
-    await expect(sheet.getByRole('heading', { name: '第4学舎 2号館', exact: true })).toBeVisible();
-    await sheet.getByRole('tab', { name: 'フロア・教室' }).click();
-    await expect(sheet.getByText('2101〜2106／4ST', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('B1F〜1F 物理実験場', { exact: true })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: '2号館 教室棟' })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: /研究棟）$/ })).toHaveCount(0);
-    await expect(sheet.getByText(/高磁場NMR室|建築設計製図室/)).toHaveCount(0);
+  test('研究棟と研究棟別館の部屋は KAN-CAN! にある情報のまま検索にも出る', async ({ page }) => {
+    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
+    await search.fill('高磁場NMR室');
+    await expect(page.getByRole('option').first()).toContainText('高磁場NMR室');
+    await search.fill('物理実験場');
+    await expect(page.getByRole('option').first()).toContainText('物理実験場');
   });
 
-  test('「研究棟」で検索 → 研究棟を選べて、シートは断り書きだけ。教室棟と研究棟別館に切り替えられる', async ({ page }) => {
+  test('「研究棟」で検索 → 研究棟を選べて、一言の下に KAN-CAN! の部屋が出る。教室棟と研究棟別館に切り替えられる', async ({ page }) => {
     const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
     await search.fill('研究棟');
     await page.getByRole('option', { name: /第4学舎 2号館 研究棟/ }).first().click();
@@ -113,30 +104,42 @@ test.describe('第4学舎2号館の研究棟', () => {
     const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
     await expect(sheet.getByRole('heading', { name: '第4学舎 2号館 研究棟' })).toBeVisible();
     await expect(sheet.getByRole('tab', { name: 'フロア・教室' })).toHaveAttribute('aria-selected', 'true');
-    await expect(sheet.getByText('部外者・学部生は入れない区域のため、館内の情報は載せていません。')).toBeVisible();
-    // 番号規則・階のボタン・部屋の一覧は出さない
-    await expect(sheet.getByText(/^番号規則/)).toHaveCount(0);
-    await expect(sheet.getByRole('button', { name: '全フロア' })).toHaveCount(0);
-    await expect(sheet.getByPlaceholder('教室番号・名前で絞り込み')).toHaveCount(0);
+    await expect(sheet.getByText(NOTE)).toBeVisible();
+    await expect(sheet.getByText(/^番号規則/)).toBeVisible();
+    await expect(sheet.getByText('B1F〜5F 研究棟・建築設計製図室', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('2101〜2106／4ST', { exact: true })).toHaveCount(0);
     await expect(sheet.getByRole('button', { name: '2号館 研究棟', pressed: true })).toBeVisible();
 
-    // 教室棟に切り替えると、教室棟の部屋が出る
+    // 教室棟に切り替えると、一言は消えて教室棟の部屋が出る
     await sheet.getByRole('button', { name: '2号館 教室棟' }).click();
     await expect(sheet.getByRole('heading', { name: '第4学舎 2号館 教室棟' })).toBeVisible();
     await expect(sheet.getByText('2101〜2106／4ST', { exact: true })).toBeVisible();
     await expect(sheet.getByText('2401〜2404', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('B1F〜1F 物理実験場', { exact: true })).toHaveCount(0);
-    await expect(sheet.getByText('部外者・学部生は入れない区域のため、館内の情報は載せていません。')).toHaveCount(0);
+    await expect(sheet.getByText(NOTE)).toHaveCount(0);
 
-    // 研究棟別館（中庭の別の輪郭。部屋は 2号館にまとめてある）はシートの中だけで絞り、見出しは建物の名前に戻る
-    await sheet.getByRole('button', { name: '⑤2号館（研究棟別館）' }).click();
+    // 研究棟別館（中庭の別の輪郭）はシートの中だけで絞り、見出しは建物の名前に戻る。研究棟と同じ一言と部屋が出る
+    await sheet.getByRole('button', { name: '2号館 研究棟別館' }).click();
     await expect(sheet.getByRole('heading', { name: '第4学舎 2号館', exact: true })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: '⑤2号館（研究棟別館）', pressed: true })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: '2号館 研究棟別館', pressed: true })).toBeVisible();
+    await expect(sheet.getByText(NOTE)).toBeVisible();
     await expect(sheet.getByText('B1F〜1F 物理実験場', { exact: true })).toBeVisible();
     await expect(sheet.getByText('2101〜2106／4ST', { exact: true })).toHaveCount(0);
 
     // 「ここへ行く」は建物（第4学舎2号館）の入口への経路のまま
     await sheet.getByRole('button', { name: 'ここへ行く' }).click();
     await expect(page.getByRole('button', { name: /^到着地点を選択: 第4学舎 ?2号館/ })).toBeVisible();
+  });
+
+  test('「研究棟別館」で検索 → 中庭の輪郭の棟を選べて、一言の下に別館の部屋だけが出る', async ({ page }) => {
+    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
+    await search.fill('研究棟別館');
+    await page.getByRole('option', { name: /第4学舎 2号館 研究棟別館/ }).first().click();
+
+    const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
+    await expect(sheet.getByRole('heading', { name: '第4学舎 2号館 研究棟別館' })).toBeVisible();
+    await expect(sheet.getByRole('tab', { name: 'フロア・教室' })).toHaveAttribute('aria-selected', 'true');
+    await expect(sheet.getByText(NOTE)).toBeVisible();
+    await expect(sheet.getByText('B1F〜1F 物理実験場', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('2101〜2106／4ST', { exact: true })).toHaveCount(0);
   });
 });

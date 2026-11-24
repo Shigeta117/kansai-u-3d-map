@@ -1,4 +1,4 @@
-import type { BuildingEntrance } from './indoor-types';
+import type { BuildingEntrance, BuildingFloorPlan } from './indoor-types';
 import type { BuildingFeature, LocalPoint2D } from './types';
 
 /**
@@ -65,8 +65,8 @@ export interface Wing {
   /** 検索で棟に当てる別名（学舎・号館・棟の名前の組み合わせは wingSearchAliases が作るので、それ以外だけ） */
   aliases?: string[];
   /**
-   * 部外者・学部生が入れない棟（第4学舎2号館の研究棟など）。棟の名前と階の数だけを持ち、部屋・入口などの館内の情報は
-   * 載せない（docs/indoor-plan.md 3 節の「公開されていない区域」）。建物シートは部屋の一覧の代わりに短い断り書きを出す
+   * 部外者・学部生が入れない棟（第4学舎2号館の研究棟と研究棟別館）。KAN-CAN! にある情報（部屋の名前など）だけ載せ、
+   * 現地・冊子での調査はしない（docs/indoor-plan.md 3 節）。建物シートは部屋の一覧の上に短い一言を出す
    */
   restricted?: boolean;
   note?: string;
@@ -77,6 +77,11 @@ export interface WingBuildingLink {
   wingId: string;
   buildingId: string;
   region?: WingRegion;
+  /**
+   * 地図では別の輪郭（buildingId）の棟を、この建物のシートにも棟のボタンとして並べる（第4学舎2号館のシートに、
+   * 中庭の別の輪郭の研究棟別館を並べる）。ボタンはシートの中だけの絞り込みで、地図の棟の選択は変えない
+   */
+  alsoListedIn?: string;
 }
 
 /** 建物に付けた棟（棟と、その建物の中の塊の範囲） */
@@ -89,12 +94,18 @@ export interface BuildingWing extends Wing {
  * 棟が 1 つの建物は建物を選べば棟を選んだことになり、範囲の無い棟がある建物は押した所の棟を決められないので、
  * どちらも付けない（棟の表と対応の表には載る）
  */
-export function pickableWingBuildingIds(links: readonly WingBuildingLink[]): Set<string> {
+export function pickableWingBuildingIds(
+  links: readonly WingBuildingLink[],
+  wings: readonly Pick<Wing, 'id' | 'restricted'>[] = [],
+): Set<string> {
+  const restricted = new Set(wings.filter((w) => w.restricted).map((w) => w.id));
   const byBuilding = new Map<string, WingBuildingLink[]>();
   for (const link of links) byBuilding.set(link.buildingId, [...(byBuilding.get(link.buildingId) ?? []), link]);
   const out = new Set<string>();
   for (const [buildingId, list] of byBuilding) {
     if (list.length >= 2 && list.every((l) => l.region)) out.add(buildingId);
+    // 棟が 1 つでも、部外者・学部生が入れない棟（第4学舎2号館の研究棟別館）の輪郭は棟を付け、押したときに一言を出す
+    else if (list.length === 1 && list.every((l) => restricted.has(l.wingId))) out.add(buildingId);
   }
   return out;
 }
@@ -112,6 +123,18 @@ export function joinBuildingWings(
     const list = out.get(link.buildingId) ?? [];
     list.push(link.region ? { ...wing, region: link.region } : { ...wing });
     out.set(link.buildingId, list);
+  }
+  return out;
+}
+
+/** 別の輪郭の棟をシートに並べる表（alsoListedIn の建物ごとの棟の並び。対応の表の順） */
+export function joinSheetWings(wings: readonly Wing[], links: readonly WingBuildingLink[]): Map<string, Wing[]> {
+  const byId = new Map(wings.map((w) => [w.id, w]));
+  const out = new Map<string, Wing[]>();
+  for (const link of links) {
+    const wing = byId.get(link.wingId);
+    if (!wing || !link.alsoListedIn) continue;
+    out.set(link.alsoListedIn, [...(out.get(link.alsoListedIn) ?? []), { ...wing }]);
   }
   return out;
 }
@@ -267,4 +290,30 @@ export function wingFootprintCentroid(
   const v = mv / area;
   // 枠の座標からローカル座標へ（x = u·ax − v·az、z = u·az + v·ax）
   return { area, centroid: { x: u * ax - v * az, z: u * az + v * ax } };
+}
+
+/**
+ * 地図では別の輪郭の棟（研究棟別館）を押したときの、その棟の部屋の図。部屋は、シートに棟を並べる建物（2号館）の図から
+ * その棟の部屋と階だけを取る（入口・連絡は建物のものなので持たない）。対応する図が無ければ undefined
+ */
+export function sheetWingFloorPlan(
+  building: Pick<BuildingFeature, 'id' | 'wings'>,
+  allBuildings: readonly Pick<BuildingFeature, 'wings' | 'sheetWings' | 'id'>[],
+  plans: Record<string, BuildingFloorPlan>,
+): BuildingFloorPlan | undefined {
+  const wing = building.wings?.length === 1 ? building.wings[0] : undefined;
+  if (!wing) return undefined;
+  const host = allBuildings.find((h) => h.sheetWings?.some((w) => w.id === wing.id));
+  const plan = host ? plans[host.id] : undefined;
+  if (!plan) return undefined;
+  const rooms = plan.rooms.filter((r) => r.wingId === wing.id);
+  if (rooms.length === 0) return undefined;
+  return {
+    ...plan,
+    buildingId: building.id,
+    floors: plan.floors.filter((f) => wingHasFloor(wing, f.floor)),
+    rooms,
+    entrances: [],
+    connectors: [],
+  };
 }

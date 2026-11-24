@@ -149,7 +149,9 @@ export function BuildingSheet({
 
   // 建物が棟を持てば（第3学舎）、棟の絞り込みは選んでいる棟（地図の光らせ方と同じ）に従う。持たなければシートの中だけの絞り込み
   const wingControlled = Boolean(onSelectWing) && (target?.wings?.length ?? 0) > 0;
-  const activeWing = wingControlled ? findWing(target, wing?.id) : null;
+  // 棟が 1 つだけの建物（部外者・学部生が入れない棟の輪郭。第4学舎2号館の研究棟別館）は、いつもその棟を選んでいる
+  const soleWing = wingControlled && target?.wings?.length === 1 ? (target.wings[0] ?? null) : null;
+  const activeWing = wingControlled ? (findWing(target, wing?.id) ?? soleWing) : null;
   // 地図で選んでいる棟が無ければ、シートの中だけの絞り込み（建物に部屋がまとめてある別の輪郭の棟。第4学舎2号館の研究棟別館など）
   const wingFilter: string | 'all' = activeWing?.id ?? selectedWing;
   // 選んでいる階がその棟に無ければ（棟を替えたとき）、全フロアに戻して見せる
@@ -158,7 +160,7 @@ export function BuildingSheet({
 
   /**
    * 部屋の棟の絞り込みの鍵: 棟の id があれば id、無ければ棟の表示の名前。
-   * 地図で押して選べる棟は、部屋が 1 件も無くても（館内の情報を載せない研究棟など）ボタンに出す。並びは建物の棟の順
+   * 地図で押して選べる棟は、部屋が 1 件も無くてもボタンに出す。並びは建物の棟の順
    */
   const buildingWings = wingControlled ? target?.wings : undefined;
   const availableWings = useMemo(() => {
@@ -170,17 +172,23 @@ export function BuildingSheet({
     }
     const fromRooms = [...seen].map(([key, label]) => ({ key, label }));
     if (!buildingWings || buildingWings.length === 0) return fromRooms;
-    const ids = new Set(buildingWings.map((w) => w.id));
+    // 地図では別の輪郭の棟（研究棟別館）もボタンに並べる。押すとシートの中だけの絞り込み
+    const listed = target?.sheetWings ?? [];
+    const own = [...buildingWings, ...listed];
+    const ids = new Set(own.map((w) => w.id));
     return [
-      ...buildingWings.map((w) => ({ key: w.id, label: wingLabel(w) })),
+      ...own.map((w) => ({ key: w.id, label: wingLabel(w) })),
       ...fromRooms.filter((x) => !ids.has(x.key)),
     ];
-  }, [floorPlan, buildingWings]);
+  }, [floorPlan, buildingWings, target?.sheetWings]);
 
+  // シートの中だけで選んでいる棟（地図では別の輪郭の研究棟別館）
+  const sheetActiveWing = !activeWing ? (target?.sheetWings?.find((w) => w.id === selectedWing) ?? null) : null;
   // 階のボタンは、棟を選んでいればその棟の階だけ
-  const floorChips = (floorPlan?.floors ?? []).filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor));
-  // 部外者・学部生が入れない棟（研究棟など）を選んでいれば、番号規則・階・部屋の代わりに断り書きだけを出す（docs/indoor-plan.md 3 節）
-  const restrictedWing = activeWing?.restricted ? activeWing : null;
+  const floorWing = activeWing ?? sheetActiveWing;
+  const floorChips = (floorPlan?.floors ?? []).filter((fl) => !floorWing || wingHasFloor(floorWing, fl.floor));
+  // 部外者・学部生が入れない棟（研究棟・研究棟別館）を選んでいれば、部屋の一覧の上に短い一言を出す。部屋は KAN-CAN! にある情報だけ（docs/indoor-plan.md 3 節）
+  const restrictedWing = floorWing?.restricted ? floorWing : null;
 
   const chooseWing = (key: string | 'all') => {
     if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
@@ -225,7 +233,7 @@ export function BuildingSheet({
   );
   const restrictedNote = (
     <p className="rounded-xl border border-[#E6DFD2] bg-white px-3 py-2.5 text-[12px] leading-relaxed text-[#4B5360]">
-      部外者・学部生は入れない区域のため、館内の情報は載せていません。
+      部外者・学部生は入れません
     </p>
   );
 
@@ -260,7 +268,7 @@ export function BuildingSheet({
 
   // 見出し: 棟を選んでいれば棟の名前（例: 第3学舎 3号館 C棟）
   const title = activeWing ? wingTitle(activeWing) : target.name;
-  const wholeBuildingRow = activeWing ? (
+  const wholeBuildingRow = activeWing && !soleWing ? (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#5F6875]">
       <span className="min-w-0">{target.name}の棟</span>
       <button
@@ -376,12 +384,7 @@ export function BuildingSheet({
 
       {activeTab === 'floors' && (
         <div key="floors" className="t-tab-panel space-y-2">
-          {restrictedWing ? (
-            <>
-              {wingChips}
-              {restrictedNote}
-            </>
-          ) : floorPlan ? (
+          {floorPlan ? (
             <>
               {floorPlan.numberingRule && (
                 <div className="rounded-xl border border-[#E5DEC9] bg-[#F5F0E6] px-3 py-2 text-[11px] font-bold leading-relaxed text-[#1B365D]">
@@ -390,6 +393,7 @@ export function BuildingSheet({
               )}
 
               {wingChips}
+              {restrictedWing && restrictedNote}
 
               <div className="no-scrollbar flex items-center gap-1 overflow-x-auto pb-0.5">
                 <button
