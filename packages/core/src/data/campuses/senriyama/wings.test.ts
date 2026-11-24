@@ -206,6 +206,23 @@ describe('第1・第2・第4学舎と大学院学舎の棟（P0b）', () => {
     }
   });
 
+  it('maps 第4学舎 2号館 研究棟別館 to the separate outline in the courtyard of 2号館', () => {
+    const area42 = buildings.find((b) => b.id === 'area4-2');
+    const annex = buildings.find((b) => b.id === linkOf('area4-h2a')?.buildingId);
+    if (!area42 || !annex) throw new Error('area4-2 or the annex outline missing');
+    expect(annex.id).toBe('way_624663829');
+    // 別館の輪郭の角はどれも 2号館の輪郭の外（中庭）で、2号館の外形の枠の中
+    const xs = area42.polygon.map(([x]) => x);
+    const zs = area42.polygon.map(([, z]) => z);
+    for (const [x, z] of annex.polygon) {
+      expect(pointInRing(x, z, area42.polygon), `${x},${z}`).toBe(false);
+      expect(x > Math.min(...xs) && x < Math.max(...xs) && z > Math.min(...zs) && z < Math.max(...zs)).toBe(true);
+    }
+    // 2号館の教室棟と研究棟は 2号館の輪郭のまま
+    expect(linkOf('area4-h2')?.buildingId).toBe('area4-2');
+    expect(linkOf('area4-h2r')?.buildingId).toBe('area4-2');
+  });
+
   it('draws no region outside 第3学舎, so only 第3学舎 gets pickable wings (the screen stays as it was)', () => {
     for (const link of SENRIYAMA_WING_BUILDINGS) {
       if (link.buildingId !== 'area3') expect(link.region, link.wingId).toBeUndefined();

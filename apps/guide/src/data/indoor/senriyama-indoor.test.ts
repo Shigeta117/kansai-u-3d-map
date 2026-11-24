@@ -228,6 +228,10 @@ describe('部屋の棟の id（docs/indoor-plan.md 17 節の移行の先取り�
         if (plan.buildingId === 'hitech-core') {
           // 部屋のデータは実験棟 6 棟をハイテク・リサーチ・コアにまとめている。棟は OSM の実験棟ごとの輪郭に対応する
           expect(room.wing, room.id).toContain(wing.name);
+        } else if (room.wingId === 'area4-h2a') {
+          // 研究棟別館の部屋は 2号館にまとめている。棟は 2号館の中庭に建つ別の輪郭に対応する
+          expect(plan.buildingId, room.id).toBe('area4-2');
+          expect(linkOf.get(room.wingId), room.id).toBe('way_624663829');
         } else {
           expect(linkOf.get(room.wingId), room.id).toBe(plan.buildingId);
         }

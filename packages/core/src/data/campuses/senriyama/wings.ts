@@ -23,6 +23,11 @@ import type { Wing, WingBuildingLink } from '../../../domain/wings';
  *   から OSM の輪郭の上の境目を決められないので書かない。押して選ぶのは第3学舎だけのまま
  * - 第4学舎の第1〜第6実験棟は、OSM に実験棟ごとの輪郭がある（名前は公式の地図で直した。docs/DATA_SOURCES.md 5 節）ので、
  *   その輪郭に対応させる。部屋のデータは 6 棟の部屋をハイテク・リサーチ・コア（hitech-core）の建物にまとめている
+ * - 第4学舎2号館の研究棟別館（⑤）は、2号館の輪郭（area4-2）の中ではなく、その中庭に建つ OSM の別の輪郭（way 624663829。
+ *   名前の無い building=university で、今の名前は「関西大学 施設棟」）に対応させる（2026-11-24）。根拠: KAN-CAN! の第4学舎の
+ *   鳥瞰イラストで ⑤ は ③教室棟・④研究棟・⑦4号館に囲まれた中庭の低い別棟として描かれる。空中写真（2017 年）でも中庭に
+ *   2号館と縁の離れた別の屋根がある（2号館の内壁から北西 約 3.3m・南東 約 4.2m）。KAN-CAN! の部屋は B1F〜1F だけ。
+ *   部屋のデータは別館の部屋を 2号館（area4-2）にまとめたまま
  */
 
 /** 第3学舎の枠の u 軸（南の長い辺の向き） */
@@ -163,7 +168,15 @@ const AREA4_WINGS: readonly WingRow[] = [
     restricted: true,
     note: 'KAN-CAN! ④。部外者・学部生は入れないので、館内の情報（部屋の一覧など）は載せない（持ち主の決め 2026-11-24）',
   },
-  { id: 'area4-h2a', school: '第4学舎', hallName: '2号館', name: '研究棟別館', floorsAbove: 1, floorsBelow: 1, note: 'KAN-CAN! ⑤' },
+  {
+    id: 'area4-h2a',
+    school: '第4学舎',
+    hallName: '2号館',
+    name: '研究棟別館',
+    floorsAbove: 1,
+    floorsBelow: 1,
+    note: 'KAN-CAN! ⑤。2号館の中庭に建つ別の輪郭（OSM の way 624663829）',
+  },
   { id: 'area4-h3', school: '第4学舎', name: '3号館', floorsAbove: 4, floorsBelow: 0, note: 'KAN-CAN! ⑥' },
   { id: 'area4-h4', school: '第4学舎', name: '4号館', floorsAbove: 3, floorsBelow: 1, note: 'KAN-CAN! ⑦' },
   { id: 'area4-x1', school: '第4学舎', name: '第1実験棟', floorsAbove: 4, floorsBelow: 0, note: 'KAN-CAN! ⑧' },
@@ -238,12 +251,13 @@ export const SENRIYAMA_WING_BUILDINGS: readonly WingBuildingLink[] = [
       vMax: AREA3_WING_BOUNDS.bdSplitV,
     },
   },
-  // 第4学舎（1号館・2号館は棟が複数で、範囲は書かない。教授棟・研究棟・別館の輪郭は OSM で分かれていない）
+  // 第4学舎（1号館・2号館は棟が複数で、範囲は書かない。教授棟・研究棟の輪郭は OSM で分かれていない）
   { wingId: 'area4-h1', buildingId: 'area4-1' },
   { wingId: 'area4-h1p', buildingId: 'area4-1' },
   { wingId: 'area4-h2', buildingId: 'area4-2' },
   { wingId: 'area4-h2r', buildingId: 'area4-2' },
-  { wingId: 'area4-h2a', buildingId: 'area4-2' },
+  // 研究棟別館は 2号館の中庭の別の輪郭（上の注釈）
+  { wingId: 'area4-h2a', buildingId: 'way_624663829' },
   { wingId: 'area4-h3', buildingId: 'area4-3' },
   { wingId: 'area4-h4', buildingId: 'area4-4' },
   // 実験棟は OSM の実験棟ごとの輪郭（way の id）
