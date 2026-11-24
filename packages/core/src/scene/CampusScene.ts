@@ -31,9 +31,10 @@ import { buildGroundsGroup, carveTerrainForGrounds } from './GroundsBuilder';
 import { LightingRig } from './LightingRig';
 import { buildStaticBatches, type StaticBatchSource, type StaticBatches } from './staticBatches';
 import { RouteOverlay } from './RouteOverlay';
+import { DEFAULT_SELECTION_LOOK, SelectionHighlighter, type SelectionLook } from './selectionHighlight';
 import { buildTerrainGroup, TERRAIN_PATHS_GROUP_NAME } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
-import { resolveBuildingPick, WingHighlighter } from './wingSelection';
+import { resolveBuildingPick } from './wingSelection';
 
 export interface CampusSceneCallbacks {
   /** 建物を押したとき（何も無い所なら null）。建物の中の棟（第3学舎の A〜D棟など）を押したら wingId も渡す */
@@ -68,6 +69,8 @@ export interface CampusSceneOptions {
   freeCamera?: boolean;
   /** 描画のたびに重さを受け取る（開発時と URL の stats=1 のときだけ渡す） */
   onRenderStats?: (stats: RenderStats) => void;
+  /** 選んだ建物の見た目（輪郭・塗り・持ち上げ・周りを薄く）。比べるときは URL の sel= から渡す。無ければ既定 */
+  selectionLook?: SelectionLook;
 }
 
 /** 棟に寄るときの距離（建物は水平 165m・上 128m。棟は塊が小さいので近くまで寄る） */
@@ -78,7 +81,6 @@ export class CampusScene {
   private readonly container: HTMLElement;
   private lastSelectedId: string | null = null;
   private lastActiveCategory: BuildingCategory | 'all' = 'all';
-  private lastSelectedWingId: string | null = null;
   private readonly dataset: CampusDataset;
   private readonly config: CampusConfig;
   private readonly callbacks: CampusSceneCallbacks;
@@ -89,8 +91,9 @@ export class CampusScene {
   private readonly cameraRig: CameraRig;
   private readonly lightingRig: LightingRig;
   private readonly routeOverlay: RouteOverlay;
-  /** 選んだ棟だけに重ねる光の殻（棟を選んでいる間だけ描く。描画命令 +1） */
-  private readonly wingHighlighter: WingHighlighter;
+  /** 選んだ建物（か棟）の殻に重ねる輪郭と塗り（選んでいる間だけ描く。描画命令 +2 まで） */
+  private readonly selectionHighlighter: SelectionHighlighter;
+  private readonly selectionLook: SelectionLook;
 
   private readonly campusRecords: Map<string, BuildingMeshRecord>;
   /** 建物・上屋・橋の動かない部品を、建物をまたいで材質の設定ごとにまとめたメッシュ（staticBatches.ts） */
@@ -138,6 +141,7 @@ export class CampusScene {
     this.config = config;
     this.callbacks = callbacks;
     this.onRenderStats = options.onRenderStats ?? null;
+    this.selectionLook = { ...(options.selectionLook ?? DEFAULT_SELECTION_LOOK) };
 
     if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       this.motionMediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -151,6 +155,8 @@ export class CampusScene {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
+      // 選んだ建物の輪郭を外周だけに残すのに使う（selectionHighlight.ts）
+      stencil: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.setSize(width, height);
@@ -240,9 +246,9 @@ export class CampusScene {
     );
     this.scene.add(foliageGroup);
 
-    // 建物（選択で光らせる・浮かせる・当たり判定がある）・新アクセス路の上屋・橋・道の帯・駅（動かない）の部品を、
+    // 建物（選択で薄める・持ち上げる・当たり判定がある）・新アクセス路の上屋・橋・道の帯・駅（動かない）の部品を、
     // 建物をまたいで描き方の設定ごとに 1 つのメッシュにまとめる（staticBatches.ts）。建物と駅の元のメッシュは
-    // 当たり判定に、建物の元のメッシュは選んで浮かせている間の描画にも使うので、見えないまま残す
+    // 当たり判定に、建物の元のメッシュは選んで持ち上げている間の描画にも使うので、見えないまま残す
     const batchSources: StaticBatchSource[] = [
       ...[...this.campusRecords.values()].map((rec) => ({
         root: rec.group,
@@ -281,7 +287,8 @@ export class CampusScene {
     this.scene.add(this.routeOverlay.group);
 
     this.applyClippingPlanes(this.scene);
-    this.wingHighlighter = new WingHighlighter(this.clippingPlanes);
+    this.selectionHighlighter = new SelectionHighlighter(this.selectionLook, this.clippingPlanes);
+    this.selectionHighlighter.setResolution(width, height);
 
     const dioramaBaseGroup = buildDioramaBaseGroup(terrain, config);
     this.scene.add(dioramaBaseGroup);
@@ -444,6 +451,7 @@ export class CampusScene {
     const h = Math.max(1, this.container.clientHeight);
     this.cameraRig.setAspect(w, h);
     this.renderer.setSize(w, h);
+    this.selectionHighlighter.setResolution(w, h);
     this.needsRender = true;
     this.labelsDirty = true;
     this.frustumDirty = true;
@@ -509,7 +517,7 @@ export class CampusScene {
 
       if (this.needsRender) {
         this.needsRender = false;
-        // 材質の色・選んだ建物の浮かせ方を、まとめたメッシュへ写してから描く
+        // 材質の色・選んだ建物の持ち上げ方を、まとめたメッシュへ写してから描く
         this.staticBatches.sync();
         this.renderer.render(this.scene, this.cameraRig.camera);
         this.emitRenderStats();
@@ -605,8 +613,8 @@ export class CampusScene {
   }
 
   /**
-   * 選択とカテゴリの絞り込みの見た目。selectedWingId（建物の中の棟）を渡すと、建物全体ではなくその棟だけを光らせる
-   * （棟の無い建物や、無い棟の id なら建物全体）
+   * 選択とカテゴリの絞り込みの見た目。選んだ建物の殻に輪郭と塗りを重ねる。selectedWingId（建物の中の棟）を渡すと、
+   * 建物全体ではなくその棟の殻に重ねる（棟の無い建物や、無い棟の id なら建物全体）
    */
   setHighlightState(
     selectedId: string | null,
@@ -617,9 +625,8 @@ export class CampusScene {
     const wing = rec ? findWing(rec.building, selectedWingId) : null;
     this.lastSelectedId = selectedId;
     this.lastActiveCategory = activeCategory;
-    this.lastSelectedWingId = wing?.id ?? null;
-    applyBuildingVisualStates(this.campusRecords, selectedId, activeCategory, this.lastSelectedWingId);
-    this.wingHighlighter.show(rec?.group, wing ? rec?.wingShells?.get(wing.id) : null);
+    applyBuildingVisualStates(this.campusRecords, selectedId, activeCategory, this.selectionLook);
+    this.selectionHighlighter.show(rec?.group, wing ? rec?.wingShells?.get(wing.id) : rec?.selectionShell);
     this.needsRender = true;
   }
 
@@ -694,12 +701,7 @@ export class CampusScene {
   /** 主役の建物以外の屋根の色を、空中写真の色（aerial）とエリアの塗り分け（area）で切り替える */
   setRoofColorMode(mode: RoofColorMode): void {
     applyRoofColorMode(this.campusRecords, mode);
-    applyBuildingVisualStates(
-      this.campusRecords,
-      this.lastSelectedId,
-      this.lastActiveCategory,
-      this.lastSelectedWingId,
-    );
+    applyBuildingVisualStates(this.campusRecords, this.lastSelectedId, this.lastActiveCategory, this.selectionLook);
     this.needsRender = true;
   }
 
@@ -732,10 +734,11 @@ export class CampusScene {
     }
 
     this.routeOverlay.clear();
-    this.wingHighlighter.dispose();
+    this.selectionHighlighter.dispose();
     this.staticBatches.dispose();
     for (const rec of this.campusRecords.values()) {
       for (const shell of rec.wingShells?.values() ?? []) shell.dispose();
+      rec.selectionShell?.dispose();
     }
     this.cameraRig.dispose();
 

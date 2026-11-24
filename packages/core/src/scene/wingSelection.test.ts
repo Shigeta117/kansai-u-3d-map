@@ -7,7 +7,8 @@ import { getCampusConfig } from '../domain/campus-registry';
 import type { BuildingFeature, TerrainGrid } from '../domain/types';
 import { wingFootprintCentroid, wingRegionContains } from '../domain/wings';
 import { applyBuildingVisualStates, buildBuildingsGroup } from './BuildingBuilder';
-import { buildWingShells, resolveBuildingPick, WingHighlighter } from './wingSelection';
+import { SelectionHighlighter } from './selectionHighlight';
+import { buildWingShells, resolveBuildingPick } from './wingSelection';
 
 function readData<T>(file: string): T {
   const url = new URL(`../../../../public/data/senriyama/${file}`, import.meta.url);
@@ -135,37 +136,39 @@ describe('選んだ棟だけを光らせる殻', () => {
     expect(top(A)).toBeCloseTo(top(D), 1);
   });
 
-  it('shows one shell mesh on the selected wing only, and none when nothing is selected', () => {
-    const hl = new WingHighlighter();
+  it('overlays the selected wing shell only (fill + outline = 2 objects), and nothing when nothing is selected', () => {
+    const hl = new SelectionHighlighter();
     hl.show(group, shells.get(C));
     expect(hl.isShown()).toBe(true);
-    expect(hl.mesh.parent).toBe(group);
-    let shellMeshes = 0;
-    group.traverse((o) => {
-      if (o.userData?.wingShell) shellMeshes++;
+    expect(hl.root.parent).toBe(group);
+    // 既定（輪郭＋薄い塗り）は 2 つ（描画命令 +2）。塗りの形は棟の殻そのもの
+    expect(hl.drawnObjectCount()).toBe(2);
+    const fill = hl.root.getObjectByName('selection-fill') as THREE.Mesh;
+    expect(fill.geometry).toBe(shells.get(C));
+    // 影を落とさない、押しても当たらない
+    hl.root.traverse((o) => {
+      expect(o.castShadow).toBe(false);
+      const hits: THREE.Intersection[] = [];
+      o.raycast(new THREE.Raycaster(new THREE.Vector3(0, 500, 0), new THREE.Vector3(0, -1, 0)), hits);
+      expect(hits).toHaveLength(0);
     });
-    expect(shellMeshes).toBe(1);
-    // 殻は材質 1 つ（描画命令 +1）、影を落とさない、押しても当たらない
-    expect(Array.isArray(hl.mesh.material)).toBe(false);
-    expect(hl.mesh.castShadow).toBe(false);
-    const hits: THREE.Intersection[] = [];
-    hl.mesh.raycast(new THREE.Raycaster(), hits);
-    expect(hits).toHaveLength(0);
     hl.show(group, shells.get(B));
-    expect(hl.mesh.geometry).toBe(shells.get(B));
+    expect(fill.geometry).toBe(shells.get(B));
     hl.show(group, null);
     expect(hl.isShown()).toBe(false);
+    expect(hl.drawnObjectCount()).toBe(0);
     hl.dispose();
   });
 
-  it('keeps the whole building unlit when a wing is selected (only the shell glows), and lifts it', () => {
+  it('does not light up any material when a wing or the building is selected, and lifts only with sel=lift', () => {
     const records = new Map([['area3', record]]);
-    applyBuildingVisualStates(records, 'area3', 'all', C);
-    for (const e of record.primaryMaterials) expect(e.mat.emissiveIntensity).toBe(0);
+    const glow = record.allMaterials.map((e) => e.mat.emissiveIntensity);
+    applyBuildingVisualStates(records, 'area3', 'all');
+    expect(record.allMaterials.map((e) => e.mat.emissiveIntensity)).toEqual(glow);
+    expect(group.position.y).toBe(0);
+    applyBuildingVisualStates(records, 'area3', 'all', { lift: true });
     expect(group.position.y).toBeCloseTo(1.4, 6);
-    applyBuildingVisualStates(records, 'area3', 'all', null);
-    for (const e of record.primaryMaterials) expect(e.mat.emissiveIntensity).toBeGreaterThan(0);
-    applyBuildingVisualStates(records, null, 'all');
+    applyBuildingVisualStates(records, null, 'all', { lift: true });
     expect(group.position.y).toBe(0);
   });
 });

@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import type { BuildingFeature } from '../domain/types';
 import { findWingAt, type BuildingWing, type WingRegion } from '../domain/wings';
-import { SCENE_PALETTE } from './palette';
 
 /**
  * 建物の中の棟を選ぶ（docs/indoor-plan.md 12 節）。
  *
  * - 殻: 建物を組んだ直後（部品を材質ごとにまとめる前）に、棟ごとに「その棟の面だけ」の形を切り出して取っておく
- *   （buildWingShells）。部品に棟の印（userData.wingId）があれば印で、無ければ棟の塊の範囲で三角形を切って分ける
- * - 光らせ方: 棟ごとに材質を分けると描画命令が棟の数だけ増えるので、選んだ棟の殻を薄い光として 1 つのメッシュで重ねる
- *   （WingHighlighter）。選んでいない間は描かない（描画命令 0）、選ぶと +1
+ *   （buildWingShells）。部品に棟の印（userData.wingId）があれば印で、無ければ棟の塊の範囲で三角形を切って分ける。
+ *   建物全体の殻（buildBuildingShell）も同じ手順で切り出す
+ * - 見せ方: 選んだ棟（か建物全体）の殻に、輪郭と薄い塗りを重ねる（selectionHighlight.ts の SelectionHighlighter）。
+ *   選んでいない間は描かない（描画命令 0）
  * - 当たり判定: まとめた後のメッシュには棟の印が残らないので、同じ光線を棟の殻に当て直して棟を決める（resolveBuildingPick）。
  *   殻が無い建物は、押した点の (x, z) が入る塊の範囲で決める
  */
@@ -88,8 +88,29 @@ function isVisibleWithin(obj: THREE.Object3D, root: THREE.Object3D): boolean {
   return true;
 }
 
+/** 選んだ物に重ねる物（selectionHighlight.ts）か、その子 */
+export function isSelectionOverlay(obj: THREE.Object3D, root?: THREE.Object3D): boolean {
+  for (let cur: THREE.Object3D | null = obj; cur && cur !== root; cur = cur.parent) {
+    if (cur.userData?.selectionOverlay) return true;
+  }
+  return false;
+}
+
+const WHOLE_BUILDING = 'whole';
+
 /**
- * 建物の group から、棟ごとの面の形（group の座標）を切り出す。透明な物（文字の板など）と殻自身（userData.wingShell）は含めない。
+ * 建物全体の殻（group の座標）。group の全部の見える不透明なメッシュの面をそのまま集める（棟の殻と同じ手順で、範囲で切らない）。
+ * 選んだ建物に重ねる輪郭と塗りの形に使う。部品をまとめる前に切り出す
+ */
+export function buildBuildingShell(root: THREE.Object3D): THREE.BufferGeometry {
+  const shell = buildWingShells(root, [{ id: WHOLE_BUILDING }]).get(WHOLE_BUILDING);
+  if (!shell) throw new Error('buildBuildingShell: 殻を作れない');
+  return shell;
+}
+
+/**
+ * 建物の group から、棟ごとの面の形（group の座標）を切り出す。透明な物（文字の板など）と、選んだ物に重ねる物
+ * （userData.selectionOverlay）は含めない。
  * InstancedMesh は 1 つずつ展開する。棟の印のある部品はその棟だけに、印の無い部品は塊の範囲で切って入れる
  * （棟の範囲は平面を分け尽くすので、どの面もちょうど 1 つの棟に入る）
  */
@@ -123,7 +144,7 @@ export function buildWingShells(
   };
 
   root.traverse((obj) => {
-    if (!(obj instanceof THREE.Mesh) || obj.userData?.wingShell || !isVisibleWithin(obj, root)) return;
+    if (!(obj instanceof THREE.Mesh) || isSelectionOverlay(obj, root) || !isVisibleWithin(obj, root)) return;
     const geometry = obj.geometry as THREE.BufferGeometry;
     const position = geometry.getAttribute('position');
     if (!position) return;
@@ -230,70 +251,4 @@ export function resolveBuildingPick(
   }
   const wing = findWingAt(rec.building, hit.point.x, hit.point.z);
   return { buildingId, wingId: wing?.id ?? null };
-}
-
-/**
- * 選んだ棟に重ねる薄い光の殻。下の色を 30% 薄めて、選んだ建物を光らせる色（accents.highlight）の暗めの光を足す
- * （結果 = 光 ＋ 下の色 × 0.7）。加算だけだと明るいタイルの壁が白く飛び、半透明で重ねるだけだと塗ったように暗くなるので、
- * 両方を混ぜて建物全体を選んだときの光らせ方（同じ色の emissive）に近い色味にする。
- * 下の面と同じ位置に描くので、少し手前に寄せて勝たせる
- */
-export function createWingShellMaterial(clippingPlanes: THREE.Plane[] = []): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
-    color: new THREE.Color(SCENE_PALETTE.accents.highlight).multiplyScalar(0.2),
-    transparent: true,
-    opacity: 0.3,
-    toneMapped: false,
-    blending: THREE.CustomBlending,
-    blendEquation: THREE.AddEquation,
-    blendSrc: THREE.OneFactor,
-    blendDst: THREE.OneMinusSrcAlphaFactor,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -4,
-    clippingPlanes,
-  });
-}
-
-/**
- * 選んだ棟の光の殻を出し入れする（メッシュは 1 つで、形を差し替える）。殻は建物の group の子にするので、
- * 選んだ建物を浮かせると一緒に動く。当たり判定と影には入れない。形（buildWingShells の結果）は持ち主が片づける
- */
-export class WingHighlighter {
-  readonly mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
-  private readonly emptyGeometry = new THREE.BufferGeometry();
-
-  constructor(clippingPlanes: THREE.Plane[] = []) {
-    this.mesh = new THREE.Mesh(this.emptyGeometry, createWingShellMaterial(clippingPlanes));
-    this.mesh.name = 'wing-shell';
-    this.mesh.userData = { wingShell: true };
-    this.mesh.castShadow = false;
-    this.mesh.receiveShadow = false;
-    this.mesh.renderOrder = 1;
-    // 殻を押しても当たらない（下の建物に当てる）
-    this.mesh.raycast = () => {};
-  }
-
-  /** 棟の殻を建物の group に重ねる。group か shell が無ければ消す */
-  show(group: THREE.Object3D | null | undefined, shell: THREE.BufferGeometry | null | undefined): void {
-    this.mesh.removeFromParent();
-    if (!group || !shell) {
-      this.mesh.geometry = this.emptyGeometry;
-      return;
-    }
-    this.mesh.geometry = shell;
-    group.add(this.mesh);
-  }
-
-  isShown(): boolean {
-    return this.mesh.parent !== null;
-  }
-
-  dispose(): void {
-    this.mesh.removeFromParent();
-    this.mesh.geometry = this.emptyGeometry;
-    this.emptyGeometry.dispose();
-    this.mesh.material.dispose();
-  }
 }

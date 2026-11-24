@@ -73,7 +73,16 @@ export const SCENE_PALETTE = {
     routeGentle: '#2B8A6E',
     routeStepFree: '#1F7A8C',
     routePulse: '#FFF8EB',
-    highlight: '#FF9B42',
+  },
+  /**
+   * 選んだ建物の見た目（selectionHighlight.ts）。輪郭は経路の線と選んだ名札のピン（どちらも routeMain の赤茶）と
+   * 見分けられるよう、黄みの強い琥珀か墨にする。塗りは下の色に掛けて明るくする色（暖かい白）。薄める色は台の色に寄せた灰色
+   */
+  selection: {
+    outlineAmber: '#E8960C',
+    outlineInk: '#1D2430',
+    fill: '#FFF0D8',
+    dimTarget: '#DDD8CE',
   },
   foliage: {
     trunk: '#785B46',

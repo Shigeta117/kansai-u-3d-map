@@ -14,18 +14,27 @@ import { HERO_BUILDERS } from './heroes';
 import { sculptLandmarkDetails } from './LandmarkSculptor';
 import { mergeStaticMeshes } from './mergeStaticMeshes';
 import { SCENE_PALETTE } from './palette';
+import { SELECTION_LIFT_M, type SelectionLook } from './selectionHighlight';
 import { mergeSimpleGeometries } from './TerrainBuilder';
-import { buildWingShells } from './wingSelection';
+import { buildBuildingShell, buildWingShells } from './wingSelection';
 
 export interface MaterialColorEntry {
   mat: THREE.MeshStandardMaterial;
   baseHex: string;
+  /** 組んだ時点の光る強さ（窓の明かりなど。薄めるときに同じ割合で下げる）。allMaterials の項目だけに入る */
+  baseEmissiveIntensity?: number;
 }
 
 export interface BuildingMeshRecord {
   building: BuildingFeature;
   group: THREE.Group;
+  /** 主な材質（外壁・屋根など）。選択の見た目と薄める処理には使わない（形から決める殻と、全部の材質を使う） */
   primaryMaterials: MaterialColorEntry[];
+  /**
+   * group の全部の材質（組んだ時点の色）。カテゴリの絞り込みと選んでいない建物を薄めるときに、全部の部品へ一様にかける。
+   * primaryMaterials と roofColors の項目は同じ物を入れる（屋根の色を切り替えると baseHex が一緒に変わる）
+   */
+  allMaterials: MaterialColorEntry[];
   baseY: number;
   /** 屋根の色の切り替え用（主役の建物以外）。aerial は空中写真の色、area はエリアごとの塗り分け */
   roofColors?: { entry: MaterialColorEntry; area: string; aerial?: string };
@@ -34,6 +43,11 @@ export interface BuildingMeshRecord {
    * 押した所の棟の判定に使う（wingSelection.ts）。部品をまとめる前に切り出す
    */
   wingShells?: Map<string, THREE.BufferGeometry>;
+  /**
+   * 建物全体の面の形（group の座標）。選んだ建物に重ねる輪郭と塗りの形（selectionHighlight.ts）。部品をまとめる前に、
+   * group の全部の見える不透明なメッシュから切り出す（材質の一覧から決めないので、部品の多い主役の建物でも形が揃う）
+   */
+  selectionShell?: THREE.BufferGeometry;
 }
 
 /** 屋根の色の決め方。aerial＝空中写真から読み取った色（無い建物はエリアの色）、area＝エリアごとの塗り分け */
@@ -163,9 +177,34 @@ function getShadeVariant(baseHex: string, id: string): string {
 }
 
 /**
+ * group の全部の材質（MeshStandardMaterial）の項目。primary の項目はそのまま使い（屋根の色の切り替えと同じ物）、
+ * 残りは組んだ時点の色を baseHex にする
+ */
+function collectAllMaterials(group: THREE.Object3D, primary: readonly MaterialColorEntry[]): MaterialColorEntry[] {
+  const out: MaterialColorEntry[] = [...primary];
+  const seen = new Set<THREE.Material>(primary.map((e) => e.mat));
+  group.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const mats: THREE.Material[] = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const mat of mats) {
+      if (!(mat instanceof THREE.MeshStandardMaterial) || seen.has(mat)) continue;
+      seen.add(mat);
+      out.push({ mat, baseHex: `#${mat.color.getHexString()}` });
+    }
+  });
+  for (const entry of out) entry.baseEmissiveIntensity = entry.mat.emissiveIntensity;
+  return out;
+}
+
+interface FinalizedShells {
+  wingShells?: Map<string, THREE.BufferGeometry>;
+  selectionShell?: THREE.BufferGeometry;
+}
+
+/**
  * 建物 1 棟の group を仕上げる。動かない部品を材質ごとにまとめ（mergeParts のとき。回る物は残す）、
  * まとめた後のメッシュに buildingId を付けて選択の当たり判定の対象に入れる。
- * 建物が棟を持てば、まとめる前（部品の棟の印が残っている間）に棟ごとの面の形を切り出して返す
+ * まとめる前（部品の棟の印が残っている間）に、建物全体の面の形（shells のとき）と、建物が棟を持てば棟ごとの面の形を切り出して返す
  */
 function finalizeBuildingGroup(
   group: THREE.Group,
@@ -173,10 +212,12 @@ function finalizeBuildingGroup(
   animated: readonly THREE.Object3D[],
   mergeParts: boolean,
   interactiveMeshes: THREE.Object3D[],
-): Map<string, THREE.BufferGeometry> | undefined {
+  shells: boolean,
+): FinalizedShells {
   const buildingId = building.id;
   const wingShells =
     building.wings && building.wings.length > 0 ? buildWingShells(group, building.wings) : undefined;
+  const selectionShell = shells ? buildBuildingShell(group) : undefined;
   if (mergeParts) {
     mergeStaticMeshes(group, { keep: animated });
   }
@@ -186,7 +227,10 @@ function finalizeBuildingGroup(
       interactiveMeshes.push(obj);
     }
   });
-  return wingShells;
+  return {
+    ...(wingShells ? { wingShells } : {}),
+    ...(selectionShell ? { selectionShell } : {}),
+  };
 }
 
 export function isBuildingWithinDiorama(
@@ -239,6 +283,8 @@ export function buildBuildingsGroup(
   const animatedRotors: THREE.Object3D[] = [];
   const facadeTex = options.forExport ? null : createFacadeBandTexture();
   const mergeParts = !options.forExport && (options.mergeStaticParts ?? true);
+  // 選んだ建物に重ねる形（建物全体の殻）は画面だけで使う。3D の書き出しでは作らない
+  const shells = !options.forExport;
 
   const surroundingGeos: THREE.BufferGeometry[] = [];
   const baseSurroundingColor = new THREE.Color(SCENE_PALETTE.buildings.surrounding);
@@ -282,15 +328,16 @@ export function buildBuildingsGroup(
       const hero = heroBuilder({ building: b, groundVisualY, sampleGroundVisualY });
       hero.group.name = `building-${b.id}`;
       hero.group.userData = { buildingId: b.id };
-      const wingShells = finalizeBuildingGroup(hero.group, b, hero.animated, mergeParts, interactiveMeshes);
+      const finalized = finalizeBuildingGroup(hero.group, b, hero.animated, mergeParts, interactiveMeshes, shells);
       animatedRotors.push(...hero.animated);
       root.add(hero.group);
       campusRecords.set(b.id, {
         building: b,
         group: hero.group,
         primaryMaterials: hero.primaryMaterials,
+        allMaterials: collectAllMaterials(hero.group, hero.primaryMaterials),
         baseY: 0,
-        ...(wingShells ? { wingShells } : {}),
+        ...finalized,
       });
       continue;
     }
@@ -308,11 +355,12 @@ export function buildBuildingsGroup(
         groundVisualY,
         SCENE_PALETTE.buildings[b.category],
       );
+      let finalized: FinalizedShells = {};
       if (sculpted.meshes.length > 0) {
         for (const m of sculpted.meshes) {
           spotGroup.add(m);
         }
-        finalizeBuildingGroup(spotGroup, b, sculpted.animatedRotors, mergeParts, interactiveMeshes);
+        finalized = finalizeBuildingGroup(spotGroup, b, sculpted.animatedRotors, mergeParts, interactiveMeshes, shells);
         animatedRotors.push(...sculpted.animatedRotors);
       } else if (b.sculptStyle !== 'station-platform' && b.sculptStyle !== 'open-space') {
         // 駅（station-platform）は TransportBuilder（StationBuilder）が OSM のホーム・駅舎の輪郭から描くので、目印の台は置かない。
@@ -333,6 +381,7 @@ export function buildBuildingsGroup(
         pad.castShadow = true;
         spotGroup.add(pad);
         interactiveMeshes.push(pad);
+        if (shells) finalized = { selectionShell: buildBuildingShell(spotGroup) };
       }
 
       root.add(spotGroup);
@@ -340,7 +389,9 @@ export function buildBuildingsGroup(
         building: b,
         group: spotGroup,
         primaryMaterials: [],
+        allMaterials: collectAllMaterials(spotGroup, []),
         baseY: 0,
+        ...finalized,
       });
       continue;
     }
@@ -392,17 +443,19 @@ export function buildBuildingsGroup(
     for (const m of sculpted.meshes) {
       bGroup.add(m);
     }
-    const wingShells = finalizeBuildingGroup(bGroup, b, sculpted.animatedRotors, mergeParts, interactiveMeshes);
+    const finalized = finalizeBuildingGroup(bGroup, b, sculpted.animatedRotors, mergeParts, interactiveMeshes, shells);
     animatedRotors.push(...sculpted.animatedRotors);
 
     root.add(bGroup);
+    const primaryMaterials = options.forExport
+      ? [{ mat: wallMat, baseHex: wallHex }]
+      : [roofEntry, { mat: wallMat, baseHex: wallHex }];
     campusRecords.set(b.id, {
-      ...(wingShells ? { wingShells } : {}),
+      ...finalized,
       building: b,
       group: bGroup,
-      primaryMaterials: options.forExport
-        ? [{ mat: wallMat, baseHex: wallHex }]
-        : [roofEntry, { mat: wallMat, baseHex: wallHex }],
+      primaryMaterials,
+      allMaterials: collectAllMaterials(bGroup, primaryMaterials),
       baseY: 0,
       roofColors: { entry: roofEntry, area: areaRoofHex, aerial: aerialRoofHex },
     });
@@ -431,40 +484,42 @@ export function buildBuildingsGroup(
   };
 }
 
+/** 薄める強さ（台の色へ寄せる割合） */
+const DIM_AMOUNT = 0.65;
+
+export type BuildingVisualOptions = Partial<Pick<SelectionLook, 'lift' | 'dimOthers'>>;
+
 /**
- * 選択とカテゴリの絞り込みの見た目。選んだ建物は浮かせて光らせる。
- * selectedWingId があれば（建物の中の棟を選んでいれば）、建物全体は光らせない（棟だけを WingHighlighter の殻で光らせる）
+ * 選択とカテゴリの絞り込みの、材質と位置の見た目。選んだ建物の輪郭と塗りは SelectionHighlighter が殻で描くので、
+ * ここでは材質を光らせない。
+ * - 薄める: カテゴリの絞り込みで外れた建物と、dimOthers のとき選んでいない建物。group の全部の材質（allMaterials）の色を
+ *   台の色に寄せる（主役の建物も全部の部品に一様にかかる）。光る材質（窓の明かりなど）の明るさも同じ割合で下げる
+ * - lift のとき、選んだ建物を持ち上げる
  */
 export function applyBuildingVisualStates(
   records: Map<string, BuildingMeshRecord>,
   selectedId: string | null,
   activeCategory: BuildingCategory | 'all',
-  selectedWingId: string | null = null,
+  options: BuildingVisualOptions = {},
 ): void {
-  const highlightColor = new THREE.Color(SCENE_PALETTE.accents.highlight);
+  const dimTarget = new THREE.Color(SCENE_PALETTE.selection.dimTarget);
 
   for (const [id, rec] of records.entries()) {
     const isSelected = id === selectedId;
-    const glowsWhole = isSelected && !selectedWingId;
-    const isDimmed =
-      activeCategory !== 'all' && rec.building.category !== activeCategory && !isSelected;
+    const filteredOut = activeCategory !== 'all' && rec.building.category !== activeCategory;
+    const isDimmed = !isSelected && (filteredOut || (Boolean(options.dimOthers) && selectedId !== null));
 
-    for (const entry of rec.primaryMaterials) {
-      entry.mat.color.set(entry.baseHex);
+    for (const entry of rec.allMaterials) {
+      const mat = entry.mat;
+      const glow = entry.baseEmissiveIntensity ?? mat.emissiveIntensity;
+      mat.color.set(entry.baseHex);
+      mat.emissiveIntensity = glow;
       if (isDimmed) {
-        entry.mat.color.lerp(new THREE.Color('#DDD8CE'), 0.65);
-        entry.mat.emissive.set('#000000');
-        entry.mat.emissiveIntensity = 0;
-      } else if (glowsWhole) {
-        entry.mat.emissive.copy(highlightColor);
-        entry.mat.emissiveIntensity = 0.26;
-      } else {
-        entry.mat.emissive.set('#000000');
-        entry.mat.emissiveIntensity = 0;
+        mat.color.lerp(dimTarget, DIM_AMOUNT);
+        mat.emissiveIntensity = glow * (1 - DIM_AMOUNT);
       }
     }
 
-    rec.group.position.y = isSelected ? 1.4 : 0;
+    rec.group.position.y = isSelected && options.lift ? SELECTION_LIFT_M : 0;
   }
 }
-
