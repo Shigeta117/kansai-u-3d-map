@@ -91,7 +91,7 @@ export class CampusScene {
   private readonly cameraRig: CameraRig;
   private readonly lightingRig: LightingRig;
   private readonly routeOverlay: RouteOverlay;
-  /** 選んだ建物（か棟）の殻に重ねる輪郭と塗り（選んでいる間だけ描く。描画命令 +2 まで） */
+  /** 選んだ建物（か棟）の殻に重ねる輪郭と塗り（選んでいる間だけ描く。重ねる物の描画命令は +2 まで） */
   private readonly selectionHighlighter: SelectionHighlighter;
   private readonly selectionLook: SelectionLook;
 
