@@ -190,7 +190,11 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
     ['第2学舎1号館B棟', 'way_423067212'],
     ['第4学舎 第3実験棟', 'way_423067248'],
     ['弓道場', 'way_490258123'],
-    ['誠之館2・3号館', 'way_624589997'],
+    ['誠之館2号館', 'way_624589994'],
+    ['誠之館3号館新館', 'way_423067245'],
+    ['3号館旧館', 'way_624589997'],
+    ['誠之館3号館別棟', 'way_624589992'],
+    ['千里庵', 'way_819790904'],
     ['関西大学共済会', 'way_624589997'],
     ['中央グラウンド', 'central-ground'],
     ['KAISERS', 'kaisers-baseball-field'],
@@ -210,6 +214,14 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
   it('keeps the old OSM names searchable', () => {
     expect(searchBuildings(buildings, '法文研究棟').map((b) => b.id)).toContain('hobunken');
     expect(searchBuildings(buildings, '誠之館2号館旧館').map((b) => b.osmId)).toContain('way_624589997');
+  });
+
+  it('ranks the real 誠之館2号館 first and keeps 千里庵 a one-storey tea house', () => {
+    expect(searchBuildings(buildings, '誠之館2号館')[0]?.osmId).toBe('way_624589994');
+    expect(searchBuildings(buildings, '3号館新館')[0]?.osmId).toBe('way_423067245');
+    const tea = byKey('way_819790904');
+    expect(tea?.levels).toBe(1);
+    expect(tea?.height).toBeLessThan(6);
   });
 
   it('draws the kyudo range as a low shed, not a 4-storey block', () => {
