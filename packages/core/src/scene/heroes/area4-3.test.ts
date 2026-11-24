@@ -7,6 +7,9 @@ import {
   AREA43_CORNER_BLOCK,
   AREA43_ROOF_DECK_M,
   AREA43_SCREEN_TOP_M,
+  AREA43_SE_OVERHANG_M,
+  AREA43_SE_SPLIT_M,
+  AREA43_SLAB_M,
   AREA43_STRIP,
   buildArea43,
 } from './area4-3';
@@ -136,6 +139,64 @@ describe('buildArea43', () => {
     expect(AREA43_ROOF_DECK_M).toBeLessThan(4 * 4.8);
     expect(box.min.y).toBeLessThan(groundVisualY - 3);
     expect(HERO_ROOF_DECKS['area4-3']?.deckM).toBe(AREA43_ROOF_DECK_M);
+  });
+
+  // 南東の辺（グラウンド側）: 南の角 → 東の角。t は南の角からの辺に沿った距離、d は辺から内への距離
+  const SOUTH = POLYGON[2]!;
+  const EAST = POLYGON[1]!;
+  const seLen = Math.hypot(EAST[0] - SOUTH[0], EAST[1] - SOUTH[1]);
+  const seDir: P2 = [(EAST[0] - SOUTH[0]) / seLen, (EAST[1] - SOUTH[1]) / seLen];
+  const seIn: P2 = [seDir[1], -seDir[0]];
+  const seTD = (p: THREE.Vector3): P2 => {
+    const dx = p.x - SOUTH[0];
+    const dz = p.z - SOUTH[1];
+    return [dx * seDir[0] + dz * seDir[1], dx * seIn[0] + dz * seIn[1]];
+  };
+  const slabBottomY = deckY - AREA43_SLAB_M;
+
+  it('lets only the roof slab overhang the south-east (ground-side) face, along its full length', () => {
+    // 内向きの向きの確かめ: 輪郭の重心は南東の辺の内側
+    expect(seTD(new THREE.Vector3(223.28, 0, -69.88))[1]).toBeGreaterThan(20);
+    const pts = worldVertices(byName('area4-3-body'));
+    const lowerPts = pts.filter((p) => p.y < slabBottomY - 0.01);
+    expect(lowerPts.length).toBeGreaterThan(0);
+    // 1〜4 階の壁は南東の辺からせり出しの奥行きだけ内にある
+    for (const p of lowerPts) expect(seTD(p)[1]).toBeGreaterThan(AREA43_SE_OVERHANG_M - 1e-3);
+    // 下げた壁は南の端から東の角の欠けの手前まで続く
+    const onWall = lowerPts.filter((p) => Math.abs(seTD(p)[1] - AREA43_SE_OVERHANG_M) < 0.01).map((p) => seTD(p)[0]);
+    expect(Math.min(...onWall)).toBeLessThan(1);
+    expect(Math.max(...onWall)).toBeGreaterThan(seLen - 6.5);
+    // 屋上の板は南の角・東の角まで（輪郭どおり）
+    for (const corner of [SOUTH, EAST]) {
+      const near = pts.filter((p) => Math.hypot(p.x - corner[0], p.z - corner[1]) < 0.05);
+      expect(near.some((p) => Math.abs(p.y - slabBottomY) < 1e-4)).toBe(true);
+      expect(near.some((p) => Math.abs(p.y - deckY) < 1e-4)).toBe(true);
+    }
+    // ほかの 3 つの面は 1〜4 階も輪郭の上（西の角・北の角）
+    for (const corner of [POLYGON[3]!, POLYGON[0]!]) {
+      expect(lowerPts.some((p) => Math.hypot(p.x - corner[0], p.z - corner[1]) < 0.05)).toBe(true);
+    }
+  });
+
+  it('puts brackets under the overhang along the face and pilasters only on the east part', () => {
+    const pts = worldVertices(byName('area4-3-se-frame'));
+    expect(pts.length).toBeGreaterThan(0);
+    for (const p of pts) {
+      expect(p.y).toBeLessThan(slabBottomY + 0.1);
+      const d = seTD(p)[1];
+      expect(d).toBeGreaterThan(0.3);
+      expect(d).toBeLessThan(AREA43_SE_OVERHANG_M + 2 + 1e-6);
+    }
+    // 支え（軒裏から 3m 以内の高さ）は南の端の近くから東の端の近くまで並ぶ
+    const upper = pts.filter((p) => p.y > slabBottomY - 3).map((p) => seTD(p)[0]);
+    expect(Math.min(...upper)).toBeLessThan(6);
+    expect(Math.max(...upper)).toBeGreaterThan(seLen - 8);
+    // 地面の近くまで下りる柱は、窓の並ぶ西の側と柱の並ぶ東の側の境より東だけ
+    const low = pts.filter((p) => p.y < groundVisualY).map((p) => seTD(p)[0]);
+    expect(low.length).toBeGreaterThan(0);
+    expect(Math.min(...low)).toBeGreaterThan(AREA43_SE_SPLIT_M - 1);
+    // 白（外壁と同じ材質）
+    expect(byName('area4-3-se-frame').material).toBe(result.primaryMaterials[0]!.mat);
   });
 
   it('rings the roof with a translucent screen above the parapet, except at the west corner block', () => {
