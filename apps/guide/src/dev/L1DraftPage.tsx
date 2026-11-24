@@ -8,16 +8,20 @@ import {
   type L1TierLayout,
 } from '@kansai-u-3d/core';
 import { AREA1_L1, AREA1_L1_TIERS, AREA1_L1_WING_ORDER } from '../data/indoor/l1/area1';
+import { mergeL1Areas } from './l1Areas';
+import { LOCAL_L1_MODULES } from './localL1';
 
 /**
  * 館内の L1 の画面の下書き（docs/indoor-plan.md 11 節、P1）。開発用の入口 `?l1=area1` だけで開き、アプリの画面からはまだリンクしない。
  * 棟を横、「同じ高さの段」を縦に並べた 2D の図（SVG）。連絡路は横線（段が食い違う物は斜め、隣り合わない棟は弧）、
- * 入口は外向きの印、エレベーターは縦の点線（止まる階は未確認）。ある・無い・分からないを描き分ける
+ * 入口は外向きの印、エレベーターは縦の点線（止まる階は未確認）。ある・無い・分からないを描き分ける。
+ * 手元だけの置き場（private.local、docs/indoor-plan.md 3 節）にある学舎も開発のときだけ足す（./localL1.ts）
  */
 
-const AREAS: Record<string, { title: string; graph: L1Graph; tiers: L1TierLayout; order: readonly string[] }> = {
-  area1: { title: '第1学舎 棟と階のつながり', graph: AREA1_L1, tiers: AREA1_L1_TIERS, order: AREA1_L1_WING_ORDER },
-};
+const AREAS = mergeL1Areas(
+  [{ id: 'area1', title: '第1学舎 棟と階のつながり', graph: AREA1_L1, tiers: AREA1_L1_TIERS, order: AREA1_L1_WING_ORDER }],
+  LOCAL_L1_MODULES,
+);
 
 const COLOR = {
   navy: '#1B365D',
@@ -373,12 +377,27 @@ export default function L1DraftPage({ area }: { area: string }) {
         <div className="mb-2 flex items-center gap-2">
           <h1 className="text-[15px] font-bold text-[#1B365D]">{data ? data.title : '館内の図'}</h1>
           <span className="rounded bg-[#E9E2D3] px-1.5 py-0.5 text-[10px] font-bold text-[#5F6875]">下書き</span>
+          {data?.localOnly && (
+            <span
+              data-testid="l1-local-only"
+              className="rounded bg-[#C85A3A] px-1.5 py-0.5 text-[10px] font-bold text-white"
+            >
+              手元だけ
+            </span>
+          )}
         </div>
         {data ? (
           <>
             <div className="rounded-2xl border border-[#DFD8CA] bg-white px-2 py-3">
               <L1Diagram graph={data.graph} tiers={data.tiers} order={data.order} title={data.title} />
             </div>
+            {data.notes && data.notes.length > 0 && (
+              <ul data-testid="l1-notes" className="mt-3 list-disc space-y-1 pl-4 text-[11px] leading-snug text-[#38404D]">
+                {data.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            )}
             <Legend />
           </>
         ) : (
