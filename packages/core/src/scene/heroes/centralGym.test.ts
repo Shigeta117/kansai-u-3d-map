@@ -144,6 +144,41 @@ describe('buildCentralGym', () => {
     expect(new THREE.Box3().setFromObject(glass, true).min.y).toBeCloseTo(groundVisualY - 0.05, 5);
   });
 
+  it('raises the north-west annex (the protrusion on the back) to about 11m, with a small window and a doorway on its north-west face', () => {
+    // 持ち主の写真（2026-11-24、IMG_3393〜3395）: 裏側の凸はアリーナと同じタイルの高い箱。上は濃い色の陸屋根
+    const walls = meshes.get('central-gym-walls');
+    const dark = meshes.get('central-gym-dark-metal');
+    const glass = meshes.get('central-gym-glass');
+    expect(walls && dark && glass).toBeTruthy();
+    if (!walls || !dark || !glass) return;
+    const annexWall = local(walls).filter((p) => p.u < -1 && p.v > 4 && p.v < 48.5);
+    expect(Math.max(...annexWall.map((p) => p.y))).toBeCloseTo(groundVisualY + 11.0, 5);
+    const annexRoof = local(dark).filter((p) => p.u < -1 && p.v > 4 && p.v < 48.5);
+    expect(annexRoof.length).toBeGreaterThan(0);
+    expect(Math.max(...annexRoof.map((p) => p.y))).toBeCloseTo(groundVisualY + 11.0, 5);
+    // 窓と戸口は北西の面（u ≈ −6.8）の少し外に貼る
+    const onFace = local(glass).filter((p) => Math.abs(p.u + 6.83) < 0.01);
+    const windowPts = onFace.filter((p) => p.y > groundVisualY + 5);
+    expect(Math.min(...windowPts.map((p) => p.v))).toBeCloseTo(39.0, 5);
+    expect(Math.max(...windowPts.map((p) => p.v))).toBeCloseTo(41.3, 5);
+    expect(Math.max(...windowPts.map((p) => p.y))).toBeLessThan(groundVisualY + 11.0);
+    const doorPts = onFace.filter((p) => p.y < groundVisualY + 5);
+    expect(Math.min(...doorPts.map((p) => p.y))).toBeLessThan(groundVisualY);
+    expect(Math.max(...doorPts.map((p) => p.v))).toBeLessThan(39.0);
+  });
+
+  it('clads the north-west tympanum in the roof metal, not the tile', () => {
+    const walls = meshes.get('central-gym-walls');
+    const vault = meshes.get('central-gym-vault');
+    expect(walls && vault).toBeTruthy();
+    if (!walls || !vault) return;
+    // 妻面（u ≈ 0、軒の 12m より上）の点は屋根の材質のメッシュにあり、壁のメッシュには無い
+    const above = (pts: { u: number; v: number; y: number }[]): number =>
+      pts.filter((p) => Math.abs(p.u) < 0.01 && p.y > groundVisualY + 12.5).length;
+    expect(above(local(walls))).toBe(0);
+    expect(above(local(vault))).toBeGreaterThan(0);
+  });
+
   it('slopes the top of the entrance wall down toward the north-east end', () => {
     const walls = meshes.get('central-gym-walls');
     expect(walls).toBeTruthy();
