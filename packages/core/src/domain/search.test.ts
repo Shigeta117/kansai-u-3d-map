@@ -195,6 +195,9 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
     ['3号館旧館', 'way_624589997'],
     ['誠之館3号館別棟', 'way_624589992'],
     ['千里庵', 'way_819790904'],
+    ['高松塚古墳壁画再現展示室', 'way_819790896'],
+    ['高松塚', 'way_819790896'],
+    ['トイレ', 'way_755790029'],
     ['関西大学共済会', 'way_624589997'],
     ['中央グラウンド', 'central-ground'],
     ['KAISERS', 'kaisers-baseball-field'],
@@ -222,6 +225,23 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
     const tea = byKey('way_819790904');
     expect(tea?.levels).toBe(1);
     expect(tea?.height).toBeLessThan(6);
+  });
+
+  it('draws the glass exhibition room and the toilet near あすかの庭 as one-storey buildings at their photo heights', () => {
+    // 持ち主の写真（2026-11-24）: ガラスの箱にアーチの屋根の平屋（頂 3.4m）と、瓦屋根の平屋のトイレ（棟 4.0m）
+    const room = byKey('way_819790896');
+    expect(room?.name).toBe('高松塚古墳壁画再現展示室');
+    expect(room?.levels).toBe(1);
+    expect(room?.height).toBe(3.4);
+    expect(room?.labelPriority).toBe(7);
+    const toilet = byKey('way_755790029');
+    expect(toilet?.name).toBe('あすかの庭のトイレ');
+    expect(toilet?.levels).toBe(1);
+    expect(toilet?.height).toBe(4);
+    expect(toilet?.labelPriority).toBe(7);
+    // 庭そのものの検索は庭が先
+    expect(searchBuildings(buildings, 'あすかの庭')[0]?.id).toBe('asuka-garden');
+    expect(searchBuildings(buildings, 'トイレ')[0]?.osmId).toBe('way_755790029');
   });
 
   it('draws the kyudo range as a low shed, not a 4-storey block', () => {

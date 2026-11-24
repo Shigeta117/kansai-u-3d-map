@@ -31,6 +31,7 @@ const GROUND_STRUCTURE_BUILDING_IDS = new Set([805366951]);
 // 目印（landmarks.ts）に一致した建物は目印の名前が優先する。keywords は名前に足す検索語（OSM の名前など）
 // - inCampus: 地図に番号つきで載る関連施設（一中・一高・秀麗館・秀麗寮）を、キャンパスの建物として扱う（ラベル・検索）
 // - levels: 階数の推定（OSM に無く、既定の 4 階では明らかに高すぎる物だけ）
+// - heightM: 高さ（m）。階数からの推定（1 階 3.8m）では写真と合わない小さな建物だけ（levels より優先）
 const OFFICIAL_MAP_BUILDINGS = new Map([
   // 2-1: 第2学舎1号館は A棟・B棟。B棟は A棟（円い天窓の棟）の北東の端に付く箱
   ['way_423067212', { name: '第2学舎 1号館 B棟', keywords: ['第2学舎1号館', 'B棟'] }],
@@ -58,6 +59,15 @@ const OFFICIAL_MAP_BUILDINGS = new Map([
   // （docs/DATA_SOURCES.md 5 節）。部屋の一覧が B1F〜1F だけで、鳥瞰イラストでも中庭の低い別棟なので levels 1（地上 1 階）。
   // 高さ 5.2m は levels 1 から出る推定の値（周りの 2号館の 1 階ぶん程度）
   ['way_624663829', { name: '第4学舎2号館 研究棟別館', keywords: ['研究棟別館', '2号館別館'], levels: 1 }],
+  // 34: 高松塚古墳壁画再現展示室。OSM は名前の無い building=university（「関西大学 施設棟」と 4 階の高さで出ていた）。
+  // あすかの庭の南東の角の、簡文館の北の翼の西の小さな輪郭。持ち主の写真（2026-11-24、IMG_3385・3386・3388）で、
+  // ガラスの箱にアーチの屋根を載せた平屋（扉とアーチは西の面）。高さ 3.4m はアーチの頂（写真の扉の取っ手の高さから
+  // 割り出した推定）。形は専用モデル（scene/heroes/takamatsuzuka.ts）が描く（docs/DATA_SOURCES.md 5 節）
+  ['way_819790896', { name: '高松塚古墳壁画再現展示室', keywords: ['高松塚', '壁画', '再現展示室'], levels: 1, heightM: 3.4 }],
+  // あすかの庭の南西の、道の角の小さな輪郭（OSM は名前の無い building=university）。持ち主の写真（2026-11-24、
+  // IMG_3388・3389）で、赤い瓦の切妻屋根の平屋のトイレ（車いすの印あり）。キャンパスに独立したトイレの建物は
+  // ほかに無いので、近くの目印（あすかの庭）を名前に添える。高さ 4.0m は平屋の瓦屋根の棟の高さの推定
+  ['way_755790029', { name: 'あすかの庭のトイレ', keywords: ['トイレ', 'お手洗い', '化粧室', 'WC'], levels: 1, heightM: 4.0 }],
   // 39〜41・19: 名前は OSM のままで地図と同じ
   // 中学校・高等学校・幼稚園の施設は名称だけを出す（nameOnly。持ち主の決め、2026-11-20）
   ['way_497645752', { name: '関西大学第一高等学校', keywords: ['一高', '関大一高'], inCampus: true, nameOnly: true }],
@@ -1105,7 +1115,7 @@ async function main() {
 
     const shapeInCampus = Boolean(lm) || cb.osmInCampus;
     const levels = cb.official?.levels ?? parseLevels(cb.tags, lm?.defaultLevels ?? (shapeInCampus ? 4 : 2));
-    const height = computeBuildingHeight(cb.tags, levels, shapeInCampus, cb.osmId);
+    const height = cb.official?.heightM ?? computeBuildingHeight(cb.tags, levels, shapeInCampus, cb.osmId);
 
     const groundY = Number(
       sampleElevation(terrain, cb.centroid.x, cb.centroid.z).toFixed(2),
