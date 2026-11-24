@@ -1,3 +1,4 @@
+import { applyClosures, type CampusClosuresData } from '../domain/closures';
 import type {
   BuildingFeature,
   CampusDataset,
@@ -15,6 +16,14 @@ import { SENRIYAMA_BUILDING_PARTS } from './campuses/senriyama/building-parts';
 import { joinBuildingWings, joinSheetWings, pickableWingBuildingIds } from '../domain/wings';
 import { SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './campuses/senriyama/wings';
 
+/** 無くてもよいデータ（404 なら null） */
+async function fetchOptionalJson<T>(url: string): Promise<T | null> {
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to load ${url} (${res.status})`);
+  return res.json() as Promise<T>;
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {
@@ -25,7 +34,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 export async function loadCampusDataset(campusId: CampusId): Promise<CampusDataset> {
   const base = `/data/${campusId}`;
-  const [meta, terrain, buildings, landcover, paths, structures, walkGraph, transport] =
+  const [meta, terrain, rawBuildings, landcover, paths, structures, rawWalkGraph, transport, closuresData] =
     await Promise.all([
       fetchJson<CampusDatasetMeta>(`${base}/meta.json`),
       fetchJson<TerrainGrid>(`${base}/terrain.json`),
@@ -35,20 +44,27 @@ export async function loadCampusDataset(campusId: CampusId): Promise<CampusDatas
       fetchJson<CampusStructuresData>(`${base}/structures.json`),
       fetchJson<WalkGraph>(`${base}/walk-graph.json`),
       fetchJson<TransportData>(`${base}/transport.json`),
+      fetchOptionalJson<CampusClosuresData>(`${base}/closures.json`),
     ]);
+
+  const closures = closuresData?.closures ?? [];
+  const senriyamaBuildings =
+    campusId === 'senriyama'
+      ? applyBuildingWings(applyBuildingParts(applyBuildingFacts(rawBuildings)))
+      : rawBuildings;
+  // 工事の範囲: 範囲の中の経路の辺を外し、範囲の中の建物を経路の行き先から外す（domain/closures.ts）
+  const { walkGraph, buildings } = applyClosures(rawWalkGraph, senriyamaBuildings, closures);
 
   return {
     meta,
     terrain,
-    buildings:
-      campusId === 'senriyama'
-        ? applyBuildingWings(applyBuildingParts(applyBuildingFacts(buildings)))
-        : buildings,
+    buildings,
     landcover,
     paths,
     structures,
     walkGraph,
     transport,
+    closures,
   };
 }
 

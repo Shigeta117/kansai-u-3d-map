@@ -255,6 +255,14 @@ export function BuildingSheet({
     if (content.scrollTop > anchorTop) content.scrollTop = anchorTop;
   };
 
+  // 工事の範囲にかかる建物（closures.json）。範囲の中なら「建て替え工事中」、一部だけなら「一部が工事の囲いの中」
+  const construction = target.construction;
+  const constructionText = construction
+    ? construction.state === 'closed'
+      ? `${construction.label}（${construction.asOfLabel}）`
+      : `一部が工事の囲いの中（${construction.asOfLabel}）`
+    : null;
+
   const chips = (
     <div className="flex flex-wrap items-center gap-1.5">
       <span
@@ -263,6 +271,14 @@ export function BuildingSheet({
       >
         {getCategoryLabel(target.category)}
       </span>
+      {constructionText && (
+        <span
+          data-testid="construction-note"
+          className="inline-flex items-center rounded-full border border-[#E2C9A0] bg-[#FBF1DF] px-2 py-0.5 text-[10.5px] font-bold text-[#8A5A14]"
+        >
+          {constructionText}
+        </span>
+      )}
     </div>
   );
 
@@ -682,7 +698,11 @@ export function BuildingSheet({
   const unroutableNote = !target.walkNodeId && !nameOnly ? (
     <div className="mt-1.5 flex items-center gap-1 text-[10.5px] text-[#78808C]">
       <RouteIcon className="h-3 w-3" />
-      <span>周辺建物のため歩道ルートノード未接続</span>
+      <span>
+        {construction?.state === 'closed'
+          ? '工事の囲いの中のため、経路は引けません'
+          : '周辺建物のため歩道ルートノード未接続'}
+      </span>
     </div>
   ) : null;
 

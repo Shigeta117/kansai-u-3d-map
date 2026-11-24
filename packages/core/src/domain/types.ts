@@ -1,3 +1,4 @@
+import type { BuildingConstruction, CampusClosure } from './closures';
 import type { BuildingWing } from './wings';
 
 export type CampusId = 'senriyama';
@@ -190,6 +191,8 @@ export interface BuildingFeature {
    * 読み込み時に building-parts.ts から付ける（buildings.json には無い）
    */
   parts?: BuildingPart[];
+  /** 工事の範囲にかかっていること（読み込み時に closures.json から付ける。domain/closures.ts） */
+  construction?: BuildingConstruction;
 }
 
 export type LandcoverKind =
@@ -473,8 +476,11 @@ export interface CampusDataset {
   landcover: LandcoverFeature[];
   paths: PathFeature[];
   structures: CampusStructuresData;
+  /** 経路は読み込み時に closures を当てた後の物（範囲の中の辺を外してある） */
   walkGraph: WalkGraph;
   transport: TransportData;
+  /** 工事などで一時的に入れない範囲（描くのと、建物シートの一言に使う） */
+  closures: CampusClosure[];
 }
 
 export type RouteMode = 'shortest' | 'gentle' | 'step-free';
