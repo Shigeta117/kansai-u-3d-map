@@ -193,7 +193,6 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
     ['誠之館2号館', 'way_624589994'],
     ['誠之館3号館新館', 'way_423067245'],
     ['3号館旧館', 'way_624589997'],
-    ['誠之館3号館別棟', 'way_624589992'],
     ['千里庵', 'way_819790904'],
     ['高松塚古墳壁画再現展示室', 'way_819790896'],
     ['高松塚', 'way_819790896'],
@@ -212,6 +211,11 @@ describe('公式の地図（関西大学 広報課 CAMPUSMAP、2023 年 4 月）
     const hit = byKey(key);
     expect(hit).toBeDefined();
     expect(searchBuildings(buildings, query).map((b) => b.id)).toContain(hit!.id);
+  });
+
+  it('drops the demolished 誠之館3号館（別棟）', () => {
+    expect(byKey('way_624589992')).toBeUndefined();
+    expect(searchBuildings(buildings, '3号館別棟').map((b) => b.osmId)).not.toContain('way_624589992');
   });
 
   it('keeps the old OSM names searchable', () => {

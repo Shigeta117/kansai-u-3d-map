@@ -1,3 +1,4 @@
+import { applyClosures, type CampusClosuresData } from '../domain/closures';
 import type {
   BuildingFeature,
   CampusDataset,
@@ -11,8 +12,17 @@ import type {
   WalkGraph,
 } from '../domain/types';
 import { heightForLevels, SENRIYAMA_BUILDING_FACTS } from './campuses/senriyama/building-facts';
+import { SENRIYAMA_BUILDING_PARTS } from './campuses/senriyama/building-parts';
 import { joinBuildingWings, joinSheetWings, pickableWingBuildingIds } from '../domain/wings';
 import { SENRIYAMA_WING_BUILDINGS, SENRIYAMA_WINGS } from './campuses/senriyama/wings';
+
+/** 無くてもよいデータ（404 なら null） */
+async function fetchOptionalJson<T>(url: string): Promise<T | null> {
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to load ${url} (${res.status})`);
+  return res.json() as Promise<T>;
+}
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -24,7 +34,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 export async function loadCampusDataset(campusId: CampusId): Promise<CampusDataset> {
   const base = `/data/${campusId}`;
-  const [meta, terrain, buildings, landcover, paths, structures, walkGraph, transport] =
+  const [meta, terrain, rawBuildings, landcover, paths, structures, rawWalkGraph, transport, closuresData] =
     await Promise.all([
       fetchJson<CampusDatasetMeta>(`${base}/meta.json`),
       fetchJson<TerrainGrid>(`${base}/terrain.json`),
@@ -34,27 +44,65 @@ export async function loadCampusDataset(campusId: CampusId): Promise<CampusDatas
       fetchJson<CampusStructuresData>(`${base}/structures.json`),
       fetchJson<WalkGraph>(`${base}/walk-graph.json`),
       fetchJson<TransportData>(`${base}/transport.json`),
+      fetchOptionalJson<CampusClosuresData>(`${base}/closures.json`),
     ]);
+
+  const closures = closuresData?.closures ?? [];
+  const senriyamaBuildings =
+    campusId === 'senriyama'
+      ? applyBuildingWings(applyBuildingParts(applyBuildingFacts(rawBuildings)))
+      : rawBuildings;
+  // 工事の範囲: 範囲の中の経路の辺を外し、範囲の中の建物を経路の行き先から外す（domain/closures.ts）
+  const { walkGraph, buildings } = applyClosures(rawWalkGraph, senriyamaBuildings, closures);
 
   return {
     meta,
     terrain,
-    buildings: campusId === 'senriyama' ? applyBuildingWings(applyBuildingFacts(buildings)) : buildings,
+    buildings,
     landcover,
     paths,
     structures,
     walkGraph,
     transport,
+    closures,
   };
 }
 
-/** 公式の資料で確かめた階数を当てる（OSM の階数より多いときだけ。building-facts.ts の注を参照） */
+/**
+ * 公式の資料で確かめた階数を当てる（OSM の階数より多いときだけ。building-facts.ts の注を参照）。
+ * 現地で数えた階数（observedOnSite）だけは少ない方へも直し、高さを今の式（階数 × 3.8m ＋ 1.4m）にそろえる
+ */
 export function applyBuildingFacts(buildings: BuildingFeature[]): BuildingFeature[] {
   const facts = new Map(SENRIYAMA_BUILDING_FACTS.map((f) => [f.id, f]));
   return buildings.map((b) => {
     const fact = facts.get(b.id);
-    if (!fact || fact.levelsAbove <= b.levels) return b;
+    if (!fact) return b;
+    if (fact.observedOnSite) {
+      if (fact.levelsAbove === b.levels) return b;
+      return { ...b, levels: fact.levelsAbove, height: heightForLevels(fact.levelsAbove) };
+    }
+    if (fact.levelsAbove <= b.levels) return b;
     return { ...b, levels: fact.levelsAbove, height: Math.max(b.height, heightForLevels(fact.levelsAbove)) };
+  });
+}
+
+/**
+ * 高さの違う塊に分かれる建物（building-parts.ts）に塊を付ける。建物の levels・height は最も高い塊の値にする
+ * （ラベルの高さ・カメラの寄り方・建物シートの階数に使う）
+ */
+export function applyBuildingParts(buildings: BuildingFeature[]): BuildingFeature[] {
+  const specs = new Map(SENRIYAMA_BUILDING_PARTS.map((s) => [s.buildingId, s]));
+  return buildings.map((b) => {
+    const spec = specs.get(b.id);
+    if (!spec) return b;
+    const parts = spec.parts.map((p) => ({
+      name: p.name,
+      levels: p.levels,
+      height: heightForLevels(p.levels),
+      polygon: p.polygon,
+    }));
+    const top = parts.reduce((a, p) => (p.height > a.height ? p : a));
+    return { ...b, parts, levels: top.levels, height: top.height };
   });
 }
 

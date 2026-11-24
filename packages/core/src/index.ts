@@ -2,6 +2,7 @@
 export * from './domain/types';
 export * from './domain/indoor-types';
 export * from './domain/wings';
+export * from './domain/closures';
 export * from './domain/indoor-l1';
 
 // Domain logic

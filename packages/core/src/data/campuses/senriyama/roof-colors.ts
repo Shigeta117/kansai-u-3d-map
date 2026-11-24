@@ -48,7 +48,6 @@ export const SENRIYAMA_AERIAL_ROOF_HEX: Readonly<Record<string, string>> = {
   'kojima': '#6E6B68', // 写真 #6c6762（flat、確度 high）
   'way_602359988': '#C9CCCA', // 写真 #c8cdc9（flat、確度 medium）
   'way_624589988': '#CFD4CC', // 写真 #cfd6ca（flat、確度 medium）
-  'way_624589992': '#DAD8C8', // 写真 #ebe9d8（flat、確度 medium）
   'way_624589994': '#D9D4C9', // 写真 #e5dfd0（flat、確度 medium）
   'way_624589997': '#DBDAC7', // 写真 #efeedc（flat、確度 medium）
   'way_624590000': '#6A6D6B', // 写真 #515553（flat、確度 medium）

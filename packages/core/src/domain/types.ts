@@ -1,3 +1,4 @@
+import type { BuildingConstruction, CampusClosure } from './closures';
 import type { BuildingWing } from './wings';
 
 export type CampusId = 'senriyama';
@@ -138,6 +139,15 @@ export interface TerrainGrid {
   elevations: number[];
 }
 
+/** 1 つの輪郭の中の、高さの違う塊（data/campuses/<キャンパス>/building-parts.ts から読み込み時に付ける） */
+export interface BuildingPart {
+  name: string;
+  levels: number;
+  /** 地面から屋根までの高さ（m） */
+  height: number;
+  polygon: [number, number][];
+}
+
 export interface BuildingFeature {
   id: string;
   osmId?: string;
@@ -176,6 +186,13 @@ export interface BuildingFeature {
   wings?: BuildingWing[];
   /** 地図では別の輪郭の棟で、この建物のシートにも棟のボタンとして並べる棟（WingBuildingLink.alsoListedIn） */
   sheetWings?: BuildingWing[];
+  /**
+   * 高さの違う塊（無ければ輪郭全体を height で押し出す）。あるときの levels・height は最も高い塊の値。
+   * 読み込み時に building-parts.ts から付ける（buildings.json には無い）
+   */
+  parts?: BuildingPart[];
+  /** 工事の範囲にかかっていること（読み込み時に closures.json から付ける。domain/closures.ts） */
+  construction?: BuildingConstruction;
 }
 
 export type LandcoverKind =
@@ -459,8 +476,11 @@ export interface CampusDataset {
   landcover: LandcoverFeature[];
   paths: PathFeature[];
   structures: CampusStructuresData;
+  /** 経路は読み込み時に closures を当てた後の物（範囲の中の辺を外してある） */
   walkGraph: WalkGraph;
   transport: TransportData;
+  /** 工事などで一時的に入れない範囲（描くのと、建物シートの一言に使う） */
+  closures: CampusClosure[];
 }
 
 export type RouteMode = 'shortest' | 'gentle' | 'step-free';

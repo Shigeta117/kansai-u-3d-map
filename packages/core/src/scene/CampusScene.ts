@@ -32,6 +32,7 @@ import { LightingRig } from './LightingRig';
 import { buildStaticBatches, type StaticBatchSource, type StaticBatches } from './staticBatches';
 import { RouteOverlay } from './RouteOverlay';
 import { DEFAULT_SELECTION_LOOK, SelectionHighlighter, type SelectionLook } from './selectionHighlight';
+import { buildConstructionGroup } from './ConstructionBuilder';
 import { buildTerrainGroup, TERRAIN_PATHS_GROUP_NAME } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
 import { resolveBuildingPick } from './wingSelection';
@@ -214,6 +215,8 @@ export class CampusScene {
     );
     this.scene.add(buildingsResult.root);
     this.campusRecords = buildingsResult.campusRecords;
+    // 工事の範囲の中の建物を薄くする（選択の状態を入れる前の最初の描画から）
+    applyBuildingVisualStates(this.campusRecords, null, 'all', this.selectionLook);
     this.interactiveMeshes = buildingsResult.interactiveMeshes;
     this.animatedRotors = buildingsResult.animatedRotors;
 
@@ -246,6 +249,10 @@ export class CampusScene {
     );
     this.scene.add(foliageGroup);
 
+    // 工事の範囲（closures.json）: 白い仮囲い（まとめて描く）と範囲の地面の斜線（透明）
+    const construction = buildConstructionGroup(dataset.closures, terrain, config);
+    this.scene.add(construction.group);
+
     // 建物（選択で薄める・持ち上げる・当たり判定がある）・新アクセス路の上屋・橋・道の帯・駅（動かない）の部品を、
     // 建物をまたいで描き方の設定ごとに 1 つのメッシュにまとめる（staticBatches.ts）。建物と駅の元のメッシュは
     // 当たり判定に、建物の元のメッシュは選んで持ち上げている間の描画にも使うので、見えないまま残す
@@ -258,6 +265,7 @@ export class CampusScene {
       })),
       { root: canopiesGroup, pickable: false },
       { root: bridgesGroup, pickable: false },
+      { root: construction.fences, pickable: false },
     ];
     const pathsGroup = terrainGroup.getObjectByName(TERRAIN_PATHS_GROUP_NAME);
     if (pathsGroup) batchSources.push({ root: pathsGroup, pickable: false });
