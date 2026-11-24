@@ -23,6 +23,8 @@ test.describe('館内の L1 の画面の下書き（第1学舎）', () => {
     await expect(diagram).toBeVisible();
     await expect(page.getByRole('heading', { name: '第1学舎 棟と階のつながり' })).toBeVisible();
     await expect(page.locator('canvas')).toHaveCount(0);
+    // 公開の資料だけの学舎には「手元だけ」の札が出ない（docs/indoor-plan.md 3 節の手元だけの置き場）
+    await expect(page.getByTestId('l1-local-only')).toHaveCount(0);
 
     await expect(diagram.locator('[data-wing]')).toHaveCount(5);
     await expect(diagram.locator('[data-edge-id]')).toHaveCount(9);
