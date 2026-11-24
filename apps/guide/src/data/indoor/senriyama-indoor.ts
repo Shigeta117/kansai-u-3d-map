@@ -1702,7 +1702,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
-      '総合学生会館（メディアパーク凜風館）。1階に学生センター・学生相談室・コラボレーションコモンズ、2階に生協食堂、3階に生協総合サービスカウンター・物品売場、4階に小ホール・会議室・和室を備える。',
+      '総合学生会館（メディアパーク凜風館）。1階に学生センター・学生相談室・コラボレーションコモンズ（休止中）、2階に生協食堂、3階に生協総合サービスカウンター・物品売場、4階に小ホール・会議室・和室を備える。',
     floors: buildStandardFloors(4, 1, 0),
     entrances: [],
     connectors: [],
@@ -1717,12 +1717,24 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         access: 'unknown',
       },
       {
+        // 休止中なのはコラボレーションコモンズの部屋だけ（凜風館は開いている）。大学の一次資料（休止のお知らせ、2026-06-18、
+        // 誠之館群の建て替えのため）で 2026-08-01〜2029-03。画面には出典・年を出さない（docs/DATA_SOURCES.md 5 節）
         id: 'rmp-1f-commons',
-        code: '1F コラボコモンズ・ラウンジ',
-        name: 'コラボレーションコモンズ・学生ラウンジ',
+        code: '1F コラボレーションコモンズ',
+        name: 'コラボレーションコモンズ',
         floor: 1,
         kind: 'lounge',
-        searchableCodes: ['コラボレーションコモンズ', '学生ラウンジ'],
+        searchableCodes: ['コラボレーションコモンズ', 'コラボコモンズ'],
+        access: 'unknown',
+        note: '休止中',
+      },
+      {
+        id: 'rmp-1f-lounge',
+        code: '1F 学生ラウンジ',
+        name: '学生ラウンジ',
+        floor: 1,
+        kind: 'lounge',
+        searchableCodes: ['学生ラウンジ'],
         access: 'unknown',
       },
       {
