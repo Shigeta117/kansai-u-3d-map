@@ -258,6 +258,71 @@ export function isBuildingWithinDiorama(
   return true;
 }
 
+/** 灰色のシート（工事の足場ごと覆う）の色・広げ方。寸法は推定（足場は外壁から 0.6〜1m、上は屋上の手すりより少し高い） */
+const SHEET_WALL_HEX = '#B4B8B6';
+const SHEET_ROOF_HEX = '#9EA3A1';
+const SHEET_OFFSET_M = 0.8;
+const SHEET_EXTRA_HEIGHT_M = 1.2;
+let sheetTexture: THREE.CanvasTexture | null | undefined;
+
+function sheetedRoof(b: BuildingFeature): string | undefined {
+  return b.construction?.look === 'sheet' ? SHEET_ROOF_HEX : undefined;
+}
+
+/** シートの継ぎ目（横 1.8m・縦 1.8m おき）。押し出しの側面の UV は m 単位なので、repeat で 3.6m を 1 枚にする */
+function createSheetTexture(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = 'rgba(40, 46, 50, 0.16)';
+  for (const y of [0, size / 2]) ctx.fillRect(0, y, size, 2);
+  ctx.fillStyle = 'rgba(40, 46, 50, 0.08)';
+  for (const x of [0, size / 2]) ctx.fillRect(x, 0, 1, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1 / 3.6, 1 / 3.6);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 輪郭を外へ d m 広げる（角は留め継ぎ。鋭い角は 3d まで） */
+export function offsetPolygon(poly: [number, number][], d: number): [number, number][] {
+  let signed = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, z1] = poly[i]!;
+    const [x2, z2] = poly[(i + 1) % poly.length]!;
+    signed += x1 * z2 - x2 * z1;
+  }
+  // signed > 0 なら (x, z) の向きで反時計回り。外向きの法線は辺の向きを右へ 90° 回した向き
+  const outSign = signed > 0 ? -1 : 1;
+  const normal = (a: [number, number], b: [number, number]): [number, number] => {
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz) || 1;
+    return [(outSign * -dz) / len, (outSign * dx) / len];
+  };
+  return poly.map((v, i) => {
+    const prev = poly[(i - 1 + poly.length) % poly.length]!;
+    const next = poly[(i + 1) % poly.length]!;
+    const n1 = normal(prev, v);
+    const n2 = normal(v, next);
+    let mx = n1[0] + n2[0];
+    let mz = n1[1] + n2[1];
+    const ml = Math.hypot(mx, mz) || 1;
+    mx /= ml;
+    mz /= ml;
+    const cos = Math.max(1 / 3, mx * n1[0] + mz * n1[1]);
+    return [Number((v[0] + (mx * d) / cos).toFixed(3)), Number((v[1] + (mz * d) / cos).toFixed(3))];
+  });
+}
+
 export function buildBuildingsGroup(
   buildings: BuildingFeature[],
   minElevation: number,
@@ -408,14 +473,26 @@ export function buildBuildingsGroup(
     const areaRoofHex = roofOverride
       ? roofOverride
       : `#${new THREE.Color(areaWallHex).offsetHSL(0, -0.04, 0.04).getHexString()}`;
-    const aerialRoofHex = SENRIYAMA_AERIAL_ROOF_HEX[b.id];
+    const aerialRoofHex = sheetedRoof(b) ?? SENRIYAMA_AERIAL_ROOF_HEX[b.id];
     const roofHex =
-      (options.roofColorMode ?? 'aerial') === 'aerial' && aerialRoofHex ? aerialRoofHex : areaRoofHex;
+      sheetedRoof(b) ??
+      ((options.roofColorMode ?? 'aerial') === 'aerial' && aerialRoofHex ? aerialRoofHex : areaRoofHex);
 
+    // 工事の足場ごと灰色のシートで覆われた建物（closures.json の look: 'sheet'）は、シートの分だけ外へ広げ、上へ伸ばす
+    const sheeted = b.construction?.look === 'sheet';
     // 高さの違う塊に分かれる建物（BuildingFeature.parts）は塊ごとに押し出す。材質は同じ物を使い、部品をまとめる所で 1 つになる
-    const massings = b.parts?.length
-      ? b.parts.map((p) => createExtrudedBuildingGeometry({ ...b, polygon: p.polygon, holes: undefined, height: p.height }, minElevation, exag, true))
-      : [createExtrudedBuildingGeometry(b, minElevation, exag, true)];
+    const massings = sheeted
+      ? [
+          createExtrudedBuildingGeometry(
+            { ...b, polygon: offsetPolygon(b.polygon, SHEET_OFFSET_M), holes: undefined, height: b.height + SHEET_EXTRA_HEIGHT_M },
+            minElevation,
+            exag,
+            true,
+          ),
+        ]
+      : b.parts?.length
+        ? b.parts.map((p) => createExtrudedBuildingGeometry({ ...b, polygon: p.polygon, holes: undefined, height: p.height }, minElevation, exag, true))
+        : [createExtrudedBuildingGeometry(b, minElevation, exag, true)];
     const groundVisualY = massings[0]!.groundVisualY;
     const roofVisualY = Math.max(...massings.map((m) => m.roofVisualY));
 
@@ -425,12 +502,21 @@ export function buildBuildingsGroup(
       metalness: 0.03,
     });
     const roofEntry: MaterialColorEntry = { mat: roofMat, baseHex: roofHex };
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: wallHex,
-      roughness: 0.78,
-      metalness: 0.04,
-      ...(facadeTex ? { map: facadeTex } : {}),
-    });
+    const sheetTex = sheeted ? (sheetTexture ??= createSheetTexture()) : null;
+    const wallMat = sheeted
+      ? new THREE.MeshStandardMaterial({
+          color: SHEET_WALL_HEX,
+          roughness: 0.95,
+          metalness: 0,
+          ...(sheetTex ? { map: sheetTex } : {}),
+        })
+      : new THREE.MeshStandardMaterial({
+          color: wallHex,
+          roughness: 0.78,
+          metalness: 0.04,
+          ...(facadeTex ? { map: facadeTex } : {}),
+        });
+    const wallBaseHex = sheeted ? SHEET_WALL_HEX : wallHex;
 
     const bodyMaterials = options.forExport ? wallMat : [roofMat, wallMat];
     for (const { geometry } of massings) {
@@ -450,8 +536,8 @@ export function buildBuildingsGroup(
 
     root.add(bGroup);
     const primaryMaterials = options.forExport
-      ? [{ mat: wallMat, baseHex: wallHex }]
-      : [roofEntry, { mat: wallMat, baseHex: wallHex }];
+      ? [{ mat: wallMat, baseHex: wallBaseHex }]
+      : [roofEntry, { mat: wallMat, baseHex: wallBaseHex }];
     campusRecords.set(b.id, {
       ...finalized,
       building: b,
@@ -459,7 +545,7 @@ export function buildBuildingsGroup(
       primaryMaterials,
       allMaterials: collectAllMaterials(bGroup, primaryMaterials),
       baseY: 0,
-      roofColors: { entry: roofEntry, area: areaRoofHex, aerial: aerialRoofHex },
+      roofColors: { entry: roofEntry, area: sheetedRoof(b) ?? areaRoofHex, aerial: aerialRoofHex },
     });
   }
 
@@ -488,6 +574,9 @@ export function buildBuildingsGroup(
 
 /** 薄める強さ（台の色へ寄せる割合） */
 const DIM_AMOUNT = 0.65;
+/** 工事の範囲の中の建物（closures.json の closed）を薄くする強さと寄せる色。シートで覆った建物は除く（シートの色そのものが目印） */
+const CONSTRUCTION_FADE_AMOUNT = 0.55;
+const CONSTRUCTION_FADE_HEX = '#FCFBF8';
 
 export type BuildingVisualOptions = Partial<Pick<SelectionLook, 'lift' | 'dimOthers'>>;
 
@@ -505,17 +594,24 @@ export function applyBuildingVisualStates(
   options: BuildingVisualOptions = {},
 ): void {
   const dimTarget = new THREE.Color(SCENE_PALETTE.selection.dimTarget);
+  const fadeTarget = new THREE.Color(CONSTRUCTION_FADE_HEX);
 
   for (const [id, rec] of records.entries()) {
     const isSelected = id === selectedId;
     const filteredOut = activeCategory !== 'all' && rec.building.category !== activeCategory;
     const isDimmed = !isSelected && (filteredOut || (Boolean(options.dimOthers) && selectedId !== null));
+    const construction = rec.building.construction;
+    const isFaded = construction?.state === 'closed' && construction.look !== 'sheet';
 
     for (const entry of rec.allMaterials) {
       const mat = entry.mat;
       const glow = entry.baseEmissiveIntensity ?? mat.emissiveIntensity;
       mat.color.set(entry.baseHex);
       mat.emissiveIntensity = glow;
+      if (isFaded) {
+        mat.color.lerp(fadeTarget, CONSTRUCTION_FADE_AMOUNT);
+        mat.emissiveIntensity = glow * (1 - CONSTRUCTION_FADE_AMOUNT);
+      }
       if (isDimmed) {
         mat.color.lerp(dimTarget, DIM_AMOUNT);
         mat.emissiveIntensity = glow * (1 - DIM_AMOUNT);
