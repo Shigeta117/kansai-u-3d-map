@@ -64,6 +64,11 @@ export interface Wing {
   entrances: BuildingEntrance[];
   /** 検索で棟に当てる別名（学舎・号館・棟の名前の組み合わせは wingSearchAliases が作るので、それ以外だけ） */
   aliases?: string[];
+  /**
+   * 部外者・学部生が入れない棟（第4学舎2号館の研究棟など）。棟の名前と階の数だけを持ち、部屋・入口などの館内の情報は
+   * 載せない（docs/indoor-plan.md 3 節の「公開されていない区域」）。建物シートは部屋の一覧の代わりに短い断り書きを出す
+   */
+  restricted?: boolean;
   note?: string;
 }
 

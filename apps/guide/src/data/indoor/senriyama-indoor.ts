@@ -1458,17 +1458,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         access: 'unknown',
       },
       {
-        id: 'a4-2-res-b1-5f',
-        code: 'B1F〜5F 研究棟・建築設計製図室',
-        name: '2号館（研究棟）：透過型電子顕微鏡室・高磁場NMR室・高分子/触媒/材料/環境/都市/建築計画各研究室・5F建築設計製図室',
-        floor: 5,
-        wing: '④2号館（研究棟）',
-        wingId: 'area4-h2r',
-        kind: 'lab',
-        searchableCodes: ['建築設計製図室', '高磁場NMR室', '電子顕微鏡室'],
-        access: 'unknown',
-      },
-      {
+        // ⑤研究棟別館。この前にあった ④研究棟（area4-h2r）の部屋は載せない（部外者・学部生は入れない区域。docs/indoor-plan.md 3 節、持ち主の決め 2026-11-24）
         id: 'a4-2-annex',
         code: 'B1F〜1F 物理実験場',
         name: '2号館（研究棟別館）：物理実験場・超音波物理・量子放射光物理研究室',

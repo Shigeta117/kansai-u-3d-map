@@ -67,3 +67,41 @@ test.describe('第3学舎の棟を選ぶ', () => {
     await expect(sheet.getByText('C401〜C404', { exact: true })).toHaveCount(0);
   });
 });
+
+// 第4学舎2号館の研究棟は部外者・学部生が入れないので、館内の情報を載せない（docs/indoor-plan.md 3 節、持ち主の決め 2026-11-24）
+test.describe('第4学舎2号館の研究棟', () => {
+  const consoleErrors: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    consoleErrors.length = 0;
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+    page.on('pageerror', (err) => consoleErrors.push(err.message));
+    await page.goto('/');
+    await expect(page.locator('canvas')).toBeVisible();
+  });
+
+  test.afterEach(() => {
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('研究棟の部屋は検索にも建物シートにも出ない（教室棟と研究棟別館の部屋は出る）', async ({ page }) => {
+    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
+    // 前に載っていた研究棟の部屋の名前で探しても、どこにも当たらない
+    await search.fill('高磁場NMR室');
+    await expect(page.getByText('一致する建物・教室が見つかりません')).toBeVisible();
+    await expect(page.getByRole('option')).toHaveCount(0);
+
+    await search.fill('第4学舎2号館');
+    await page.getByRole('option', { name: /第4学舎 ?2号館/ }).first().click();
+    const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
+    await expect(sheet.getByRole('heading', { name: '第4学舎 2号館' })).toBeVisible();
+    await sheet.getByRole('tab', { name: 'フロア・教室' }).click();
+    await expect(sheet.getByText('2101〜2106／4ST', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('B1F〜1F 物理実験場', { exact: true })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: '③2号館（教室棟）' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: /研究棟）$/ })).toHaveCount(0);
+    await expect(sheet.getByText(/高磁場NMR室|建築設計製図室/)).toHaveCount(0);
+  });
+});
