@@ -24,6 +24,9 @@ import type { HeroBuilder } from './types';
  * - 国土地理院の空中写真（2017 年 4 月）: 白い大屋根が輪郭の長方形（約 66×55m）を覆う。南東の面の前に濃い灰色の
  *   屋根の付属棟（v 11〜42）。その南東の面の中ほど（v 20.7〜31.3）に、白い枠の小さな屋根（約 4×11m）＝入口の庇。
  *   大屋根と付属棟の間は影の帯。北西の面の前の細長い張り出し（OSM の輪郭で奥行き 6.8m）は濃い色の屋根
+ * - 持ち主の写真（2026-11-24）IMG_3393〜3395（北西の道から裏側）: 北西の張り出しは明るい灰色のタイルの高い箱
+ *   （約 11m。裏側の凸状の出っ張り）。北西の面の南西寄りの高い所に横長の小さな窓、北東寄りに奥まった戸口。
+ *   その上の妻面は縦の筋の入った明るい灰色の金属の板で、縁に濃い灰色の帯
  *
  * 座標: OSM の輪郭（way 423067235）の北の角 (109.85, −220.9) を原点に、北東の辺の向き（南東へ）を u、
  * それに直角に南西へ v。大屋根の長方形は u 0〜65.9・v 0〜54.6。高さは入口の前の広場の地面からの m（強調しない）
@@ -53,8 +56,17 @@ const SE_HIP_LENGTH_M = 10.0;
 const VERGE_DEPTH_M = 1.2;
 const VERGE_PROJECTION_M = 0.45;
 
-/** 北西の張り出し（OSM の輪郭。u −6.8〜0、v 4.3〜48.3）。高さはイラストの低い箱から推定 */
-const NW_ANNEX = { u0: -6.8, v0: 4.3, v1: 48.3, height: 7.0 } as const;
+/**
+ * 北西の張り出し（OSM の輪郭。u −6.8〜0、v 4.3〜48.3）。体育館の裏側の凸状の出っ張り。
+ * 持ち主の写真（2026-11-24、IMG_3393〜3395。北西の道から）で、アリーナと同じ明るい灰色のタイル（れんが形）の高い箱。
+ * 高さ 11.0m は、壁ぎわのトラック（高さ 約 1.9m）を物差しに撮影の位置と向きを合わせて読んだ推定（10.7〜11.8m）。
+ * それまではイラストの低い箱から 7.0m としていた。調べた事は docs/visual-research/central-gym.md の 7 節
+ */
+const NW_ANNEX = { u0: -6.8, v0: 4.3, v1: 48.3, height: 11.0 } as const;
+/** 北西の張り出しの北西の面の、横長の小さな窓（IMG_3393〜3395。位置と大きさは推定） */
+const NW_WINDOW = { v0: 39.0, v1: 41.3, bottom: 6.9, top: 8.1 } as const;
+/** 北西の張り出しの北西の面の、北東寄りの奥まった戸口（IMG_3393。位置と大きさは推定） */
+const NW_DOORWAY = { v0: 30.0, v1: 31.8, top: 3.6 } as const;
 
 /**
  * 南東の付属棟（OSM の輪郭の段々の張り出し。空中写真の濃い灰色の屋根）。
@@ -293,7 +305,8 @@ export const buildCentralGym: HeroBuilder = (ctx) => {
   const eaveY = ref + EAVE_M;
   pushBox({ sides: wall, top: null }, 0, LENGTH_M, bottom, eaveY - 0.02, 0, WIDTH_M);
   const main = vaultFor(0, WIDTH_M, eaveY, eaveY + VAULT_RISE_M);
-  pushTympanum(wall, main, 0, WIDTH_M, eaveY - 0.02, 0, -1);
+  // 妻面は屋根と同じ金属（IMG_3393・3394 で縦の筋の入った明るい灰色の板。タイルではない）
+  pushTympanum(vault, main, 0, WIDTH_M, eaveY - 0.02, 0, -1);
 
   // ── かまぼこ屋根（金属の殻）。南東の端は軒の高さまで下げる。北西の妻の縁の濃い灰色の帯、軒の帯 ──
   const shellU0 = -SHELL_END_OVERHANG_M;
@@ -314,9 +327,25 @@ export const buildCentralGym: HeroBuilder = (ctx) => {
     pushBox({ sides: dark, top: dark, bottom: dark }, shellU1 - 0.25, shellU1 + 0.12, edgeY - 0.75, edgeY + 0.08, firstEdge.edgeV - 0.12, lastEdge.edgeV + 0.12);
   }
 
-  // ── 北西の低い張り出し（濃い色の陸屋根） ──
-  const nwTop = groundAt((NW_ANNEX.u0 + 0) / 2, (NW_ANNEX.v0 + NW_ANNEX.v1) / 2) + NW_ANNEX.height;
+  // ── 北西の張り出し（裏側の凸。タイルの高い箱、濃い色の陸屋根）と、北西の面の小さな窓・奥まった戸口 ──
+  const nwGround = groundAt((NW_ANNEX.u0 + 0) / 2, (NW_ANNEX.v0 + NW_ANNEX.v1) / 2);
+  const nwTop = nwGround + NW_ANNEX.height;
   pushBox({ sides: wall, top: dark, skip: ['+u'] }, NW_ANNEX.u0, 0.05, bottom, nwTop, NW_ANNEX.v0, NW_ANNEX.v1);
+  const nwFace = NW_ANNEX.u0 - 0.03;
+  glass.quad(
+    [nwFace, nwGround + NW_WINDOW.bottom, NW_WINDOW.v0],
+    [nwFace, nwGround + NW_WINDOW.bottom, NW_WINDOW.v1],
+    [nwFace, nwGround + NW_WINDOW.top, NW_WINDOW.v1],
+    [nwFace, nwGround + NW_WINDOW.top, NW_WINDOW.v0],
+    [-1, 0, 0],
+  );
+  glass.quad(
+    [nwFace, nwGround - 0.05, NW_DOORWAY.v0],
+    [nwFace, nwGround - 0.05, NW_DOORWAY.v1],
+    [nwFace, nwGround + NW_DOORWAY.top, NW_DOORWAY.v1],
+    [nwFace, nwGround + NW_DOORWAY.top, NW_DOORWAY.v0],
+    [-1, 0, 0],
+  );
 
   // ── 南東の付属棟: 庇のある高い壁（上端は北東へ下がる片流れ）と、低い部分・南西のわきの高い面 ──
   const tallTop = (v: number): number =>
