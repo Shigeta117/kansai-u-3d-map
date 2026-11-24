@@ -390,6 +390,7 @@ export function App() {
               mode={routeMode}
               pickingTarget={pickingTarget}
               route={activeRoute}
+              closures={dataset.closures}
               initialSnap={routeSheetSnap}
               onSheetHeightChange={setRouteSheetHeight}
               onChangeOrigin={setOriginSelection}

@@ -43,6 +43,12 @@ export interface ClosureEntrance {
   note?: string;
 }
 
+/** 封鎖のため、段差の無い経路が無くなった建物（画面に理由の一言を出す） */
+export interface ClosureNoStepFree {
+  buildingId: string;
+  note?: string;
+}
+
 export interface CampusClosure {
   id: string;
   name: string;
@@ -61,6 +67,8 @@ export interface CampusClosure {
   walk: {
     toleranceM: number;
     passages: ClosurePassage[];
+    /** 封鎖で段差の無い経路が無くなった建物（行き先にすると段差フリーの理由に封鎖を出す） */
+    noStepFree?: ClosureNoStepFree[];
     /** 範囲の中に入った入口の付け替え先 */
     entrances: ClosureEntrance[];
   };
@@ -77,6 +85,19 @@ export interface BuildingConstruction {
   label: string;
   asOfLabel: string;
   look?: ClosureBuilding['look'];
+}
+
+/** 段差フリーで経路が引けない理由が封鎖のとき、画面に出す一言。当てはまらなければ null */
+export function stepFreeClosureMessage(
+  closures: readonly CampusClosure[],
+  buildingIds: readonly string[],
+): string | null {
+  for (const c of closures) {
+    if (c.walk.noStepFree?.some((n) => buildingIds.includes(n.buildingId))) {
+      return `工事のため、今は段差の無い経路がありません（${c.asOfLabel}）`;
+    }
+  }
+  return null;
 }
 
 export function edgeKey(a: string, b: string): string {
