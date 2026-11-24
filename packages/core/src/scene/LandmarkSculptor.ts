@@ -65,6 +65,39 @@ function analyzeFootprint(
   };
 }
 
+function pointInPolygon(x: number, z: number, ring: readonly [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (!a || !b) continue;
+    if (a[1] > z !== b[1] > z && x < ((b[0] - a[0]) * (z - a[1])) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
+/** (cx, cz) を中心に y 軸で angle 回した幅 w・奥行き d の箱の、角・辺の中点・中心が輪郭の中か */
+export function rotatedBoxInsidePolygon(
+  polygon: readonly [number, number][],
+  cx: number,
+  cz: number,
+  angle: number,
+  w: number,
+  d: number,
+): boolean {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  for (const fu of [-0.5, 0, 0.5]) {
+    for (const fv of [-0.5, 0, 0.5]) {
+      const lx = fu * w;
+      const lz = fv * d;
+      // three の rotation.y と同じ回し方（x' = x cos + z sin、z' = −x sin + z cos）
+      if (!pointInPolygon(cx + lx * cos + lz * sin, cz - lx * sin + lz * cos, polygon)) return false;
+    }
+  }
+  return true;
+}
+
 export function sculptLandmarkDetails(
   building: BuildingFeature,
   roofY: number,
@@ -352,6 +385,9 @@ export function sculptLandmarkDetails(
 
       const pW = Math.min(fp.width * 0.46, 17);
       const pD = Math.min(fp.depth * 0.4, 10.5);
+      // 塔屋の箱は重心に置くので、中庭を囲む形（第4学舎2号館）では輪郭の外（隣の建物の屋上や中庭の上）に浮く。
+      // 箱の角・辺の中点・中心のどれかが輪郭の外に出るなら置かない（写真に無い物を輪郭の外に置かない）
+      if (!rotatedBoxInsidePolygon(building.polygon, cx, cz, fp.angle, pW, pD)) break;
       const penthouse = new THREE.Mesh(new THREE.BoxGeometry(pW, 1.8, pD), trimMat);
       penthouse.position.set(0, 0.9, 0);
       penthouse.castShadow = true;
