@@ -10,6 +10,7 @@ import { buildLibrary } from './library';
 import { buildMainGate } from './mainGate';
 import { buildRimpukan } from './rimpukan';
 import { buildSymphonyHall } from './symphonyHall';
+import { buildTakamatsuzuka } from './takamatsuzuka';
 import type { HeroBuilder } from './types';
 
 export type { HeroBuildContext, HeroBuildResult, HeroBuilder } from './types';
@@ -31,4 +32,6 @@ export const HERO_BUILDERS: Readonly<Record<string, HeroBuilder>> = {
   'main-gate': buildMainGate,
   rimpukan: buildRimpukan,
   'seishikan-4': buildSymphonyHall,
+  // 高松塚古墳壁画再現展示室（目印ではなく、輪郭の名前の上書きで名前を付けた OSM の輪郭なので id は way の番号）
+  way_819790896: buildTakamatsuzuka,
 };
