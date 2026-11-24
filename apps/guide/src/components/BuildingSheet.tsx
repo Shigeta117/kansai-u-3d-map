@@ -149,7 +149,9 @@ export function BuildingSheet({
 
   // 建物が棟を持てば（第3学舎）、棟の絞り込みは選んでいる棟（地図の光らせ方と同じ）に従う。持たなければシートの中だけの絞り込み
   const wingControlled = Boolean(onSelectWing) && (target?.wings?.length ?? 0) > 0;
-  const activeWing = wingControlled ? findWing(target, wing?.id) : null;
+  // 棟が 1 つだけの建物（部外者・学部生が入れない棟の輪郭。第4学舎2号館の研究棟別館）は、いつもその棟を選んでいる
+  const soleWing = wingControlled && target?.wings?.length === 1 ? (target.wings[0] ?? null) : null;
+  const activeWing = wingControlled ? (findWing(target, wing?.id) ?? soleWing) : null;
   // 地図で選んでいる棟が無ければ、シートの中だけの絞り込み（建物に部屋がまとめてある別の輪郭の棟。第4学舎2号館の研究棟別館など）
   const wingFilter: string | 'all' = activeWing?.id ?? selectedWing;
   // 選んでいる階がその棟に無ければ（棟を替えたとき）、全フロアに戻して見せる
@@ -170,17 +172,22 @@ export function BuildingSheet({
     }
     const fromRooms = [...seen].map(([key, label]) => ({ key, label }));
     if (!buildingWings || buildingWings.length === 0) return fromRooms;
-    const ids = new Set(buildingWings.map((w) => w.id));
+    // 地図では別の輪郭の棟（研究棟別館）もボタンに並べる。押すとシートの中だけの絞り込み
+    const listed = target?.sheetWings ?? [];
+    const own = [...buildingWings, ...listed];
+    const ids = new Set(own.map((w) => w.id));
     return [
-      ...buildingWings.map((w) => ({ key: w.id, label: wingLabel(w) })),
+      ...own.map((w) => ({ key: w.id, label: wingLabel(w) })),
       ...fromRooms.filter((x) => !ids.has(x.key)),
     ];
-  }, [floorPlan, buildingWings]);
+  }, [floorPlan, buildingWings, target?.sheetWings]);
 
   // 階のボタンは、棟を選んでいればその棟の階だけ
   const floorChips = (floorPlan?.floors ?? []).filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor));
   // 部外者・学部生が入れない棟（研究棟など）を選んでいれば、番号規則・階・部屋の代わりに断り書きだけを出す（docs/indoor-plan.md 3 節）
-  const restrictedWing = activeWing?.restricted ? activeWing : null;
+  const restrictedWing =
+    (activeWing?.restricted ? activeWing : null) ??
+    (!activeWing ? (target?.sheetWings?.find((w) => w.id === selectedWing && w.restricted) ?? null) : null);
 
   const chooseWing = (key: string | 'all') => {
     if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
@@ -260,7 +267,7 @@ export function BuildingSheet({
 
   // 見出し: 棟を選んでいれば棟の名前（例: 第3学舎 3号館 C棟）
   const title = activeWing ? wingTitle(activeWing) : target.name;
-  const wholeBuildingRow = activeWing ? (
+  const wholeBuildingRow = activeWing && !soleWing ? (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#5F6875]">
       <span className="min-w-0">{target.name}の棟</span>
       <button

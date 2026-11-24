@@ -1397,7 +1397,7 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
     sourceUrl: KANCAN_SOURCE_URL,
     sourceUpdatedAt: KANCAN_UPDATED,
     summaryNote:
-      '第4学舎2号館（③教室棟・④研究棟・⑤研究棟別館）。2101〜2502教室、情報処理室（4ST）、第2製図室、OD1・OD2教室を備える。研究棟は部外者・学部生が入れないため、館内の情報は載せない。',
+      '第4学舎2号館（③教室棟・④研究棟・⑤研究棟別館）。2101〜2502教室、情報処理室（4ST）、第2製図室、OD1・OD2教室を備える。研究棟と研究棟別館は部外者・学部生が入れないため、館内の情報は載せない。',
     floors: buildStandardFloors(5, 1, 1),
     entrances: [],
     connectors: [BF_A4_24_B1, BF_A4_24_1F, BF_A4_24_2F, BF_A4_24_3F],
@@ -1455,18 +1455,6 @@ export const SENRIYAMA_FLOOR_PLANS: Record<string, BuildingFloorPlan> = {
         wingId: 'area4-h2',
         kind: 'lecture',
         searchableCodes: ['2501', '2502', 'OD1', 'OD2', '第2製図室'],
-        access: 'unknown',
-      },
-      {
-        // ⑤研究棟別館。この前にあった ④研究棟（area4-h2r）の部屋は載せない（部外者・学部生は入れない区域。docs/indoor-plan.md 3 節、持ち主の決め 2026-11-24）
-        id: 'a4-2-annex',
-        code: 'B1F〜1F 物理実験場',
-        name: '2号館（研究棟別館）：物理実験場・超音波物理・量子放射光物理研究室',
-        floor: 1,
-        wing: '⑤2号館（研究棟別館）',
-        wingId: 'area4-h2a',
-        kind: 'lab',
-        searchableCodes: ['物理実験場'],
         access: 'unknown',
       },
     ],

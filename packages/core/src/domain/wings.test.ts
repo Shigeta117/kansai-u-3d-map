@@ -3,6 +3,7 @@ import type { BuildingFeature } from './types';
 import {
   findWing,
   findWingAt,
+  joinSheetWings,
   joinBuildingWings,
   pickableWingBuildingIds,
   WING_ID_RULE,
@@ -84,6 +85,21 @@ describe('棟（館内の単位）と建物との対応', () => {
       { wingId: 'area6-b', buildingId: 'half' },
     ]);
     expect([...pickable]).toEqual(['split']);
+  });
+
+  it('also lets the map pick the only wing of a building when the wing is restricted', () => {
+    const links = [
+      { wingId: 'area8-a', buildingId: 'single' },
+      { wingId: 'area8-b', buildingId: 'single-restricted', alsoListedIn: 'host' },
+    ];
+    expect([...pickableWingBuildingIds(links, [{ id: 'area8-b', restricted: true }])]).toEqual(['single-restricted']);
+    expect([...pickableWingBuildingIds(links)]).toEqual([]);
+    const wings = [
+      { id: 'area8-a', school: 's', name: 'a', floorsAbove: 1, floorsBelow: 0, entrances: [] },
+      { id: 'area8-b', school: 's', name: 'b', floorsAbove: 1, floorsBelow: 0, entrances: [], restricted: true },
+    ];
+    expect(joinSheetWings(wings, links).get('host')?.map((w) => w.id)).toEqual(['area8-b']);
+    expect(joinSheetWings(wings, links).size).toBe(1);
   });
 
   it('tells which wing region a point on the building is in', () => {

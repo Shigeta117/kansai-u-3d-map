@@ -338,6 +338,14 @@ describe('第4学舎2号館の棟の検索（号館に棟が 2 つ）', () => {
     }
   });
 
+  it('finds 研究棟別館 as the wing of its own outline, not of 2号館', () => {
+    expect(searchLocationItems(buildings, {}, '研究棟別館')[0]).toMatchObject({
+      buildingId: 'way_624663829',
+      wingId: 'area4-h2a',
+      title: '第4学舎 2号館 研究棟別館',
+    });
+  });
+
   it.each([
     ['研究棟', 'area4-h2r', '第4学舎 2号館 研究棟'],
     ['2号館研究棟', 'area4-h2r', '第4学舎 2号館 研究棟'],

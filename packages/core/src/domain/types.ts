@@ -174,6 +174,8 @@ export interface BuildingFeature {
    * 読み込み時に data/campuses/<キャンパス>/wings.ts から付ける（buildings.json には無い）
    */
   wings?: BuildingWing[];
+  /** 地図では別の輪郭の棟で、この建物のシートにも棟のボタンとして並べる棟（WingBuildingLink.alsoListedIn） */
+  sheetWings?: BuildingWing[];
 }
 
 export type LandcoverKind =
