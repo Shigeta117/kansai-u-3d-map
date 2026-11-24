@@ -105,10 +105,10 @@ function shellTriangles(shell: THREE.BufferGeometry): THREE.Triangle[] {
 const areaOf = (tris: THREE.Triangle[]): number => tris.reduce((s, t) => s + t.getArea(), 0);
 
 describe('URL の sel=（選んだ建物の見た目を比べる）', () => {
-  it('reads the default (outline + fill, no lift) when sel is missing or empty', () => {
+  it('reads the default chosen by the owner (amber outline + fill + lift) when sel is missing or empty', () => {
     expect(parseSelectionLook(null)).toEqual(DEFAULT_SELECTION_LOOK);
     expect(parseSelectionLook('')).toEqual(DEFAULT_SELECTION_LOOK);
-    expect(DEFAULT_SELECTION_LOOK).toMatchObject({ outline: 'hull', fill: true, lift: false, dimOthers: false });
+    expect(DEFAULT_SELECTION_LOOK).toEqual({ outline: 'hull', outlineColor: 'amber', fill: true, lift: true, dimOthers: false });
   });
 
   it('turns on only the listed elements', () => {
