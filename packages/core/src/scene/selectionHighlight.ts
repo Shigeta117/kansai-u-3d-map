@@ -34,7 +34,7 @@ export interface SelectionLook {
 }
 
 /**
- * 既定: 輪郭（琥珀）＋薄い塗り＋持ち上げ。持ち主が 2026-11-24 に選んだ（「持ち上げ気持ちよかった」）。
+ * 既定: 輪郭（琥珀）＋薄い塗り＋持ち上げ。持ち主が 2026-11-24 に選んだ。
  * 選ばなかった案: 輪郭を墨にする・持ち上げない・選んでいない建物を薄くする（sel= で今も比べられる）
  */
 export const DEFAULT_SELECTION_LOOK: Readonly<SelectionLook> = {
