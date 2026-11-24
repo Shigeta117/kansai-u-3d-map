@@ -258,7 +258,7 @@ export function RoutePanel({
       {/* Mode-specific Reference Notes */}
       {mode === 'step-free' && (
         <p className="rounded-xl border border-[#C7E2E7] bg-[#EEF7F9] px-3 py-2 text-[11px] leading-relaxed text-[#1E5663]">
-          OpenStreetMap の階段・エスカレーターの情報だけで選んだ参考ルートです。情報の無い段差・工事・エレベーターの運用時間は反映していません。
+          OpenStreetMap の階段・エスカレーターの情報だけで選んだ参考ルートです。情報の無い段差・エレベーターの運用時間は反映していません。工事は誠之館の建て替えの囲いだけ反映しています。
         </p>
       )}
 
