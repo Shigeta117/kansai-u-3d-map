@@ -320,3 +320,29 @@ describe('第3学舎の棟の検索（その棟を選んだ状態で開く）', 
     expect(searchLocationItems(buildings, plans, 'C棟', 'area3')[0]?.wingId).toBe('area3-c');
   });
 });
+
+describe('第4学舎2号館の棟の検索（号館に棟が 2 つ）', () => {
+  const buildings = applyBuildingWings(
+    JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), 'public/data/senriyama/buildings.json'), 'utf8'),
+    ) as BuildingFeature[],
+  );
+
+  it('puts the building, not one of its wings, first for the hall name ("2号館" is shared by 教室棟 and 研究棟)', () => {
+    for (const q of ['第4学舎2号館', '第4学舎 2号館']) {
+      const res = searchLocationItems(buildings, {}, q);
+      expect(res[0], q).toMatchObject({ kind: 'building', buildingId: 'area4-2' });
+      expect(res[0]?.wingId, q).toBeUndefined();
+      // 2 つの棟は建物の下に出る（頭の一致）
+      expect(res.filter((i) => i.key.startsWith('wing:area4-2:')).map((i) => i.wingId)).toEqual(['area4-h2', 'area4-h2r']);
+    }
+  });
+
+  it.each([
+    ['研究棟', 'area4-h2r', '第4学舎 2号館 研究棟'],
+    ['2号館研究棟', 'area4-h2r', '第4学舎 2号館 研究棟'],
+    ['教室棟', 'area4-h2', '第4学舎 2号館 教室棟'],
+  ])('puts the wing first for "%s"', (q, wingId, title) => {
+    expect(searchLocationItems(buildings, {}, q)[0]).toMatchObject({ buildingId: 'area4-2', wingId, title });
+  });
+});

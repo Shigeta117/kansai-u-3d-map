@@ -162,14 +162,20 @@ export function searchBuildings(
 /**
  * 棟の名前で検索したときの点数（0 は当たらない）。名前がそのまま一致すれば 140（部屋の番号の一致 142 のすぐ下で、
  * 棟の名前を含む部屋〈64〉より上）、2 文字以上の頭の一致は 85。学舎の名前（'第3学舎'）だけでは棟を出さない
- * （建物の候補の下に 4 棟が並ばないように）
+ * （建物の候補の下に 4 棟が並ばないように）。sharedAliases（正規化した別名）は、同じ建物のほかの棟と同じ別名なので
+ * そのままの一致には数えない（第4学舎2号館の教室棟と研究棟の '2号館' は建物の名前で、どちらかの棟ではない）
  */
-export function scoreWingMatch(wing: Wing, normalizedQuery: string): number {
+export function scoreWingMatch(
+  wing: Wing,
+  normalizedQuery: string,
+  sharedAliases: ReadonlySet<string> = new Set(),
+): number {
   if (normalizedQuery.length < 2) return 0;
   const school = normalizeSearchText(wing.school);
   let best = 0;
   for (const alias of wingSearchAliases(wing)) {
     const a = normalizeSearchText(alias);
+    if (sharedAliases.has(a)) continue;
     if (a === normalizedQuery) return 140;
     if (a.startsWith(normalizedQuery)) {
       const onlySchoolName = school.length > 0 && a.startsWith(school) && normalizedQuery.length <= school.length;
@@ -215,8 +221,9 @@ export function searchLocationItems(
   if (normalized.length > 0) {
     // 建物の中の棟（第3学舎の A〜D棟など）。選ぶとその棟を選んだ状態で開く
     for (const b of matchedBuildingsForWings(buildings, categoryFilter)) {
+      const shared = sharedWingAliases(b.wings ?? []);
       for (const wing of b.wings ?? []) {
-        const score = scoreWingMatch(wing, normalized);
+        const score = scoreWingMatch(wing, normalized, shared);
         if (score <= 0) continue;
         items.push({
           item: {
@@ -327,6 +334,15 @@ export function searchLocationItems(
 
   items.sort((a, b) => b.score - a.score);
   return items.map((x) => x.item);
+}
+
+/** 同じ建物の 2 つ以上の棟に共通する別名（正規化した物。号館に棟が複数ある所の '2号館' など） */
+function sharedWingAliases(wings: readonly Wing[]): Set<string> {
+  const count = new Map<string, number>();
+  for (const wing of wings) {
+    for (const a of new Set(wingSearchAliases(wing).map(normalizeSearchText))) count.set(a, (count.get(a) ?? 0) + 1);
+  }
+  return new Set([...count].filter(([, n]) => n >= 2).map(([a]) => a));
 }
 
 /** 棟を持つ建物（検索の対象で、カテゴリの絞り込みに合う物） */

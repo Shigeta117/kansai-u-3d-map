@@ -150,7 +150,8 @@ export function BuildingSheet({
   // 建物が棟を持てば（第3学舎）、棟の絞り込みは選んでいる棟（地図の光らせ方と同じ）に従う。持たなければシートの中だけの絞り込み
   const wingControlled = Boolean(onSelectWing) && (target?.wings?.length ?? 0) > 0;
   const activeWing = wingControlled ? findWing(target, wing?.id) : null;
-  const wingFilter: string | 'all' = wingControlled ? (activeWing?.id ?? 'all') : selectedWing;
+  // 地図で選んでいる棟が無ければ、シートの中だけの絞り込み（建物に部屋がまとめてある別の輪郭の棟。第4学舎2号館の研究棟別館など）
+  const wingFilter: string | 'all' = activeWing?.id ?? selectedWing;
   // 選んでいる階がその棟に無ければ（棟を替えたとき）、全フロアに戻して見せる
   const floorFilter: number | 'all' =
     selectedFloor !== 'all' && activeWing && !wingHasFloor(activeWing, selectedFloor) ? 'all' : selectedFloor;
@@ -171,7 +172,7 @@ export function BuildingSheet({
     if (!buildingWings || buildingWings.length === 0) return fromRooms;
     const ids = new Set(buildingWings.map((w) => w.id));
     return [
-      ...buildingWings.map((w) => ({ key: w.id, label: seen.get(w.id) ?? wingLabel(w) })),
+      ...buildingWings.map((w) => ({ key: w.id, label: wingLabel(w) })),
       ...fromRooms.filter((x) => !ids.has(x.key)),
     ];
   }, [floorPlan, buildingWings]);
@@ -183,8 +184,11 @@ export function BuildingSheet({
 
   const chooseWing = (key: string | 'all') => {
     if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
+      setSelectedWing('all');
       onSelectWing(key === 'all' ? null : key);
     } else {
+      // 地図で押して選べない棟（部屋だけがこの建物にまとめてある棟）は、地図の棟の選択を外してシートの中だけで絞る
+      if (wingControlled && onSelectWing && activeWing) onSelectWing(null);
       setSelectedWing(key);
     }
   };

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { getCampusConfig } from '../domain/campus-registry';
+import { findWingAt, wingRegionContains } from '../domain/wings';
 import { applyBuildingWings } from '../data/loadCampusData';
 import type { BuildingFeature, TerrainGrid } from '../domain/types';
 import { applyBuildingVisualStates, applyRoofColorMode, buildBuildingsGroup } from './BuildingBuilder';
@@ -124,6 +125,32 @@ describe('建物をまたいだまとめ（buildStaticBatches）', () => {
       }
     }
     expect([...found].sort()).toEqual(['area3-a', 'area3-b', 'area3-c', 'area3-d']);
+  });
+
+  it('第4学舎2号館は、屋根を真上から押した所が入る塊の範囲の棟（教室棟か研究棟）に決まる', () => {
+    const rec = built.campusRecords.get('area4-2');
+    expect([...(rec?.wingShells?.keys() ?? [])].sort()).toEqual(['area4-h2', 'area4-h2r']);
+    if (!rec) return;
+    scene.updateMatrixWorld(true);
+    const raycaster = new THREE.Raycaster();
+    const counts = new Map<string, number>();
+    const box = new THREE.Box3().setFromObject(rec.group);
+    for (let x = box.min.x; x <= box.max.x; x += 3) {
+      for (let z = box.min.z; z <= box.max.z; z += 3) {
+        raycaster.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+        const hit = raycaster.intersectObjects(built.interactiveMeshes, false)[0];
+        if (hit?.object.userData.buildingId !== 'area4-2') continue;
+        const pick = resolveBuildingPick(hit, raycaster, (id) => built.campusRecords.get(id));
+        const expected = findWingAt(rec.building, hit.point.x, hit.point.z)?.id;
+        // 境目の線の上（両方の範囲に入る）は飛ばす
+        const both = (rec.building.wings ?? []).filter((w) => wingRegionContains(w.region, hit.point.x, hit.point.z));
+        if (both.length !== 1) continue;
+        expect(pick?.wingId, `${x.toFixed(1)},${z.toFixed(1)}`).toBe(expected);
+        if (pick?.wingId) counts.set(pick.wingId, (counts.get(pick.wingId) ?? 0) + 1);
+      }
+    }
+    expect(counts.get('area4-h2') ?? 0).toBeGreaterThan(100);
+    expect(counts.get('area4-h2r') ?? 0).toBeGreaterThan(100);
   });
 
   it('光らせる・薄める・屋根の色の切り替えは、元の材質の値がテクスチャに写る', () => {
