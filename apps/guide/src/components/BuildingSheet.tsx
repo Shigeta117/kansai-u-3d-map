@@ -160,7 +160,7 @@ export function BuildingSheet({
 
   /**
    * 部屋の棟の絞り込みの鍵: 棟の id があれば id、無ければ棟の表示の名前。
-   * 地図で押して選べる棟は、部屋が 1 件も無くても（館内の情報を載せない研究棟など）ボタンに出す。並びは建物の棟の順
+   * 地図で押して選べる棟は、部屋が 1 件も無くてもボタンに出す。並びは建物の棟の順
    */
   const buildingWings = wingControlled ? target?.wings : undefined;
   const availableWings = useMemo(() => {
@@ -182,12 +182,13 @@ export function BuildingSheet({
     ];
   }, [floorPlan, buildingWings, target?.sheetWings]);
 
+  // シートの中だけで選んでいる棟（地図では別の輪郭の研究棟別館）
+  const sheetActiveWing = !activeWing ? (target?.sheetWings?.find((w) => w.id === selectedWing) ?? null) : null;
   // 階のボタンは、棟を選んでいればその棟の階だけ
-  const floorChips = (floorPlan?.floors ?? []).filter((fl) => !activeWing || wingHasFloor(activeWing, fl.floor));
-  // 部外者・学部生が入れない棟（研究棟など）を選んでいれば、番号規則・階・部屋の代わりに断り書きだけを出す（docs/indoor-plan.md 3 節）
-  const restrictedWing =
-    (activeWing?.restricted ? activeWing : null) ??
-    (!activeWing ? (target?.sheetWings?.find((w) => w.id === selectedWing && w.restricted) ?? null) : null);
+  const floorWing = activeWing ?? sheetActiveWing;
+  const floorChips = (floorPlan?.floors ?? []).filter((fl) => !floorWing || wingHasFloor(floorWing, fl.floor));
+  // 部外者・学部生が入れない棟（研究棟・研究棟別館）を選んでいれば、部屋の一覧の上に短い一言を出す。部屋は KAN-CAN! にある情報だけ（docs/indoor-plan.md 3 節）
+  const restrictedWing = floorWing?.restricted ? floorWing : null;
 
   const chooseWing = (key: string | 'all') => {
     if (wingControlled && onSelectWing && (key === 'all' || findWing(target, key))) {
@@ -232,7 +233,7 @@ export function BuildingSheet({
   );
   const restrictedNote = (
     <p className="rounded-xl border border-[#E6DFD2] bg-white px-3 py-2.5 text-[12px] leading-relaxed text-[#4B5360]">
-      部外者・学部生は入れない区域のため、館内の情報は載せていません。
+      部外者・学部生は入れません
     </p>
   );
 
@@ -383,12 +384,7 @@ export function BuildingSheet({
 
       {activeTab === 'floors' && (
         <div key="floors" className="t-tab-panel space-y-2">
-          {restrictedWing ? (
-            <>
-              {wingChips}
-              {restrictedNote}
-            </>
-          ) : floorPlan ? (
+          {floorPlan ? (
             <>
               {floorPlan.numberingRule && (
                 <div className="rounded-xl border border-[#E5DEC9] bg-[#F5F0E6] px-3 py-2 text-[11px] font-bold leading-relaxed text-[#1B365D]">
@@ -397,6 +393,7 @@ export function BuildingSheet({
               )}
 
               {wingChips}
+              {restrictedWing && restrictedNote}
 
               <div className="no-scrollbar flex items-center gap-1 overflow-x-auto pb-0.5">
                 <button

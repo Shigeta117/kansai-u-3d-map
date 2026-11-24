@@ -41,7 +41,7 @@ import type { Wing, WingBuildingLink } from '../../../domain/wings';
  *   （R−B ≈ 0〜+8）に変わる。南東の帯・南の腕も灰色、北西の長い棟は白。色の変わり目は OSM の中庭側の壁の線と 1m 以内で合う。
  *   KAN-CAN! の第4学舎の鳥瞰イラストは ③教室棟を北西の長い棟に、④研究棟を南東の帯に描く（⑤研究棟別館は中庭の低い別棟）。
  *   屋根の色の変わり目を棟の境と見るのは推定
- * - 研究棟と研究棟別館は部外者・学部生が入れないので、押して選べても館内の情報は出さない（棟の表の restricted）
+ * - 研究棟と研究棟別館は部外者・学部生が入れない。押して選べて、KAN-CAN! にある情報だけ載せる（棟の表の restricted。シートは一言を出す）
  * - 研究棟別館（⑤）は 2号館の輪郭の外（中庭の別の輪郭）なので、この切り分けに入らない
  */
 export const AREA4_2_AXIS_U: [number, number] = [0.75973, -0.65024];
@@ -187,7 +187,7 @@ const AREA4_WINGS: readonly WingRow[] = [
     floorsAbove: 5,
     floorsBelow: 1,
     restricted: true,
-    note: 'KAN-CAN! ④。部外者・学部生は入れないので、館内の情報（部屋の一覧など）は載せない（持ち主の決め 2026-11-24）',
+    note: 'KAN-CAN! ④。部外者・学部生は入れない。KAN-CAN! にある情報だけ載せ、現地・冊子での調査はしない（持ち主の決め 2026-11-24）',
   },
   {
     id: 'area4-h2a',
@@ -197,7 +197,7 @@ const AREA4_WINGS: readonly WingRow[] = [
     floorsAbove: 1,
     floorsBelow: 1,
     restricted: true,
-    note: 'KAN-CAN! ⑤。2号館の中庭に建つ別の輪郭（OSM の way 624663829）。研究棟と同じく部外者・学部生は入れないので、館内の情報は載せない（持ち主の決め 2026-11-24）',
+    note: 'KAN-CAN! ⑤。2号館の中庭に建つ別の輪郭（OSM の way 624663829）。研究棟と同じく部外者・学部生は入れない。KAN-CAN! にある情報だけ載せる（持ち主の決め 2026-11-24）',
   },
   { id: 'area4-h3', school: '第4学舎', name: '3号館', floorsAbove: 4, floorsBelow: 0, note: 'KAN-CAN! ⑥' },
   { id: 'area4-h4', school: '第4学舎', name: '4号館', floorsAbove: 3, floorsBelow: 1, note: 'KAN-CAN! ⑦' },
