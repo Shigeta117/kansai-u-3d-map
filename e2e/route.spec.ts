@@ -55,6 +55,22 @@ test.describe('案内アプリの代表フロー', () => {
     await page.screenshot({ path: test.info().outputPath('access-tab.png') });
   });
 
+  test('あすかの庭の近くの 2 棟は、写真で確かめた名前（高松塚古墳壁画再現展示室・トイレ）で検索でき、シートが開く', async ({ page }) => {
+    const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
+    const sheet = page.getByRole('complementary', { name: '建物・施設の詳細情報' });
+    for (const [query, name] of [
+      ['高松塚', '高松塚古墳壁画再現展示室'],
+      ['トイレ', 'あすかの庭のトイレ'],
+    ] as const) {
+      await search.fill(query);
+      await page.getByRole('option', { name: new RegExp(name) }).first().click();
+      await expect(sheet.getByRole('heading', { name })).toBeVisible();
+      await expect(sheet.getByText('関西大学 施設棟')).toHaveCount(0);
+      await sheet.getByRole('button', { name: '詳細パネルを閉じる' }).click();
+      await expect(sheet).toBeHidden();
+    }
+  });
+
   test('中学校・高等学校の施設は、名称と注記だけを出し、経路のボタンを出さない', async ({ page }) => {
     const search = page.getByRole('searchbox', { name: '千里山キャンパスを検索' });
     await search.fill('一高');

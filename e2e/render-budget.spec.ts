@@ -101,6 +101,8 @@ test.describe('描画の重さ', () => {
       ['第3学舎', /第3学舎（社会学部/],
       ['C棟', /第3学舎 3号館 C棟/],
       ['総合図書館', /総合図書館/],
+      // ガラス（半透明）を持つ小さな主役の建物
+      ['高松塚', /高松塚古墳壁画再現展示室/],
     ] as const) {
       const { selected, unselected } = await selectedAndUnselected(page, query, option);
       expect(selected, query).toBeLessThanOrEqual(CALL_BUDGET);
