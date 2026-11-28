@@ -62,12 +62,13 @@ export function MapSideControls({
         }}
         aria-label="北を上にする"
         title="北を上にする"
+        data-map-gesture="pass"
         className="t-interactive pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-[#DDD6C8] bg-[#FAF7F2]/95 text-[#333B47] shadow-md backdrop-blur-md hover:bg-[#EFE9DC] hover:text-[#1B365D]"
       >
         <Compass className="h-[18px] w-[18px]" aria-hidden="true" />
       </button>
 
-      <div className="pointer-events-auto relative">
+      <div data-map-gesture="pass" className="pointer-events-auto relative">
         <button
           type="button"
           onClick={() => setPresetsOpen((prev) => !prev)}

@@ -20,6 +20,11 @@
   canvas {
     touch-action: none;
   }
+
+  /* 地図の上の札・丸いボタン: ここで始めた 2 本指でページを拡大させない（指は canvas に渡す。core の overlayGestures.ts） */
+  [data-map-gesture='pass'] {
+    touch-action: none;
+  }
 }
 
 .no-scrollbar::-webkit-scrollbar {

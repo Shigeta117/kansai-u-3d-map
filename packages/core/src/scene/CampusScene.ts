@@ -36,6 +36,7 @@ import { buildConstructionGroup } from './ConstructionBuilder';
 import { buildTerrainGroup, TERRAIN_PATHS_GROUP_NAME } from './TerrainBuilder';
 import { buildTransportGroup } from './TransportBuilder';
 import { resolveBuildingPick } from './wingSelection';
+import { handOverlayGesturesToCanvas } from './overlayGestures';
 
 export interface CampusSceneCallbacks {
   /** 建物を押したとき（何も無い所なら null）。建物の中の棟（第3学舎の A〜D棟など）を押したら wingId も渡す */
@@ -121,6 +122,8 @@ export class CampusScene {
   private startTimeMs = performance.now();
   private isDisposed = false;
   private isVisible = true;
+  /** 札・丸いボタンの上で始まった指を canvas に渡す仕組みを外す */
+  private disposeOverlayGestures: () => void = () => {};
   private needsRender = true;
   private labelsDirty = true;
   private frustumDirty = true;
@@ -191,6 +194,12 @@ export class CampusScene {
       options.initialCamera,
       options.freeCamera ?? false,
     );
+    // 札や丸いボタン（data-map-gesture="pass"）の上で 2 本指を広げてもページが拡大せず、地図が拡大するように
+    if (typeof document !== 'undefined') {
+      this.disposeOverlayGestures = handOverlayGesturesToCanvas(document, this.renderer.domElement, {
+        isPassTarget: (el) => el.closest('[data-map-gesture="pass"]') !== null,
+      });
+    }
 
     // 表示用の地形: 名神高速の地上の区間の路面の下にかかる格子を下げ、グラウンドの下をグラウンドの面の高さにならす
     // （データの地形は変えない）
@@ -721,6 +730,7 @@ export class CampusScene {
 
   dispose(): void {
     this.isDisposed = true;
+    this.disposeOverlayGestures();
     this.labelListeners.clear();
     this.lastLabelsFrame = null;
     if (this.rafId !== null) {
