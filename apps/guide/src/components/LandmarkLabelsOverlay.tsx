@@ -242,6 +242,7 @@ export function LandmarkLabelsOverlay({
             ref={getButtonRef(lbl.id)}
             type="button"
             onClick={() => onSelect(lbl.id)}
+            data-map-gesture="pass"
             className={`pointer-events-auto absolute left-0 top-0 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold shadow-md transition-colors duration-150 will-change-transform ${
               isSelected
                 ? 'z-20 border-[#C85A3A] bg-[#C85A3A] text-white'
